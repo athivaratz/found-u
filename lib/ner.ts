@@ -1,4 +1,6 @@
-// NER Service using Gemini Flash for extracting structured data from text
+import { DEFAULT_APP_SETTINGS } from "./types";
+
+// NER Service using Gemini models for extracting structured data from text
 // Optimized for speed: ~2-3 seconds response
 
 export interface NERExtractedData {
@@ -13,9 +15,35 @@ export interface NERExtractedData {
   target: "lost" | "found";
 }
 
-// Use Gemini Flash for faster response
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent";
+export interface AIGenerationConfig {
+  model?: string;
+  temperature?: number;
+  topP?: number;
+  maxOutputTokens?: number;
+}
+
+// Use Gemini models for faster response
+const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
+
+const DEFAULT_NER_MODEL = DEFAULT_APP_SETTINGS.aiNerModel || "gemini-1.5-flash";
+
+function normalizeModelName(model: string): string {
+  return model.replace(/^models\//, "");
+}
+
+function buildGenerateContentUrl(model: string): string {
+  return `${GEMINI_API_BASE_URL}/${normalizeModelName(model)}:generateContent`;
+}
+
+function resolveNerConfig(config?: AIGenerationConfig) {
+  return {
+    model: config?.model || DEFAULT_NER_MODEL,
+    temperature: config?.temperature ?? DEFAULT_APP_SETTINGS.aiNerTemperature ?? 0.1,
+    topP: config?.topP ?? DEFAULT_APP_SETTINGS.aiNerTopP ?? 0.8,
+    maxOutputTokens: config?.maxOutputTokens ?? DEFAULT_APP_SETTINGS.aiNerMaxOutputTokens ?? 256,
+  };
+}
 
 // Detailed prompt for school/organization lost & found system
 const NER_PROMPT = `คุณคือ AI สำหรับระบบ Lost & Found หน้าที่คือสกัดข้อมูลเป็น JSON ตามกฎอย่างเคร่งครัด
@@ -65,36 +93,41 @@ Output: {"item":"หูฟัง","description":"สีดำ","location":"ใ�
 Input Text: "{text}"
 JSON Output:`;
 
-export async function extractNERData(text: string, type: "lost" | "found"): Promise<NERExtractedData | null> {
+export async function extractNERData(
+  text: string,
+  type: "lost" | "found",
+  config?: AIGenerationConfig
+): Promise<NERExtractedData | null> {
   if (!GEMINI_API_KEY) {
     console.error("GEMMA_API_KEY not found");
     return null;
   }
 
   try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+    const resolvedConfig = resolveNerConfig(config);
+    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: NER_PROMPT.replace("{text}", text) }] }],
         generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 256, // Reduced from 1024
-          topP: 0.8,
+          temperature: resolvedConfig.temperature,
+          maxOutputTokens: resolvedConfig.maxOutputTokens,
+          topP: resolvedConfig.topP,
         },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Gemma API error:", errorText);
+      console.error("Gemini API error:", errorText);
       return null;
     }
 
     const data = await response.json();
 
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      console.error("Invalid response format from Gemma API");
+      console.error("Invalid response format from Gemini API");
       return null;
     }
 
@@ -122,7 +155,7 @@ export async function extractNERData(text: string, type: "lost" | "found"): Prom
       target: parsedData.target || type,
     };
   } catch (error) {
-    console.error("Error calling Gemma API:", error);
+    console.error("Error calling Gemini API:", error);
     return null;
   }
 }

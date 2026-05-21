@@ -29,6 +29,16 @@ export interface AppSettings {
   systemAiRateLimitPerMinute?: number; // จำนวนครั้งต่อนาทีของทั้งระบบ
   systemAiRateLimitPerHour?: number; // จำนวนครั้งต่อชั่วโมงของทั้งระบบ
 
+  // AI Model Settings
+  aiNerModel?: string; // โมเดลสำหรับ NER
+  aiNerTemperature?: number;
+  aiNerTopP?: number;
+  aiNerMaxOutputTokens?: number;
+  aiMatchingModel?: string; // โมเดลสำหรับ Matching
+  aiMatchingTemperature?: number;
+  aiMatchingTopP?: number;
+  aiMatchingMaxOutputTokens?: number;
+
   // Other settings
   updatedAt?: Date;
   updatedBy?: string;
@@ -48,6 +58,14 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   systemAiRateLimitEnabled: true,
   systemAiRateLimitPerMinute: 20,
   systemAiRateLimitPerHour: 100,
+  aiNerModel: "gemini-1.5-flash",
+  aiNerTemperature: 0.1,
+  aiNerTopP: 0.8,
+  aiNerMaxOutputTokens: 256,
+  aiMatchingModel: "gemini-1.5-flash",
+  aiMatchingTemperature: 0.1,
+  aiMatchingTopP: 0.8,
+  aiMatchingMaxOutputTokens: 200,
 };
 
 // AI Rate Limit Usage Record

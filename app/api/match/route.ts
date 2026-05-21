@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLostItems, getFoundItems, updateLostItem, updateFoundItem } from '@/lib/firestore';
+import { getLostItems, getFoundItems, updateLostItem, updateFoundItem, getAppSettings } from '@/lib/firestore';
 import { 
   findMatchesForLostItem, 
   findMatchesForFoundItem, 
@@ -35,6 +35,16 @@ export async function POST(request: NextRequest) {
 
     let matches;
 
+    const aiSettings = useAI ? await getAppSettings() : null;
+    const aiConfig = aiSettings
+      ? {
+          model: aiSettings.aiMatchingModel,
+          temperature: aiSettings.aiMatchingTemperature,
+          topP: aiSettings.aiMatchingTopP,
+          maxOutputTokens: aiSettings.aiMatchingMaxOutputTokens,
+        }
+      : undefined;
+
     if (type === 'lost') {
       const lostItem = allLostItems.find(item => item.id === itemId);
       if (!lostItem) {
@@ -45,7 +55,7 @@ export async function POST(request: NextRequest) {
       }
       // Use AI matching if requested
       matches = useAI 
-        ? await findMatchesForLostItemAI(lostItem, allFoundItems)
+        ? await findMatchesForLostItemAI(lostItem, allFoundItems, 5, aiConfig)
         : findMatchesForLostItem(lostItem, allFoundItems);
     } else {
       const foundItem = allFoundItems.find(item => item.id === itemId);
@@ -57,7 +67,7 @@ export async function POST(request: NextRequest) {
       }
       // Use AI matching if requested
       matches = useAI
-        ? await findMatchesForFoundItemAI(foundItem, allLostItems)
+        ? await findMatchesForFoundItemAI(foundItem, allLostItems, 5, aiConfig)
         : findMatchesForFoundItem(foundItem, allLostItems);
     }
 

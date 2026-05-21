@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { extractNERData } from '@/lib/ner';
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import type { AppSettings } from '@/lib/types';
+import { DEFAULT_APP_SETTINGS, type AppSettings } from '@/lib/types';
 
 interface RateLimitCheckResult {
   allowed: boolean;
@@ -20,18 +20,8 @@ interface RateLimitCheckResult {
 async function getAppSettingsAdmin(): Promise<AppSettings> {
   const docRef = adminDb.collection('settings').doc('appSettings');
   const docSnap = await docRef.get();
-  
-  const defaultSettings: AppSettings = {
-    restrictModeEnabled: false,
-    betaRequestsEnabled: true,
-    betaClosedMessage: 'ขณะนี้ระบบปิดรับสมัคร Beta Tester ชั่วคราว',
-    aiRateLimitEnabled: true,
-    aiRateLimitPerMinute: 5,
-    aiRateLimitPerHour: 30,
-    systemAiRateLimitEnabled: true,
-    systemAiRateLimitPerMinute: 20,
-    systemAiRateLimitPerHour: 100,
-  };
+
+  const defaultSettings: AppSettings = DEFAULT_APP_SETTINGS;
   
   if (!docSnap.exists) {
     return defaultSettings;
@@ -248,9 +238,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const settings = await getAppSettingsAdmin();
+
     // Check and record rate limit atomically if userId is provided
     if (userId) {
-      const settings = await getAppSettingsAdmin();
       const rateLimitResult = await checkAndRecordRateLimitAtomic(userId, settings, 'ner');
 
       if (!rateLimitResult.allowed) {
@@ -271,7 +262,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const result = await extractNERData(text, type);
+    const result = await extractNERData(text, type, {
+      model: settings.aiNerModel,
+      temperature: settings.aiNerTemperature,
+      topP: settings.aiNerTopP,
+      maxOutputTokens: settings.aiNerMaxOutputTokens,
+    });
 
     if (!result) {
       return NextResponse.json(

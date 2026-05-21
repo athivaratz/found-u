@@ -1,6 +1,7 @@
 // Enhanced Automatic matching algorithm for lost and found items
 // Uses hierarchical filtering strategy: Category → Location → Time → Item → Description
 
+import { DEFAULT_APP_SETTINGS } from './types';
 import type { LostItem, FoundItem, ItemCategory } from './types';
 import { calculateSimilarity } from './ner';
 
@@ -351,8 +352,34 @@ export function getTopMatches(matches: MatchScore[], limit: number = 5): MatchSc
 
 // ============ AI-BASED MATCHING ============
 
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent";
+const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
+
+interface AIGenerationConfig {
+  model?: string;
+  temperature?: number;
+  topP?: number;
+  maxOutputTokens?: number;
+}
+
+const DEFAULT_MATCH_MODEL = DEFAULT_APP_SETTINGS.aiMatchingModel || "gemini-1.5-flash";
+
+function normalizeModelName(model: string): string {
+  return model.replace(/^models\//, "");
+}
+
+function buildGenerateContentUrl(model: string): string {
+  return `${GEMINI_API_BASE_URL}/${normalizeModelName(model)}:generateContent`;
+}
+
+function resolveMatchConfig(config?: AIGenerationConfig) {
+  return {
+    model: config?.model || DEFAULT_MATCH_MODEL,
+    temperature: config?.temperature ?? DEFAULT_APP_SETTINGS.aiMatchingTemperature ?? 0.1,
+    topP: config?.topP ?? DEFAULT_APP_SETTINGS.aiMatchingTopP ?? 0.8,
+    maxOutputTokens: config?.maxOutputTokens ?? DEFAULT_APP_SETTINGS.aiMatchingMaxOutputTokens ?? 200,
+  };
+}
 
 const AI_MATCH_PROMPT = `คุณเป็น AI สำหรับจับคู่ของหายกับของที่เจอ
 
@@ -385,7 +412,11 @@ interface AIMatchResult {
 /**
  * Use AI to compare a lost item with a found item
  */
-async function aiCompareItems(lostItem: LostItem, foundItem: FoundItem): Promise<AIMatchResult | null> {
+async function aiCompareItems(
+  lostItem: LostItem,
+  foundItem: FoundItem,
+  config?: AIGenerationConfig
+): Promise<AIMatchResult | null> {
   if (!GEMINI_API_KEY) {
     console.error("GEMMA_API_KEY not found for AI matching");
     return null;
@@ -399,15 +430,16 @@ async function aiCompareItems(lostItem: LostItem, foundItem: FoundItem): Promise
     .replace('{foundLocation}', foundItem.locationFound);
 
   try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+    const resolvedConfig = resolveMatchConfig(config);
+    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 200,
-          topP: 0.8,
+          temperature: resolvedConfig.temperature,
+          maxOutputTokens: resolvedConfig.maxOutputTokens,
+          topP: resolvedConfig.topP,
         },
       }),
     });
@@ -439,7 +471,8 @@ async function aiCompareItems(lostItem: LostItem, foundItem: FoundItem): Promise
 export async function findMatchesForLostItemAI(
   lostItem: LostItem,
   foundItems: FoundItem[],
-  maxCandidates: number = 5
+  maxCandidates: number = 5,
+  config?: AIGenerationConfig
 ): Promise<MatchScore[]> {
   // First, use traditional matching to get top candidates
   const traditionalMatches = findMatchesForLostItem(lostItem, foundItems);
@@ -449,7 +482,7 @@ export async function findMatchesForLostItemAI(
   const aiMatches: MatchScore[] = [];
   
   for (const candidate of topCandidates) {
-    const aiResult = await aiCompareItems(lostItem, candidate.foundItem);
+    const aiResult = await aiCompareItems(lostItem, candidate.foundItem, config);
     if (aiResult && aiResult.isMatch) {
       aiMatches.push({
         lostItem,
@@ -470,7 +503,8 @@ export async function findMatchesForLostItemAI(
 export async function findMatchesForFoundItemAI(
   foundItem: FoundItem,
   lostItems: LostItem[],
-  maxCandidates: number = 5
+  maxCandidates: number = 5,
+  config?: AIGenerationConfig
 ): Promise<MatchScore[]> {
   // First, use traditional matching to get top candidates
   const traditionalMatches = findMatchesForFoundItem(foundItem, lostItems);
@@ -480,7 +514,7 @@ export async function findMatchesForFoundItemAI(
   const aiMatches: MatchScore[] = [];
   
   for (const candidate of topCandidates) {
-    const aiResult = await aiCompareItems(candidate.lostItem, foundItem);
+    const aiResult = await aiCompareItems(candidate.lostItem, foundItem, config);
     if (aiResult && aiResult.isMatch) {
       aiMatches.push({
         lostItem: candidate.lostItem,

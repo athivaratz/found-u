@@ -22,7 +22,7 @@ import {
   Loader2,
   ChevronRight,
   Sparkles,
-  Activity,
+  Bot,
   Users,
   UserX,
   AlertTriangle,
@@ -40,7 +40,7 @@ const navItems = [
   { href: "/admin/moderation", icon: Shield, label: "Moderation", description: "ตรวจสอบและอนุมัติ" },
   { href: "/admin/logs", icon: FileText, label: "Logs", description: "ประวัติการใช้งาน" },
   { href: "/admin/error-logs", icon: AlertTriangle, label: "Error Logs", description: "Errors ในระบบ" },
-  { href: "/admin/ai-test", icon: Activity, label: "AI Test", description: "ทดสอบการเชื่อมต่อ AI" },
+  { href: "/admin/ai", icon: Bot, label: "AI", description: "โมเดลและการทดสอบ" },
   { href: "/admin/settings", icon: Settings, label: "ตั้งค่า", description: "ตั้งค่าระบบ" },
 ];
 

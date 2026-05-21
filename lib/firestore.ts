@@ -388,6 +388,15 @@ export async function getAppSettings(): Promise<AppSettings> {
       systemAiRateLimitEnabled: data.systemAiRateLimitEnabled ?? DEFAULT_APP_SETTINGS.systemAiRateLimitEnabled,
       systemAiRateLimitPerMinute: data.systemAiRateLimitPerMinute ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerMinute,
       systemAiRateLimitPerHour: data.systemAiRateLimitPerHour ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerHour,
+      // AI Model Settings
+      aiNerModel: data.aiNerModel || DEFAULT_APP_SETTINGS.aiNerModel,
+      aiNerTemperature: data.aiNerTemperature ?? DEFAULT_APP_SETTINGS.aiNerTemperature,
+      aiNerTopP: data.aiNerTopP ?? DEFAULT_APP_SETTINGS.aiNerTopP,
+      aiNerMaxOutputTokens: data.aiNerMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiNerMaxOutputTokens,
+      aiMatchingModel: data.aiMatchingModel || DEFAULT_APP_SETTINGS.aiMatchingModel,
+      aiMatchingTemperature: data.aiMatchingTemperature ?? DEFAULT_APP_SETTINGS.aiMatchingTemperature,
+      aiMatchingTopP: data.aiMatchingTopP ?? DEFAULT_APP_SETTINGS.aiMatchingTopP,
+      aiMatchingMaxOutputTokens: data.aiMatchingMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiMatchingMaxOutputTokens,
       updatedAt: timestampToDate(data.updatedAt),
       updatedBy: data.updatedBy,
     };
@@ -427,6 +436,15 @@ export function subscribeToAppSettings(callback: (settings: AppSettings) => void
         systemAiRateLimitEnabled: data.systemAiRateLimitEnabled ?? DEFAULT_APP_SETTINGS.systemAiRateLimitEnabled,
         systemAiRateLimitPerMinute: data.systemAiRateLimitPerMinute ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerMinute,
         systemAiRateLimitPerHour: data.systemAiRateLimitPerHour ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerHour,
+        // AI Model Settings
+        aiNerModel: data.aiNerModel || DEFAULT_APP_SETTINGS.aiNerModel,
+        aiNerTemperature: data.aiNerTemperature ?? DEFAULT_APP_SETTINGS.aiNerTemperature,
+        aiNerTopP: data.aiNerTopP ?? DEFAULT_APP_SETTINGS.aiNerTopP,
+        aiNerMaxOutputTokens: data.aiNerMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiNerMaxOutputTokens,
+        aiMatchingModel: data.aiMatchingModel || DEFAULT_APP_SETTINGS.aiMatchingModel,
+        aiMatchingTemperature: data.aiMatchingTemperature ?? DEFAULT_APP_SETTINGS.aiMatchingTemperature,
+        aiMatchingTopP: data.aiMatchingTopP ?? DEFAULT_APP_SETTINGS.aiMatchingTopP,
+        aiMatchingMaxOutputTokens: data.aiMatchingMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiMatchingMaxOutputTokens,
         updatedAt: timestampToDate(data.updatedAt),
         updatedBy: data.updatedBy,
       });
