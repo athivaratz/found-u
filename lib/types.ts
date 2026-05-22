@@ -39,6 +39,21 @@ export interface AppSettings {
   aiMatchingTopP?: number;
   aiMatchingMaxOutputTokens?: number;
 
+  // AI Vision Model Settings
+  aiVisionModel?: string; // โมเดลสำหรับ Vision
+  aiVisionTemperature?: number;
+  aiVisionTopP?: number;
+  aiVisionMaxOutputTokens?: number;
+
+  // Map & Geofence Settings
+  mapsEnabled?: boolean;
+  mapTileUrl?: string;
+  mapAttribution?: string;
+  mapDefaultCenter?: GeoPoint;
+  mapDefaultZoom?: number;
+  mapSchoolBoundary?: GeoPoint[]; // Polygon points
+  mapEnforceFoundInSchool?: boolean;
+
   // Other settings
   updatedAt?: Date;
   updatedBy?: string;
@@ -66,6 +81,17 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   aiMatchingTemperature: 0.1,
   aiMatchingTopP: 0.8,
   aiMatchingMaxOutputTokens: 200,
+  aiVisionModel: "gemini-1.5-flash",
+  aiVisionTemperature: 0.1,
+  aiVisionTopP: 0.8,
+  aiVisionMaxOutputTokens: 256,
+  mapsEnabled: true,
+  mapTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  mapAttribution: "© OpenStreetMap contributors",
+  mapDefaultCenter: { lat: 13.7563, lng: 100.5018 },
+  mapDefaultZoom: 17,
+  mapSchoolBoundary: [],
+  mapEnforceFoundInSchool: true,
 };
 
 // AI Rate Limit Usage Record
@@ -124,6 +150,18 @@ export interface ErrorLog {
 // ช่องทางการติดต่อ
 export type ContactType = 'phone' | 'line' | 'instagram' | 'facebook' | 'email';
 
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+export type LocationSource = 'gps' | 'map' | 'manual';
+
+export interface LocationCoords extends GeoPoint {
+  accuracy?: number;
+  source?: LocationSource;
+}
+
 export interface ContactInfo {
   type: ContactType;
   value: string;
@@ -172,6 +210,8 @@ export interface LostItem {
   category: ItemCategory;
   description?: string;
   locationLost: string;
+  locationPlaceName?: string;
+  locationCoords?: LocationCoords;
   dateLost: Date;
   contacts: ContactInfo[]; // ช่องทางการติดต่อ
   userId?: string; // Firebase Auth UID
@@ -186,8 +226,14 @@ export interface FoundItem {
   id: string;
   trackingCode: string;
   photoUrl?: string;
+  itemName?: string;
+  category?: ItemCategory;
+  color?: string | null;
+  brand?: string | null;
   description: string;
   locationFound: string;
+  locationPlaceName?: string;
+  locationCoords?: LocationCoords;
   dateFound: Date;
   dropOffLocation: DropOffLocation;
   finderContacts?: ContactInfo[]; // ช่องทางการติดต่อผู้เจอ

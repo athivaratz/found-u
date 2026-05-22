@@ -31,6 +31,7 @@ import type { CategoryConfig, LocationConfig } from "@/lib/firestore";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { logStatusChanged, logActivity } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
+import MapCanvas from "@/components/ui/map-canvas";
 
 type Tab = "lost" | "found";
 
@@ -74,7 +75,10 @@ export default function AdminItemsPage() {
     };
   }, []);
 
-  const { user } = useAuth(); // Add user auth context
+  const { user, appSettings } = useAuth(); // Add user auth context
+
+  const mapCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
+  const mapZoom = appSettings.mapDefaultZoom ?? 17;
 
   const handleStatusUpdate = async (item: LostItem | FoundItem, newStatus: ItemStatus) => {
     setUpdating(true);
@@ -142,6 +146,15 @@ export default function AdminItemsPage() {
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const mapMarkers = (activeTab === "lost" ? filteredLostItems : filteredFoundItems)
+    .filter((item) => item.locationCoords)
+    .map((item) => ({
+      id: item.id,
+      position: item.locationCoords!,
+      label: "itemName" in item ? item.itemName : item.description,
+      color: activeTab === "lost" ? "#ef4444" : "#06C755",
+    }));
 
   if (loading) {
     return (
@@ -221,6 +234,36 @@ export default function AdminItemsPage() {
           </select>
         </div>
       </div>
+
+      {appSettings.mapsEnabled && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">แผนที่รายการ</h2>
+              <p className="text-xs text-gray-500">แสดงพิกัดที่ผู้ใช้ปักไว้</p>
+            </div>
+            <span className="text-xs text-gray-400">{mapMarkers.length} จุด</span>
+          </div>
+          <div className="p-4">
+            {mapMarkers.length > 0 ? (
+              <MapCanvas
+                center={mapCenter}
+                zoom={mapZoom}
+                tileUrl={appSettings.mapTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
+                attribution={appSettings.mapAttribution || ""}
+                mode="view"
+                polygon={appSettings.mapSchoolBoundary || []}
+                markers={mapMarkers}
+                className="h-72"
+              />
+            ) : (
+              <div className="h-48 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center text-sm text-gray-400">
+                ไม่มีพิกัดให้แสดง
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Items Table/Cards */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">

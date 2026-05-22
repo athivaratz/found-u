@@ -25,6 +25,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Share2,
+  MapPin,
   Image as ImageIcon,
 } from "lucide-react";
 import Image from "next/image";
@@ -34,8 +35,9 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs, writeBatch, doc, serverTimestamp } from "firebase/firestore";
 import { uploadImage, compressImage } from "@/lib/storage";
 import { cn } from "@/lib/utils";
-import type { AppUser, AppSettings } from "@/lib/types";
+import type { AppUser, AppSettings, GeoPoint } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
+import MapCanvas from "@/components/ui/map-canvas";
 
 export default function AdminSettingsPage() {
   const { user, appSettings: contextAppSettings } = useAuth();
@@ -123,6 +125,10 @@ export default function AdminSettingsPage() {
       setSaving(false);
     }
   };
+
+  const mapCenter = betaSettings.mapDefaultCenter || DEFAULT_APP_SETTINGS.mapDefaultCenter!;
+  const mapZoom = betaSettings.mapDefaultZoom ?? DEFAULT_APP_SETTINGS.mapDefaultZoom ?? 17;
+  const mapPolygon = betaSettings.mapSchoolBoundary || [];
 
   const [processingData, setProcessingData] = useState(false);
 
@@ -744,6 +750,212 @@ export default function AdminSettingsPage() {
                         )}
                       </div>
                     </>
+                  )}
+                </div>
+              </div>
+
+              {/* Map & GPS Settings */}
+              <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">แผนที่และ GPS</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        ใช้แผนที่เพื่อปักพิกัดและกำหนดขอบเขตโรงเรียน
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        setBetaSettings({
+                          ...betaSettings,
+                          mapsEnabled: !betaSettings.mapsEnabled,
+                        })
+                      }
+                      className={cn(
+                        "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
+                        betaSettings.mapsEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
+                          betaSettings.mapsEnabled ? "right-1" : "left-1"
+                        )}
+                      />
+                    </button>
+                  </div>
+
+                  {betaSettings.mapsEnabled && (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            ลิงก์แผนที่ (Tile URL)
+                          </label>
+                          <input
+                            type="text"
+                            value={betaSettings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl}
+                            onChange={(e) =>
+                              setBetaSettings({ ...betaSettings, mapTileUrl: e.target.value })
+                            }
+                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            แหล่งที่มา (Attribution)
+                          </label>
+                          <input
+                            type="text"
+                            value={betaSettings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
+                            onChange={(e) =>
+                              setBetaSettings({ ...betaSettings, mapAttribution: e.target.value })
+                            }
+                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            ละติจูดศูนย์กลาง
+                          </label>
+                          <input
+                            type="number"
+                            step="0.000001"
+                            value={mapCenter.lat}
+                            onChange={(e) =>
+                              setBetaSettings({
+                                ...betaSettings,
+                                mapDefaultCenter: {
+                                  lat: Number(e.target.value),
+                                  lng: mapCenter.lng,
+                                },
+                              })
+                            }
+                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            ลองจิจูดศูนย์กลาง
+                          </label>
+                          <input
+                            type="number"
+                            step="0.000001"
+                            value={mapCenter.lng}
+                            onChange={(e) =>
+                              setBetaSettings({
+                                ...betaSettings,
+                                mapDefaultCenter: {
+                                  lat: mapCenter.lat,
+                                  lng: Number(e.target.value),
+                                },
+                              })
+                            }
+                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            ระดับซูมเริ่มต้น
+                          </label>
+                          <input
+                            type="number"
+                            min={10}
+                            max={22}
+                            value={mapZoom}
+                            onChange={(e) =>
+                              setBetaSettings({
+                                ...betaSettings,
+                                mapDefaultZoom: Number(e.target.value),
+                              })
+                            }
+                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-start justify-between gap-4 p-3 bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            บังคับพิกัดในโรงเรียน (เฉพาะแจ้งเจอของ)
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            บล็อกการส่งถ้าอยู่นอกขอบเขตที่กำหนด
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setBetaSettings({
+                              ...betaSettings,
+                              mapEnforceFoundInSchool: !betaSettings.mapEnforceFoundInSchool,
+                            })
+                          }
+                          className={cn(
+                            "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
+                            betaSettings.mapEnforceFoundInSchool
+                              ? "bg-line-green"
+                              : "bg-gray-300 dark:bg-gray-500"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
+                              betaSettings.mapEnforceFoundInSchool ? "right-1" : "left-1"
+                            )}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          ขอบเขตโรงเรียน (Polygon)
+                        </label>
+                        <MapCanvas
+                          center={mapCenter}
+                          zoom={mapZoom}
+                          tileUrl={betaSettings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl!}
+                          attribution={betaSettings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
+                          mode="polygon"
+                          polygon={mapPolygon}
+                          onPolygonChange={(points: GeoPoint[]) =>
+                            setBetaSettings({ ...betaSettings, mapSchoolBoundary: points })
+                          }
+                          className="h-64"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setBetaSettings({ ...betaSettings, mapSchoolBoundary: [] })
+                            }
+                            className="px-3 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
+                          >
+                            ล้างขอบเขต
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setBetaSettings({
+                                ...betaSettings,
+                                mapSchoolBoundary: mapPolygon.slice(0, -1),
+                              })
+                            }
+                            className="px-3 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
+                          >
+                            ลบจุดล่าสุด
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          คลิกบนแผนที่เพื่อเพิ่มจุด (ต้องมีอย่างน้อย 3 จุด)
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
