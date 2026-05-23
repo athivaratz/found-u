@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { LogIn, Lock, ArrowRight } from "lucide-react";
-import { useAuth } from "@/contexts/auth-context";
 
 interface LoginPromptProps {
   title?: string;
@@ -18,15 +17,6 @@ export default function LoginPrompt({
   showBackButton = true,
 }: LoginPromptProps) {
   const router = useRouter();
-  const { signIn, loading } = useAuth();
-
-  const handleSignIn = async () => {
-    try {
-      await signIn();
-    } catch (error) {
-      console.error("Error signing in:", error);
-    }
-  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
@@ -57,12 +47,11 @@ export default function LoginPrompt({
       {/* Action Buttons */}
       <div className="w-full max-w-xs space-y-3 mt-4">
         <button
-          onClick={handleSignIn}
-          disabled={loading}
+          onClick={() => router.push("/login")}
           className="w-full py-3.5 bg-[#06C755] text-white rounded-full font-medium hover:bg-[#05b34d] transition-colors flex items-center justify-center gap-2"
         >
           <LogIn className="w-5 h-5" />
-          เข้าสู่ระบบด้วย Google
+          เข้าสู่ระบบ
         </button>
 
         {showBackButton && (
@@ -78,7 +67,7 @@ export default function LoginPrompt({
 
       {/* Security note */}
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-6 max-w-xs">
-        🔒 ข้อมูลของคุณปลอดภัย เราใช้ Google Sign-In ซึ่งไม่เก็บรหัสผ่านของคุณ
+        🔒 ใช้เลขประจำตัวและรหัสผ่านจากโรงเรียน หรือ Google (ต้องยืนยันตัวตนครั้งแรก)
       </p>
     </div>
   );

@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Package, Settings, LogOut, Sun, Moon, Loader2, LogIn } from "lucide-react";
+import { Package, Settings, Shield, LogOut, Sun, Moon, Loader2, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { menuItems } from "@/lib/menu";
+import { getUserPublicEmail, getUserShownName } from "@/lib/user-display";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, loading: authLoading, isAdmin, signIn, logout } = useAuth();
+  const { user, appUser, loading: authLoading, isAdmin, signIn, logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
 
   const handleSignIn = async () => {
@@ -28,6 +30,8 @@ export default function Sidebar() {
       console.error("Error logging out:", error);
     }
   };
+
+  const publicEmail = user ? getUserPublicEmail(appUser, user) : null;
 
   return (
     <aside className="w-72 bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen overflow-y-auto hidden md:flex flex-col z-50">
@@ -49,16 +53,20 @@ export default function Sidebar() {
             <Loader2 className="w-5 h-5 text-line-green animate-spin mx-auto" />
           ) : user ? (
             <div className="flex items-center gap-3">
-              <img
-                src={user.photoURL || ""}
-                alt=""
-                className="w-10 h-10 rounded-full object-cover"
-              />
+              <UserAvatar user={user} appUser={appUser} />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-text-primary text-sm truncate">
-                  {user.displayName}
+                  {getUserShownName(appUser, user)}
                 </p>
-                <p className="text-xs text-text-secondary truncate">{user.email}</p>
+                {publicEmail ? (
+                  <p className="text-xs text-text-secondary truncate">
+                    {publicEmail}
+                  </p>
+                ) : (
+                  <p className="text-xs text-text-tertiary truncate">
+                    ยังไม่มีอีเมล
+                  </p>
+                )}
               </div>
             </div>
           ) : (
@@ -118,10 +126,18 @@ export default function Sidebar() {
 
       {/* Footer Actions */}
       <div className="p-4 border-t border-border-light space-y-2">
+        {user && (
+          <Link href="/settings">
+            <div className="px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
+              <Settings className="w-4 h-4" />
+              ตั้งค่า
+            </div>
+          </Link>
+        )}
         {isAdmin && (
           <Link href="/admin">
             <div className="px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
-              <Settings className="w-4 h-4" />
+              <Shield className="w-4 h-4" />
               Admin Panel
             </div>
           </Link>

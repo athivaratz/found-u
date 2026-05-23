@@ -1,8 +1,10 @@
 import { 
   getAuth, 
   signInWithPopup,
+  linkWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signInWithCustomToken,
   GoogleAuthProvider, 
   signOut as firebaseSignOut,
   onAuthStateChanged,
@@ -44,6 +46,46 @@ export async function signInWithGoogle() {
   } catch (error: any) {
     console.error('Error signing in with Google:', error);
     isSigningIn = false;
+    return { user: null, error: error as Error };
+  }
+}
+
+// เชื่อม Google กับบัญชีที่ล็อกอินอยู่ (รหัสนักเรียน / PIN / PassKey)
+export async function linkGoogleToCurrentUser() {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    return { user: null, error: new Error("กรุณาเข้าสู่ระบบก่อน") };
+  }
+
+  try {
+    const result = await linkWithPopup(currentUser, googleProvider);
+    return { user: result.user, error: null };
+  } catch (error: unknown) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === "auth/popup-closed-by-user") {
+      return { user: null, error: null };
+    }
+    if (err.code === "auth/credential-already-in-use") {
+      return {
+        user: null,
+        error: new Error("บัญชี Google นี้ถูกใช้กับผู้ใช้อื่นแล้ว"),
+      };
+    }
+    console.error("Error linking Google:", error);
+    return {
+      user: null,
+      error: new Error(err.message || "เชื่อมบัญชี Google ไม่สำเร็จ"),
+    };
+  }
+}
+
+// Sign in with custom token (school login)
+export async function signInWithStudentCustomToken(customToken: string) {
+  try {
+    const result = await signInWithCustomToken(auth, customToken);
+    return { user: result.user, error: null };
+  } catch (error) {
+    console.error('Error signing in with custom token:', error);
     return { user: null, error: error as Error };
   }
 }

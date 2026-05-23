@@ -20,16 +20,13 @@ import {
 import { db } from './firebase';
 import { normalizeGeoPoint, normalizeGeoPolygon } from './utils';
 import { stripUndefined } from './strip-undefined';
-import type { LostItem, FoundItem, ItemStatus, AppUser, UserRole, BetaStatus, BanStatus, AppSettings, ErrorLog, ErrorSeverity, ErrorSource, AIUsageRecord, NfcTag, NfcTagStatus, NfcFoundReport, NfcFoundReportStatus } from './types';
+import type { LostItem, FoundItem, ItemStatus, AppUser, UserRole, BanStatus, AppSettings, ErrorLog, ErrorSeverity, ErrorSource, AIUsageRecord, NfcTag, NfcTagStatus, NfcFoundReport, NfcFoundReportStatus } from './types';
 import { DEFAULT_APP_SETTINGS } from './types';
 
 function mapAppSettingsFromFirestore(data: DocumentData): AppSettings {
   const mapCenter = normalizeGeoPoint(data.mapDefaultCenter) || DEFAULT_APP_SETTINGS.mapDefaultCenter;
 
   return {
-    restrictModeEnabled: data.restrictModeEnabled ?? DEFAULT_APP_SETTINGS.restrictModeEnabled,
-    betaRequestsEnabled: data.betaRequestsEnabled ?? DEFAULT_APP_SETTINGS.betaRequestsEnabled,
-    betaClosedMessage: data.betaClosedMessage ?? DEFAULT_APP_SETTINGS.betaClosedMessage,
     ogTitle: data.ogTitle || DEFAULT_APP_SETTINGS.ogTitle,
     ogDescription: data.ogDescription || DEFAULT_APP_SETTINGS.ogDescription,
     ogImage: data.ogImage || DEFAULT_APP_SETTINGS.ogImage,
@@ -118,10 +115,7 @@ export async function createOrUpdateUser(userData: {
       displayName: data?.displayName || userData.displayName,
       photoURL: data?.photoURL,
       role: data?.role || 'user' as UserRole,
-      betaStatus: data?.betaStatus || 'none' as BetaStatus,
       hasSeenTutorial: data?.hasSeenTutorial || false,
-      betaRequestedAt: timestampToDate(data?.betaRequestedAt),
-      betaApprovedAt: timestampToDate(data?.betaApprovedAt),
       banStatus: data?.banStatus || 'none' as BanStatus,
       banReason: data?.banReason,
       bannedAt: timestampToDate(data?.bannedAt),
@@ -135,7 +129,6 @@ export async function createOrUpdateUser(userData: {
     const newUser = {
       ...userData,
       role: 'user' as UserRole, // default role
-      betaStatus: 'none' as BetaStatus, // default beta status
       banStatus: 'none' as BanStatus, // default ban status
       hasSeenTutorial: false,
       createdAt: serverTimestamp(),
@@ -152,10 +145,7 @@ export async function createOrUpdateUser(userData: {
       displayName: data?.displayName || userData.displayName,
       photoURL: data?.photoURL,
       role: data?.role || 'user' as UserRole,
-      betaStatus: data?.betaStatus || 'none' as BetaStatus,
       hasSeenTutorial: data?.hasSeenTutorial || false,
-      betaRequestedAt: timestampToDate(data?.betaRequestedAt),
-      betaApprovedAt: timestampToDate(data?.betaApprovedAt),
       banStatus: data?.banStatus || 'none' as BanStatus,
       banReason: data?.banReason,
       bannedAt: timestampToDate(data?.bannedAt),
@@ -178,10 +168,7 @@ export async function getUser(uid: string): Promise<AppUser | null> {
       displayName: data.displayName,
       photoURL: data.photoURL,
       role: data.role,
-      betaStatus: data.betaStatus || 'none',
       hasSeenTutorial: data.hasSeenTutorial || false,
-      betaRequestedAt: timestampToDate(data.betaRequestedAt),
-      betaApprovedAt: timestampToDate(data.betaApprovedAt),
       banStatus: data.banStatus || 'none',
       banReason: data.banReason,
       bannedAt: timestampToDate(data.bannedAt),
@@ -213,10 +200,7 @@ export async function getAllUsers(): Promise<AppUser[]> {
       displayName: data.displayName,
       photoURL: data.photoURL,
       role: data.role,
-      betaStatus: data.betaStatus || 'none',
       hasSeenTutorial: data.hasSeenTutorial || false,
-      betaRequestedAt: timestampToDate(data.betaRequestedAt),
-      betaApprovedAt: timestampToDate(data.betaApprovedAt),
       banStatus: data.banStatus || 'none',
       banReason: data.banReason,
       bannedAt: timestampToDate(data.bannedAt),
@@ -239,10 +223,16 @@ export function subscribeToUser(uid: string, callback: (user: AppUser | null) =>
         displayName: data.displayName,
         photoURL: data.photoURL,
         role: data.role,
-        betaStatus: data.betaStatus || 'none',
+        studentId: data.studentId,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        nickname: data.nickname,
+        shownName: data.shownName,
+        isStudentVerified:
+          data.isStudentVerified ?? (data.role === "admin" || !!data.studentId),
+        authMethods: data.authMethods,
+        mustChangePassword: data.mustChangePassword,
         hasSeenTutorial: data.hasSeenTutorial || false,
-        betaRequestedAt: timestampToDate(data.betaRequestedAt),
-        betaApprovedAt: timestampToDate(data.betaApprovedAt),
         banStatus: data.banStatus || 'none',
         banReason: data.banReason,
         bannedAt: timestampToDate(data.bannedAt),
@@ -258,64 +248,8 @@ export function subscribeToUser(uid: string, callback: (user: AppUser | null) =>
 }
 
 // ========================================
-// Beta Tester Management
+// Tutorial
 // ========================================
-
-export async function requestBetaAccess(uid: string) {
-  const userRef = doc(db, COLLECTIONS.USERS, uid);
-  await updateDoc(userRef, {
-    betaStatus: 'pending' as BetaStatus,
-    betaRequestedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export async function approveBetaTester(uid: string) {
-  const userRef = doc(db, COLLECTIONS.USERS, uid);
-  await updateDoc(userRef, {
-    betaStatus: 'approved' as BetaStatus,
-    betaApprovedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export async function rejectBetaTester(uid: string) {
-  const userRef = doc(db, COLLECTIONS.USERS, uid);
-  await updateDoc(userRef, {
-    betaStatus: 'rejected' as BetaStatus,
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export async function getPendingBetaTesters(): Promise<AppUser[]> {
-  const q = query(
-    collection(db, COLLECTIONS.USERS),
-    where('betaStatus', '==', 'pending'),
-    orderBy('betaRequestedAt', 'desc')
-  );
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      uid: doc.id,
-      email: data.email,
-      displayName: data.displayName,
-      photoURL: data.photoURL,
-      role: data.role,
-      betaStatus: data.betaStatus,
-      hasSeenTutorial: data.hasSeenTutorial || false,
-      betaRequestedAt: timestampToDate(data.betaRequestedAt),
-      betaApprovedAt: timestampToDate(data.betaApprovedAt),
-      banStatus: data.banStatus || 'none',
-      banReason: data.banReason,
-      bannedAt: timestampToDate(data.bannedAt),
-      bannedBy: data.bannedBy,
-      timeoutUntil: timestampToDate(data.timeoutUntil),
-      createdAt: timestampToDate(data.createdAt),
-      updatedAt: timestampToDate(data.updatedAt),
-    } as AppUser;
-  });
-}
 
 export async function updateUserTutorialSeen(uid: string) {
   const userRef = doc(db, COLLECTIONS.USERS, uid);

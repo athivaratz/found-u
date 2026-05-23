@@ -1,16 +1,21 @@
 {
   "name": "found-u",
-  "version": "0.1.3beta",
+  "version": "0.1.3.1beta",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "gen:students": "bun run scripts/generate-students-csv.ts",
+    "import:students": "bun run scripts/import-students-csv.ts",
+    "test:login": "bun run scripts/test-student-login.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.879.0",
     "@aws-sdk/s3-request-presigner": "^3.879.0",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.0",
     "browser-image-compression": "^2.0.2",
     "bun": "^1.3.8",
     "clsx": "^2.1.1",

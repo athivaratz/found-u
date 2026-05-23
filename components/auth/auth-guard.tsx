@@ -6,66 +6,81 @@ import { useAuth } from "@/contexts/auth-context";
 import { Loader2 } from "lucide-react";
 import { LoadingModal } from "@/components/ui/loading-modal";
 import { TutorialSystem } from "@/components/ui/tutorial-system";
+import { StudentRegistrationModal } from "@/components/auth/student-registration-modal";
 
-// Pages that don't require beta approval
-const PUBLIC_PATHS = ["/login", "/pending", "/banned"];
+const PUBLIC_PATHS = ["/login", "/login/change-password", "/login/reset-password", "/banned"];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { 
-    user, 
-    appUser, 
-    appSettings,
-    loading, 
-    isAuthActionLoading, 
-    isBetaApproved, 
-    betaStatus, 
+  const {
+    user,
+    appUser,
+    loading,
+    isAuthActionLoading,
+    isStudentVerified,
+    isAdmin,
     hasSeenTutorial,
+    mustChangePassword,
     isBanned,
   } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [showTutorial, setShowTutorial] = useState(false);
 
+  const needsStudentVerification =
+    !!user && !isBanned && !mustChangePassword && !isStudentVerified && !isAdmin;
+
   useEffect(() => {
-    if (!loading) {
-      // Not logged in - redirect to login (except if already on login)
-      if (!user && pathname !== "/login") {
-        router.push("/login");
-        return;
-      }
-      
-      // Logged in and on login page - redirect to home
-      if (user && pathname === "/login") {
-        router.push("/");
-        return;
-      }
+    if (loading) return;
 
-      // Check if user is banned - redirect to banned page
-      if (user && isBanned && pathname !== "/banned") {
-        router.push("/banned");
-        return;
-      }
-
-      // If user is not banned but on banned page, redirect to home
-      if (user && !isBanned && pathname === "/banned") {
-        router.push("/");
-        return;
-      }
-
-      // Check if restrict mode is enabled and user is not approved
-      if (user && !isBanned && appSettings.restrictModeEnabled && !isBetaApproved && !PUBLIC_PATHS.includes(pathname)) {
-        router.push("/pending");
-        return;
-      }
+    if (!user && !pathname.startsWith("/login")) {
+      router.push("/login");
+      return;
     }
-  }, [user, loading, pathname, router, appSettings.restrictModeEnabled, isBetaApproved, isBanned]);
 
-  // Show tutorial for first-time beta users
+    if (user && pathname === "/login") {
+      if (mustChangePassword) {
+        router.push("/login/change-password");
+      } else if (isStudentVerified || isAdmin) {
+        router.push("/");
+      }
+      return;
+    }
+
+    if (user && mustChangePassword && pathname !== "/login/change-password") {
+      router.push("/login/change-password");
+      return;
+    }
+
+    if (user && isBanned && pathname !== "/banned") {
+      router.push("/banned");
+      return;
+    }
+
+    if (user && !isBanned && pathname === "/banned") {
+      router.push("/");
+    }
+  }, [
+    user,
+    loading,
+    pathname,
+    router,
+    mustChangePassword,
+    isStudentVerified,
+    isAdmin,
+    isBanned,
+  ]);
+
   useEffect(() => {
-    if (!loading && user && isBetaApproved && !hasSeenTutorial && !PUBLIC_PATHS.includes(pathname)) {
+    if (
+      !loading &&
+      user &&
+      isStudentVerified &&
+      !hasSeenTutorial &&
+      !PUBLIC_PATHS.includes(pathname)
+    ) {
       setShowTutorial(true);
     }
-  }, [loading, user, isBetaApproved, hasSeenTutorial, pathname]);
+  }, [loading, user, isStudentVerified, hasSeenTutorial, pathname]);
 
   if (loading) {
     return (
@@ -78,18 +93,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If not logged in and on a protected route, don't render anything while redirecting
-  if (!user && pathname !== "/login") {
+  if (!user && !pathname.startsWith("/login")) {
     return null;
   }
 
-  // If user is banned and not on banned page, don't render (will redirect)
   if (user && isBanned && pathname !== "/banned") {
     return null;
   }
 
-  // If restrict mode is enabled and user is not approved, don't render (will redirect)
-  if (user && !isBanned && appSettings.restrictModeEnabled && !isBetaApproved && !PUBLIC_PATHS.includes(pathname)) {
+  if (user && mustChangePassword && pathname !== "/login/change-password") {
     return null;
   }
 
@@ -97,8 +109,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     <>
       {children}
       <LoadingModal isOpen={isAuthActionLoading} message="กำลังดำเนินการ..." />
+      <StudentRegistrationModal open={needsStudentVerification} />
 
-      {/* Tutorial System */}
       {showTutorial && appUser && (
         <TutorialSystem
           isOpen={showTutorial}

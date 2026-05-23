@@ -27,15 +27,18 @@ import {
   UserX,
   AlertTriangle,
   Radio,
+  UserCog,
 } from "lucide-react";
+import { UserAvatar } from "@/components/user/user-avatar";
+import { getUserShownName } from "@/lib/user-display";
 import { cn } from "@/lib/utils";
 
 // Admin navigation items
 const navItems = [
   { href: "/admin", icon: BarChart3, label: "ภาพรวม", description: "สถิติและข้อมูลทั่วไป" },
   { href: "/admin/items", icon: Package, label: "จัดการรายการ", description: "ของหาย/ของเจอ" },
+  { href: "/admin/students", icon: Users, label: "นักเรียน", description: "CSV และ whitelist แอดมิน" },
   { href: "/admin/users", icon: UserX, label: "จัดการผู้ใช้", description: "Ban/Timeout ผู้ใช้" },
-  { href: "/admin/beta-testers", icon: Users, label: "Beta Testers", description: "จัดการผู้ทดสอบ" },
   { href: "/admin/matching", icon: Sparkles, label: "Matching", description: "จับคู่ของหาย-ของเจอ" },
   { href: "/admin/nfc", icon: Radio, label: "NFC Tags", description: "จัดการแท็ก NFC" },
   { href: "/admin/categories", icon: Tags, label: "หมวดหมู่", description: "เพิ่ม/ลบหมวดหมู่" },
@@ -43,7 +46,7 @@ const navItems = [
   { href: "/admin/logs", icon: FileText, label: "Logs", description: "ประวัติการใช้งาน" },
   { href: "/admin/error-logs", icon: AlertTriangle, label: "Error Logs", description: "Errors ในระบบ" },
   { href: "/admin/ai", icon: Bot, label: "AI", description: "โมเดลและการทดสอบ" },
-  { href: "/admin/settings", icon: Settings, label: "ตั้งค่า", description: "ตั้งค่าระบบ" },
+  { href: "/admin/settings", icon: Settings, label: "ตั้งค่าระบบ", description: "System Settings" },
 ];
 
 export default function AdminLayout({
@@ -53,7 +56,7 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading: authLoading, isAdmin, logout } = useAuth();
+  const { user, appUser, loading: authLoading, isAdmin, logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -233,24 +236,20 @@ export default function AdminLayout({
         </div>
 
         {/* User Info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-2">
+          <Link
+            href="/settings"
+            onClick={() => setSidebarOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <UserCog className="w-4 h-4" />
+            <span>ตั้งค่าบัญชี</span>
+          </Link>
           <div className="flex items-center gap-3">
-            {user.photoURL ? (
-              <img
-                src={user.photoURL}
-                alt=""
-                className="w-10 h-10 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-                <span className="text-gray-500 font-medium">
-                  {user.displayName?.[0] || "A"}
-                </span>
-              </div>
-            )}
+            <UserAvatar user={user} appUser={appUser} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                {user.displayName}
+                {getUserShownName(appUser, user)}
               </p>
               <p className="text-xs text-gray-500 truncate">{user.email}</p>
             </div>

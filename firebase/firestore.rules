@@ -124,20 +124,40 @@ service cloud.firestore {
       // ทุกคนอ่านได้ (เพื่อเช็ค role)
       allow read: if true;
       
-      // สร้างได้เฉพาะเจ้าของ
+      // สร้างได้เฉพาะเจ้าของ — ห้ามตั้งตัวเองเป็น admin หรือ verified
       allow create: if isAuthenticated() && 
                        request.auth.uid == userId &&
-                       request.resource.data.role == 'user'; // ไม่สามารถตั้งตัวเองเป็น admin ได้
+                       request.resource.data.role == 'user' &&
+                       (!request.resource.data.keys().hasAny(['isStudentVerified']) ||
+                        request.resource.data.isStudentVerified == false);
       
-      // อัปเดตได้เฉพาะเจ้าของ (แต่ห้ามเปลี่ยน role) หรือ Admin (เปลี่ยนได้ทุกอย่าง)
+      // อัปเดตได้เฉพาะเจ้าของ (แต่ห้ามเปลี่ยน role / isStudentVerified / studentId) หรือ Admin
       allow update: if isAuthenticated() && (
                        (request.auth.uid == userId && 
-                        request.resource.data.role == resource.data.role) || // เจ้าของห้ามเปลี่ยน role
-                       isAdmin() // Admin เปลี่ยนได้ทุกอย่าง
+                        request.resource.data.role == resource.data.role &&
+                        (!resource.data.keys().hasAny(['isStudentVerified']) ||
+                         request.resource.data.isStudentVerified == resource.data.isStudentVerified) &&
+                        (!resource.data.keys().hasAny(['studentId']) ||
+                         request.resource.data.studentId == resource.data.studentId)) ||
+                       isAdmin()
                     );
       
       // ลบได้เฉพาะ Admin
       allow delete: if isAdmin();
+    }
+
+    // ===== Student Accounts (server-only via Admin SDK) =====
+    match /studentAccounts/{studentId} {
+      allow read, write: if false;
+    }
+
+    match /passkeyLookup/{credentialId} {
+      allow read, write: if false;
+    }
+
+    // ===== Admin Whitelist =====
+    match /adminWhitelist/{emailId} {
+      allow read, write: if isAdmin();
     }
     
     // ===== Settings Collection (Admin Only) =====

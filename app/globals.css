@@ -345,3 +345,7 @@ body {
 .overlay-modal {
   z-index: 1000;
 }
+
+.overlay-modal-top {
+  z-index: 1100;
+}

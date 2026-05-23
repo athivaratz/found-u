@@ -19,11 +19,6 @@ import {
   User,
   Mail,
   Save,
-  Beaker,
-  Lock,
-  MessageSquare,
-  ToggleLeft,
-  ToggleRight,
   Share2,
   MapPin,
   Image as ImageIcon,
@@ -50,8 +45,8 @@ export default function AdminSettingsPage() {
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [uploadingOg, setUploadingOg] = useState(false);
 
-  // Beta settings state
-  const [betaSettings, setBetaSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  // App settings state
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
 
   const handleOgImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -62,12 +57,12 @@ export default function AdminSettingsPage() {
       // Compress
       const compressed = await compressImage(file, {
         maxWidthOrHeight: 1200,
-        initialQuality: betaSettings.compressionQuality ?? DEFAULT_APP_SETTINGS.compressionQuality,
+        initialQuality: settings.compressionQuality ?? DEFAULT_APP_SETTINGS.compressionQuality,
       });
       // Upload
       const url = await uploadImage(compressed, `settings/og-image-${Date.now()}.jpg`);
 
-      setBetaSettings(prev => ({ ...prev, ogImage: url }));
+      setSettings(prev => ({ ...prev, ogImage: url }));
     } catch (error) {
       console.error('Error uploading OG image:', error);
       void showAlert({
@@ -99,8 +94,8 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const settings = await getAppSettings();
-        setBetaSettings(settings);
+        const loadedSettings = await getAppSettings();
+        setSettings(loadedSettings);
       } catch (error) {
         console.error('Error loading settings:', error);
       } finally {
@@ -110,16 +105,16 @@ export default function AdminSettingsPage() {
     loadSettings();
   }, []);
 
-  const handleSaveBetaSettings = async () => {
+  const handleSaveSettings = async () => {
     if (!user?.uid) return;
 
     setSaving(true);
     try {
-      await updateAppSettings(betaSettings, user.uid);
+      await updateAppSettings(settings, user.uid);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
-      console.error('Error saving beta settings:', error);
+      console.error('Error saving settings:', error);
       void showAlert({
         title: "บันทึกไม่สำเร็จ",
         message: "กรุณาตรวจสอบสิทธิ์ Admin และการเชื่อมต่อ Firebase",
@@ -130,9 +125,9 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const mapCenter = betaSettings.mapDefaultCenter || DEFAULT_APP_SETTINGS.mapDefaultCenter!;
-  const mapZoom = betaSettings.mapDefaultZoom ?? DEFAULT_APP_SETTINGS.mapDefaultZoom ?? 17;
-  const mapPolygon = betaSettings.mapSchoolBoundary || [];
+  const mapCenter = settings.mapDefaultCenter || DEFAULT_APP_SETTINGS.mapDefaultCenter!;
+  const mapZoom = settings.mapDefaultZoom ?? DEFAULT_APP_SETTINGS.mapDefaultZoom ?? 17;
+  const mapPolygon = settings.mapSchoolBoundary || [];
 
   const [processingData, setProcessingData] = useState(false);
 
@@ -423,22 +418,22 @@ export default function AdminSettingsPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Beta Testing Settings - Full Width */}
+        {/* System Settings - Full Width */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-line-green-light flex items-center justify-center">
-                <Beaker className="w-5 h-5 text-line-green" />
+                <Settings className="w-5 h-5 text-line-green" />
               </div>
               <div>
                 <h2 className="font-semibold text-gray-900 dark:text-white">การตั้งค่าระบบ (System Settings)</h2>
                 <p className="text-sm text-gray-500">
-                  Restrict Mode, แผนที่/GPS, การแจ้งเตือน, การจัดเก็บ และ SEO
+                  แผนที่/GPS, การแจ้งเตือน, การจัดเก็บ และ SEO
                 </p>
               </div>
             </div>
             <button
-              onClick={handleSaveBetaSettings}
+              onClick={handleSaveSettings}
               disabled={saving || loadingSettings}
               className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors",
@@ -461,92 +456,6 @@ export default function AdminSettingsPage() {
             </div>
           ) : (
             <div className="p-5 space-y-6">
-              {/* Restrict Mode Toggle */}
-              <div className="flex items-start justify-between gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                    <Lock className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white">Restrict Mode (Testing)</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {betaSettings.restrictModeEnabled
-                        ? "เปิดอยู่ - เฉพาะผู้ที่ได้รับอนุมัติเท่านั้นที่เข้าใช้ได้"
-                        : "ปิดอยู่ - ทุกคนเข้าใช้งานได้"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setBetaSettings({ ...betaSettings, restrictModeEnabled: !betaSettings.restrictModeEnabled })}
-                  className={cn(
-                    "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                    betaSettings.restrictModeEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                      betaSettings.restrictModeEnabled ? "right-1" : "left-1"
-                    )}
-                  />
-                </button>
-              </div>
-
-              {/* Beta Requests Toggle - Only show when Restrict Mode is enabled */}
-              {betaSettings.restrictModeEnabled && (
-                <>
-                  <div className="flex items-start justify-between gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                        <User className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900 dark:text-white">เปิดรับสมัคร Beta Tester</h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {betaSettings.betaRequestsEnabled
-                            ? "เปิดอยู่ - ผู้ใช้สามารถขอสิทธิ์เข้าใช้ได้"
-                            : "ปิดอยู่ - ไม่สามารถขอสิทธิ์ได้ในขณะนี้"}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setBetaSettings({ ...betaSettings, betaRequestsEnabled: !betaSettings.betaRequestsEnabled })}
-                      className={cn(
-                        "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                        betaSettings.betaRequestsEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                          betaSettings.betaRequestsEnabled ? "right-1" : "left-1"
-                        )}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Closed Message - Only show when requests are disabled */}
-                  {!betaSettings.betaRequestsEnabled && (
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                      <div className="flex items-center gap-3 mb-3">
-                        <MessageSquare className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        <h3 className="font-medium text-gray-900 dark:text-white">ข้อความเมื่อปิดรับสมัคร</h3>
-                      </div>
-                      <textarea
-                        value={betaSettings.betaClosedMessage}
-                        onChange={(e) => setBetaSettings({ ...betaSettings, betaClosedMessage: e.target.value })}
-                        placeholder="กรอกข้อความที่จะแสดงเมื่อปิดรับสมัคร..."
-                        rows={3}
-                        className="w-full px-4 py-3 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-line-green text-gray-900 dark:text-white resize-none"
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        ข้อความนี้จะแสดงให้ผู้ใช้เห็นเมื่อไม่สามารถขอสิทธิ์ได้
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
               {/* OG Settings */}
               <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
                 <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
@@ -567,8 +476,8 @@ export default function AdminSettingsPage() {
                     </label>
                     <input
                       type="text"
-                      value={betaSettings.ogTitle || ''}
-                      onChange={(e) => setBetaSettings({ ...betaSettings, ogTitle: e.target.value })}
+                      value={settings.ogTitle || ''}
+                      onChange={(e) => setSettings({ ...settings, ogTitle: e.target.value })}
                       placeholder="Ex. Found-U | ระบบแจ้งของหาย"
                       className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                     />
@@ -580,8 +489,8 @@ export default function AdminSettingsPage() {
                       รายละเอียด (Description)
                     </label>
                     <textarea
-                      value={betaSettings.ogDescription || ''}
-                      onChange={(e) => setBetaSettings({ ...betaSettings, ogDescription: e.target.value })}
+                      value={settings.ogDescription || ''}
+                      onChange={(e) => setSettings({ ...settings, ogDescription: e.target.value })}
                       placeholder="Ex. ระบบแจ้งของหายและของเจอสำหรับโรงเรียน..."
                       rows={2}
                       className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green resize-none"
@@ -595,9 +504,9 @@ export default function AdminSettingsPage() {
                     </label>
                     <div className="flex gap-4 items-start">
                       <div className="relative w-32 h-20 bg-gray-100 dark:bg-gray-600 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-gray-500">
-                        {betaSettings.ogImage ? (
+                        {settings.ogImage ? (
                           <Image
-                            src={betaSettings.ogImage}
+                            src={settings.ogImage}
                             alt="OG Preview"
                             fill
                             className="object-cover"
@@ -653,22 +562,22 @@ export default function AdminSettingsPage() {
                       </p>
                     </div>
                     <button
-                      onClick={() => setBetaSettings({ ...betaSettings, aiRateLimitEnabled: !betaSettings.aiRateLimitEnabled })}
+                      onClick={() => setSettings({ ...settings, aiRateLimitEnabled: !settings.aiRateLimitEnabled })}
                       className={cn(
                         "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                        betaSettings.aiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
+                        settings.aiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
                       )}
                     >
                       <span
                         className={cn(
                           "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                          betaSettings.aiRateLimitEnabled ? "right-1" : "left-1"
+                          settings.aiRateLimitEnabled ? "right-1" : "left-1"
                         )}
                       />
                     </button>
                   </div>
 
-                  {betaSettings.aiRateLimitEnabled && (
+                  {settings.aiRateLimitEnabled && (
                     <>
                       {/* Limit per Minute */}
                       <div>
@@ -680,8 +589,8 @@ export default function AdminSettingsPage() {
                             type="number"
                             min={1}
                             max={100}
-                            value={betaSettings.aiRateLimitPerMinute || 5}
-                            onChange={(e) => setBetaSettings({ ...betaSettings, aiRateLimitPerMinute: parseInt(e.target.value) || 5 })}
+                            value={settings.aiRateLimitPerMinute || 5}
+                            onChange={(e) => setSettings({ ...settings, aiRateLimitPerMinute: parseInt(e.target.value) || 5 })}
                             className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                           />
                           <span className="text-sm text-gray-500">ครั้ง / นาที / ผู้ใช้</span>
@@ -698,8 +607,8 @@ export default function AdminSettingsPage() {
                             type="number"
                             min={1}
                             max={1000}
-                            value={betaSettings.aiRateLimitPerHour || 30}
-                            onChange={(e) => setBetaSettings({ ...betaSettings, aiRateLimitPerHour: parseInt(e.target.value) || 30 })}
+                            value={settings.aiRateLimitPerHour || 30}
+                            onChange={(e) => setSettings({ ...settings, aiRateLimitPerHour: parseInt(e.target.value) || 30 })}
                             className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                           />
                           <span className="text-sm text-gray-500">ครั้ง / ชั่วโมง / ผู้ใช้</span>
@@ -713,8 +622,8 @@ export default function AdminSettingsPage() {
                         </label>
                         <input
                           type="text"
-                          value={betaSettings.aiRateLimitMessage || ''}
-                          onChange={(e) => setBetaSettings({ ...betaSettings, aiRateLimitMessage: e.target.value })}
+                          value={settings.aiRateLimitMessage || ''}
+                          onChange={(e) => setSettings({ ...settings, aiRateLimitMessage: e.target.value })}
                           placeholder="คุณใช้งาน AI บ่อยเกินไป กรุณารอสักครู่"
                           className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                         />
@@ -730,22 +639,22 @@ export default function AdminSettingsPage() {
                             </p>
                           </div>
                           <button
-                            onClick={() => setBetaSettings({ ...betaSettings, systemAiRateLimitEnabled: !betaSettings.systemAiRateLimitEnabled })}
+                            onClick={() => setSettings({ ...settings, systemAiRateLimitEnabled: !settings.systemAiRateLimitEnabled })}
                             className={cn(
                               "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                              betaSettings.systemAiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
+                              settings.systemAiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
                             )}
                           >
                             <span
                               className={cn(
                                 "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                                betaSettings.systemAiRateLimitEnabled ? "right-1" : "left-1"
+                                settings.systemAiRateLimitEnabled ? "right-1" : "left-1"
                               )}
                             />
                           </button>
                         </div>
 
-                        {betaSettings.systemAiRateLimitEnabled && (
+                        {settings.systemAiRateLimitEnabled && (
                           <div className="space-y-3 pl-4 border-l-2 border-purple-200 dark:border-purple-800">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -756,8 +665,8 @@ export default function AdminSettingsPage() {
                                   type="number"
                                   min={1}
                                   max={1000}
-                                  value={betaSettings.systemAiRateLimitPerMinute || 20}
-                                  onChange={(e) => setBetaSettings({ ...betaSettings, systemAiRateLimitPerMinute: parseInt(e.target.value) || 20 })}
+                                  value={settings.systemAiRateLimitPerMinute || 20}
+                                  onChange={(e) => setSettings({ ...settings, systemAiRateLimitPerMinute: parseInt(e.target.value) || 20 })}
                                   className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                                 />
                                 <span className="text-sm text-gray-500">ครั้ง / นาที (ทุก user รวมกัน)</span>
@@ -773,8 +682,8 @@ export default function AdminSettingsPage() {
                                   type="number"
                                   min={1}
                                   max={10000}
-                                  value={betaSettings.systemAiRateLimitPerHour || 100}
-                                  onChange={(e) => setBetaSettings({ ...betaSettings, systemAiRateLimitPerHour: parseInt(e.target.value) || 100 })}
+                                  value={settings.systemAiRateLimitPerHour || 100}
+                                  onChange={(e) => setSettings({ ...settings, systemAiRateLimitPerHour: parseInt(e.target.value) || 100 })}
                                   className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                                 />
                                 <span className="text-sm text-gray-500">ครั้ง / ชั่วโมง (ทุก user รวมกัน)</span>
@@ -803,26 +712,26 @@ export default function AdminSettingsPage() {
                     </div>
                     <button
                       onClick={() =>
-                        setBetaSettings({
-                          ...betaSettings,
-                          mapsEnabled: !betaSettings.mapsEnabled,
+                        setSettings({
+                          ...settings,
+                          mapsEnabled: !settings.mapsEnabled,
                         })
                       }
                       className={cn(
                         "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                        betaSettings.mapsEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
+                        settings.mapsEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
                       )}
                     >
                       <span
                         className={cn(
                           "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                          betaSettings.mapsEnabled ? "right-1" : "left-1"
+                          settings.mapsEnabled ? "right-1" : "left-1"
                         )}
                       />
                     </button>
                   </div>
 
-                  {betaSettings.mapsEnabled && (
+                  {settings.mapsEnabled && (
                     <div className="space-y-4">
                       <div className="grid gap-3 lg:grid-cols-2">
                         <div>
@@ -831,9 +740,9 @@ export default function AdminSettingsPage() {
                           </label>
                           <input
                             type="text"
-                            value={betaSettings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl}
+                            value={settings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl}
                             onChange={(e) =>
-                              setBetaSettings({ ...betaSettings, mapTileUrl: e.target.value })
+                              setSettings({ ...settings, mapTileUrl: e.target.value })
                             }
                             className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                           />
@@ -844,9 +753,9 @@ export default function AdminSettingsPage() {
                           </label>
                           <input
                             type="text"
-                            value={betaSettings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
+                            value={settings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
                             onChange={(e) =>
-                              setBetaSettings({ ...betaSettings, mapAttribution: e.target.value })
+                              setSettings({ ...settings, mapAttribution: e.target.value })
                             }
                             className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                           />
@@ -863,8 +772,8 @@ export default function AdminSettingsPage() {
                             step="0.000001"
                             value={mapCenter.lat}
                             onChange={(e) =>
-                              setBetaSettings({
-                                ...betaSettings,
+                              setSettings({
+                                ...settings,
                                 mapDefaultCenter: {
                                   lat: Number(e.target.value),
                                   lng: mapCenter.lng,
@@ -883,8 +792,8 @@ export default function AdminSettingsPage() {
                             step="0.000001"
                             value={mapCenter.lng}
                             onChange={(e) =>
-                              setBetaSettings({
-                                ...betaSettings,
+                              setSettings({
+                                ...settings,
                                 mapDefaultCenter: {
                                   lat: mapCenter.lat,
                                   lng: Number(e.target.value),
@@ -904,8 +813,8 @@ export default function AdminSettingsPage() {
                             max={22}
                             value={mapZoom}
                             onChange={(e) =>
-                              setBetaSettings({
-                                ...betaSettings,
+                              setSettings({
+                                ...settings,
                                 mapDefaultZoom: Number(e.target.value),
                               })
                             }
@@ -925,14 +834,14 @@ export default function AdminSettingsPage() {
                         </div>
                         <button
                           onClick={() =>
-                            setBetaSettings({
-                              ...betaSettings,
-                              mapEnforceFoundInSchool: !betaSettings.mapEnforceFoundInSchool,
+                            setSettings({
+                              ...settings,
+                              mapEnforceFoundInSchool: !settings.mapEnforceFoundInSchool,
                             })
                           }
                           className={cn(
                             "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                            betaSettings.mapEnforceFoundInSchool
+                            settings.mapEnforceFoundInSchool
                               ? "bg-line-green"
                               : "bg-gray-300 dark:bg-gray-500"
                           )}
@@ -940,7 +849,7 @@ export default function AdminSettingsPage() {
                           <span
                             className={cn(
                               "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                              betaSettings.mapEnforceFoundInSchool ? "right-1" : "left-1"
+                              settings.mapEnforceFoundInSchool ? "right-1" : "left-1"
                             )}
                           />
                         </button>
@@ -953,12 +862,12 @@ export default function AdminSettingsPage() {
                         <MapCanvas
                           center={mapCenter}
                           zoom={mapZoom}
-                          tileUrl={betaSettings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl!}
-                          attribution={betaSettings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
+                          tileUrl={settings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl!}
+                          attribution={settings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
                           mode="polygon"
                           polygon={mapPolygon}
                           onPolygonChange={(points: GeoPoint[]) =>
-                            setBetaSettings({ ...betaSettings, mapSchoolBoundary: points })
+                            setSettings({ ...settings, mapSchoolBoundary: points })
                           }
                           className="h-64"
                         />
@@ -966,7 +875,7 @@ export default function AdminSettingsPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              setBetaSettings({ ...betaSettings, mapSchoolBoundary: [] })
+                              setSettings({ ...settings, mapSchoolBoundary: [] })
                             }
                             className="px-3 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
                           >
@@ -975,8 +884,8 @@ export default function AdminSettingsPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              setBetaSettings({
-                                ...betaSettings,
+                              setSettings({
+                                ...settings,
                                 mapSchoolBoundary: mapPolygon.slice(0, -1),
                               })
                             }
@@ -994,39 +903,6 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
-              {/* Status Indicator */}
-              <div className={cn(
-                "p-4 rounded-xl flex items-center gap-3",
-                betaSettings.restrictModeEnabled
-                  ? "bg-amber-50 dark:bg-amber-900/20"
-                  : "bg-green-50 dark:bg-green-900/20"
-              )}>
-                {betaSettings.restrictModeEnabled ? (
-                  <>
-                    <Lock className="w-5 h-5 text-amber-600" />
-                    <div>
-                      <p className="font-medium text-amber-700 dark:text-amber-400">
-                        ระบบอยู่ในโหมด Restrict (Testing)
-                      </p>
-                      <p className="text-sm text-amber-600 dark:text-amber-500">
-                        เฉพาะ Admin และผู้ที่ได้รับอนุมัติเท่านั้นที่เข้าถึงได้
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <div>
-                      <p className="font-medium text-green-700 dark:text-green-400">
-                        ระบบเปิดให้ใช้งานทั่วไป
-                      </p>
-                      <p className="text-sm text-green-600 dark:text-green-500">
-                        ทุกคนสามารถเข้าใช้งานได้โดยไม่ต้องขอสิทธิ์
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
           )}
         </div>
@@ -1102,20 +978,20 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">แจ้งเมื่อมีรายการใหม่</span>
               <button
                 onClick={() =>
-                  setBetaSettings({
-                    ...betaSettings,
-                    notifyOnNewReport: !betaSettings.notifyOnNewReport,
+                  setSettings({
+                    ...settings,
+                    notifyOnNewReport: !settings.notifyOnNewReport,
                   })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
-                  betaSettings.notifyOnNewReport ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                  settings.notifyOnNewReport ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                    betaSettings.notifyOnNewReport ? "right-1" : "left-1"
+                    settings.notifyOnNewReport ? "right-1" : "left-1"
                   )}
                 />
               </button>
@@ -1125,20 +1001,20 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">แจ้งเมื่อสถานะเปลี่ยน</span>
               <button
                 onClick={() =>
-                  setBetaSettings({
-                    ...betaSettings,
-                    notifyOnStatusChange: !betaSettings.notifyOnStatusChange,
+                  setSettings({
+                    ...settings,
+                    notifyOnStatusChange: !settings.notifyOnStatusChange,
                   })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
-                  betaSettings.notifyOnStatusChange ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                  settings.notifyOnStatusChange ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                    betaSettings.notifyOnStatusChange ? "right-1" : "left-1"
+                    settings.notifyOnStatusChange ? "right-1" : "left-1"
                   )}
                 />
               </button>
@@ -1148,20 +1024,20 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">ต้องอนุมัติก่อนแสดง</span>
               <button
                 onClick={() =>
-                  setBetaSettings({
-                    ...betaSettings,
-                    requireApproval: !betaSettings.requireApproval,
+                  setSettings({
+                    ...settings,
+                    requireApproval: !settings.requireApproval,
                   })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
-                  betaSettings.requireApproval ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                  settings.requireApproval ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                    betaSettings.requireApproval ? "right-1" : "left-1"
+                    settings.requireApproval ? "right-1" : "left-1"
                   )}
                 />
               </button>
@@ -1181,20 +1057,20 @@ export default function AdminSettingsPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setBetaSettings({
-                    ...betaSettings,
-                    nfcEnabled: !(betaSettings.nfcEnabled ?? true),
+                  setSettings({
+                    ...settings,
+                    nfcEnabled: !(settings.nfcEnabled ?? true),
                   })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
-                  (betaSettings.nfcEnabled ?? true) ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                  (settings.nfcEnabled ?? true) ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                    (betaSettings.nfcEnabled ?? true) ? "right-1" : "left-1"
+                    (settings.nfcEnabled ?? true) ? "right-1" : "left-1"
                   )}
                 />
               </button>
@@ -1205,10 +1081,10 @@ export default function AdminSettingsPage() {
               </label>
               <input
                 type="url"
-                value={betaSettings.nfcPublicBaseUrl || ""}
+                value={settings.nfcPublicBaseUrl || ""}
                 onChange={(e) =>
-                  setBetaSettings({
-                    ...betaSettings,
+                  setSettings({
+                    ...settings,
                     nfcPublicBaseUrl: e.target.value.trim() || undefined,
                   })
                 }
@@ -1238,10 +1114,10 @@ export default function AdminSettingsPage() {
               </label>
               <input
                 type="number"
-                value={betaSettings.autoDeleteDays ?? 0}
+                value={settings.autoDeleteDays ?? 0}
                 onChange={(e) =>
-                  setBetaSettings({
-                    ...betaSettings,
+                  setSettings({
+                    ...settings,
                     autoDeleteDays: parseInt(e.target.value, 10) || 0,
                   })
                 }
@@ -1256,10 +1132,10 @@ export default function AdminSettingsPage() {
               </label>
               <input
                 type="number"
-                value={betaSettings.maxImageSize ?? 5}
+                value={settings.maxImageSize ?? 5}
                 onChange={(e) =>
-                  setBetaSettings({
-                    ...betaSettings,
+                  setSettings({
+                    ...settings,
                     maxImageSize: Math.max(1, parseInt(e.target.value, 10) || 1),
                   })
                 }
@@ -1269,17 +1145,17 @@ export default function AdminSettingsPage() {
 
             <div>
               <label className="text-sm text-gray-700 dark:text-gray-300 mb-2 block">
-                คุณภาพการบีบอัด ({Math.round((betaSettings.compressionQuality ?? 0.8) * 100)}%)
+                คุณภาพการบีบอัด ({Math.round((settings.compressionQuality ?? 0.8) * 100)}%)
               </label>
               <input
                 type="range"
                 min="0.1"
                 max="1"
                 step="0.1"
-                value={betaSettings.compressionQuality ?? 0.8}
+                value={settings.compressionQuality ?? 0.8}
                 onChange={(e) =>
-                  setBetaSettings({
-                    ...betaSettings,
+                  setSettings({
+                    ...settings,
                     compressionQuality: parseFloat(e.target.value),
                   })
                 }

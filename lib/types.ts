@@ -3,17 +3,8 @@
 // User Role
 export type UserRole = 'user' | 'admin';
 
-// Beta Tester Status
-export type BetaStatus = 'none' | 'pending' | 'approved' | 'rejected';
-
 // App Settings (สำหรับ Admin ตั้งค่า)
 export interface AppSettings {
-  // Beta/Restrict Mode
-  restrictModeEnabled: boolean; // เปิด/ปิด ระบบ Restrict (Testing)
-  betaRequestsEnabled: boolean; // เปิด/ปิด ให้ขอสิทธิ์ได้
-  betaClosedMessage: string; // ข้อความเมื่อปิดรับสมัคร
-  
-  // OG Tags
   ogTitle?: string;
   ogDescription?: string;
   ogImage?: string;
@@ -76,9 +67,6 @@ export interface AppSettings {
 
 // Default settings
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  restrictModeEnabled: true,
-  betaRequestsEnabled: true,
-  betaClosedMessage: "ขออภัย รอบนี้ปิดรับสมัครแล้ว กรุณารอรอบถัดไป",
   ogTitle: "Found-U | ระบบแจ้งของหาย-ของเจอ",
   ogDescription: "ระบบแจ้งของหายและของเจอสำหรับโรงเรียน โดยนร.บด.๒ - แจ้งง่าย ติดตามสะดวก",
   aiRateLimitEnabled: true,
@@ -128,6 +116,61 @@ export interface AIUsageRecord {
 // User Ban Status
 export type BanStatus = 'none' | 'banned' | 'timeout';
 
+export type StudentAuthMethod = 'password' | 'google' | 'pin' | 'passkey';
+
+export type StudentAccountStatus = 'active' | 'disabled';
+
+export interface PasskeyCredentialRecord {
+  credentialId: string;
+  publicKey: string;
+  counter: number;
+  transports?: string[];
+  createdAt?: Date;
+}
+
+// Roster นักเรียน (server-only collection)
+export interface StudentAccount {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  nickname: string;
+  schoolPasswordHash: string;
+  currentPasswordHash: string;
+  mustChangePassword: boolean;
+  hasLoggedInOnce: boolean;
+  linkedUid?: string;
+  linkedGoogleEmail?: string;
+  pinHash?: string;
+  passkeyCredentials?: PasskeyCredentialRecord[];
+  status: StudentAccountStatus;
+  importBatchId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AdminWhitelistEntry {
+  email: string;
+  addedBy: string;
+  addedAt: Date;
+  note?: string;
+}
+
+export interface ParsedStudentCsvRow {
+  studentId: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  nickname: string;
+  lineNumber: number;
+}
+
+export interface StudentImportSummary {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: { line: number; message: string }[];
+}
+
 // User ในระบบ
 export interface AppUser {
   uid: string;
@@ -135,9 +178,15 @@ export interface AppUser {
   displayName: string;
   photoURL?: string;
   role: UserRole;
-  betaStatus: BetaStatus; // สถานะ Beta Tester
-  betaRequestedAt?: Date; // วันที่ขอสิทธิ์
-  betaApprovedAt?: Date; // วันที่ได้รับอนุมัติ
+  studentId?: string;
+  firstName?: string;
+  lastName?: string;
+  nickname?: string;
+  /** ชื่อที่ผู้ใช้ตั้งเองเพื่อแสดงในแอป (override ชื่อเล่นใน greeting/UI) */
+  shownName?: string;
+  isStudentVerified?: boolean;
+  authMethods?: StudentAuthMethod[];
+  mustChangePassword?: boolean;
   hasSeenTutorial?: boolean; // เคยดู Tutorial แล้วหรือยัง
   // Ban/Timeout fields
   banStatus?: BanStatus; // สถานะการแบน

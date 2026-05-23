@@ -1,31 +1,33 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { type User } from 'firebase/auth';
-import { onAuthChange, signInWithGoogle, signOut } from '@/lib/auth';
-import { createOrUpdateUser, subscribeToUser, subscribeToAppSettings, isUserBanned, getTimeoutRemaining } from '@/lib/firestore';
-import type { AppUser, BetaStatus, BanStatus, AppSettings } from '@/lib/types';
-import { DEFAULT_APP_SETTINGS } from '@/lib/types';
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { type User } from "firebase/auth";
+import { onAuthChange, signInWithGoogle, signInWithStudentCustomToken, signOut } from "@/lib/auth";
+import { subscribeToUser, subscribeToAppSettings, isUserBanned, getTimeoutRemaining } from "@/lib/firestore";
+import { getAuthSessionStatus, postStudentLogin } from "@/lib/student-auth-api";
+import type { AppUser, BanStatus, AppSettings } from "@/lib/types";
+import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
 interface AuthContextType {
   user: User | null;
   appUser: AppUser | null;
   appSettings: AppSettings;
-  /** True after the first Firestore appSettings snapshot (or default fallback). */
   appSettingsReady: boolean;
   loading: boolean;
   isAuthActionLoading: boolean;
   isAdmin: boolean;
-  isBetaApproved: boolean;
-  betaStatus: BetaStatus;
+  isStudentVerified: boolean;
   hasSeenTutorial: boolean;
-  // Ban/Timeout
+  mustChangePassword: boolean;
   isBanned: boolean;
   banStatus: BanStatus;
   banReason: string | undefined;
-  timeoutRemaining: number; // minutes remaining
+  timeoutRemaining: number;
   signIn: () => Promise<void>;
+  signInWithStudentId: (studentId: string, password: string) => Promise<{ mustChangePassword: boolean }>;
+  signInWithCustomToken: (customToken: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,38 +39,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appSettingsReady, setAppSettingsReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
+  const [sessionVerified, setSessionVerified] = useState(false);
+
+  const refreshSession = async (firebaseUser?: User | null) => {
+    const u = firebaseUser ?? user;
+    if (!u) {
+      setSessionVerified(false);
+      return;
+    }
+    try {
+      const token = await u.getIdToken();
+      await getAuthSessionStatus(token);
+      setSessionVerified(true);
+    } catch {
+      setSessionVerified(true);
+    }
+  };
 
   useEffect(() => {
-    console.log('Auth Provider mounted, subscribing to auth changes...');
     const unsubscribe = onAuthChange(async (firebaseUser) => {
-      console.log('Auth state changed:', firebaseUser ? `User ${firebaseUser.email}` : 'No user');
       setUser(firebaseUser);
-      
+
       if (firebaseUser) {
-        // สร้างหรืออัปเดต user ใน Firestore
         try {
-          console.log('Creating/Updating user in Firestore...');
-          await createOrUpdateUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            displayName: firebaseUser.displayName || '',
-            photoURL: firebaseUser.photoURL || undefined,
-          });
-          console.log('User synced with Firestore');
+          const token = await firebaseUser.getIdToken();
+          await getAuthSessionStatus(token);
+          setSessionVerified(true);
         } catch (error) {
-          console.error('Error creating/updating user:', error);
+          console.error("Session sync error:", error);
+          setSessionVerified(true);
         }
       } else {
         setAppUser(null);
+        setSessionVerified(false);
       }
-      
+
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Subscribe to user document changes
   useEffect(() => {
     if (!user?.uid) {
       setAppUser(null);
@@ -82,7 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [user?.uid]);
 
-  // Subscribe to app settings changes
   useEffect(() => {
     const unsubscribe = subscribeToAppSettings((settings) => {
       setAppSettings(settings);
@@ -96,19 +106,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthActionLoading(true);
     try {
       const { error } = await signInWithGoogle();
-      // Handle specific error cases
       if (error) {
-        // Don't throw for user-cancelled operations
-        const authError = error as any;
-        if (authError.message === 'Sign-in already in progress' ||
-            authError.code === 'auth/popup-closed-by-user') {
+        const authError = error as { message?: string; code?: string };
+        if (
+          authError.message === "Sign-in already in progress" ||
+          authError.code === "auth/popup-closed-by-user"
+        ) {
           return;
         }
         throw error;
       }
-    } catch (error) {
-      console.error('Sign-in error:', error);
-      throw error;
+      await refreshSession();
+    } finally {
+      setIsAuthActionLoading(false);
+    }
+  };
+
+  const signInWithStudentId = async (studentId: string, password: string) => {
+    setIsAuthActionLoading(true);
+    try {
+      const { customToken, mustChangePassword } = await postStudentLogin(studentId, password);
+      const { error } = await signInWithStudentCustomToken(customToken);
+      if (error) throw error;
+      return { mustChangePassword };
+    } finally {
+      setIsAuthActionLoading(false);
+    }
+  };
+
+  const signInWithCustomTokenHandler = async (customToken: string) => {
+    setIsAuthActionLoading(true);
+    try {
+      const { error } = await signInWithStudentCustomToken(customToken);
+      if (error) throw error;
     } finally {
       setIsAuthActionLoading(false);
     }
@@ -118,23 +148,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthActionLoading(true);
     try {
       const { error } = await signOut();
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
     } finally {
       setIsAuthActionLoading(false);
     }
   };
 
-  // คำนวณ isBetaApproved โดยพิจารณา restrictModeEnabled
-  const isBetaApproved = 
-    appUser?.role === 'admin' || // Admin เข้าได้เสมอ
-    !appSettings.restrictModeEnabled || // ถ้าปิด restrict mode ทุกคนเข้าได้
-    appUser?.betaStatus === 'approved'; // ถ้าเปิด restrict mode ต้อง approved
+  const isAdmin = appUser?.role === "admin";
+  const isStudentVerified =
+    isAdmin || appUser?.isStudentVerified === true || !!appUser?.studentId;
 
-  // คำนวณ ban status
   const isBanned = appUser ? isUserBanned(appUser) : false;
   const timeoutRemaining = appUser ? getTimeoutRemaining(appUser) : 0;
+  const mustChangePassword = appUser?.mustChangePassword === true;
 
   return (
     <AuthContext.Provider
@@ -145,17 +171,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         appSettingsReady,
         loading,
         isAuthActionLoading,
-        isAdmin: appUser?.role === 'admin',
-        isBetaApproved,
-        betaStatus: appUser?.betaStatus || 'none',
+        isAdmin,
+        isStudentVerified,
         hasSeenTutorial: appUser?.hasSeenTutorial || false,
-        // Ban/Timeout
+        mustChangePassword,
         isBanned,
-        banStatus: appUser?.banStatus || 'none',
+        banStatus: appUser?.banStatus || "none",
         banReason: appUser?.banReason,
         timeoutRemaining,
         signIn,
+        signInWithStudentId,
+        signInWithCustomToken: signInWithCustomTokenHandler,
         logout,
+        refreshSession,
       }}
     >
       {children}
@@ -166,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

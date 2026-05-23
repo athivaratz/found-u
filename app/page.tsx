@@ -9,6 +9,8 @@ import { Search, Camera, Clock, Package, MapPin, ChevronRight, Moon, Sun, LogIn,
 import BottomNav from "@/components/layout/bottom-nav";
 import Sidebar from "@/components/layout/sidebar";
 import { useAuth } from "@/contexts/auth-context";
+import { getUserPublicEmail, getUserShownName } from "@/lib/user-display";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { useTheme } from "next-themes";
 import { getLatestFoundItems, getLatestLostItems, getStats, timestampToDate } from "@/lib/firestore";
 import { CATEGORIES, STATUS_CONFIG, type FoundItem, type LostItem } from "@/lib/types";
@@ -23,7 +25,8 @@ function getCategoryIcon(description: string): string {
 }
 
 export default function Home() {
-  const { user, loading: authLoading, isAdmin, signIn, logout } = useAuth();
+  const { user, appUser, loading: authLoading, isAdmin, signIn, logout } = useAuth();
+  const welcomeName = getUserShownName(appUser, user);
   const { resolvedTheme, setTheme } = useTheme();
 
   const [latestLostItems, setLatestLostItems] = useState<LostItem[]>([]);
@@ -86,7 +89,7 @@ export default function Home() {
               </div>
               <div>
                 <p className="text-white/80 text-sm">{greeting} 👋</p>
-                <h1 className="text-white text-xl font-semibold">Found-U</h1>
+                <h1 className="text-white text-xl font-semibold">{welcomeName}</h1>
               </div>
             </div>
 
@@ -115,13 +118,13 @@ export default function Home() {
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/30"
                   >
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-white/20 flex items-center justify-center">
-                        <User className="w-5 h-5 text-white" />
-                      </div>
-                    )}
+                    <UserAvatar
+                      user={user}
+                      appUser={appUser}
+                      className="w-full h-full rounded-full object-cover"
+                      iconClassName="w-5 h-5 text-white"
+                      fallbackClassName="w-full h-full bg-white/20 text-white"
+                    />
                   </button>
 
                   {/* Dropdown Menu */}
@@ -130,16 +133,34 @@ export default function Home() {
                       <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
                       <div className="absolute right-0 mt-2 w-56 bg-bg-card rounded-xl shadow-card z-50 overflow-hidden animate-fade-in">
                         <div className="p-4 border-b border-border-light">
-                          <p className="font-medium text-text-primary truncate">{user.displayName}</p>
-                          <p className="text-sm text-text-secondary truncate">{user.email}</p>
+                          <p className="font-medium text-text-primary truncate">
+                            {getUserShownName(appUser, user)}
+                          </p>
+                          {getUserPublicEmail(appUser, user) ? (
+                            <p className="text-sm text-text-secondary truncate">
+                              {getUserPublicEmail(appUser, user)}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-text-tertiary">
+                              เชื่อม Google ใน Settings เพื่อใช้อีเมล
+                            </p>
+                          )}
                         </div>
+                        <Link
+                          href="/settings"
+                          className="flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-bg-secondary"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Settings className="w-4 h-4" />
+                          <span>ตั้งค่า</span>
+                        </Link>
                         {isAdmin && (
                           <Link
                             href="/admin"
                             className="flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-bg-secondary"
                             onClick={() => setShowUserMenu(false)}
                           >
-                            <Settings className="w-4 h-4" />
+                            <User className="w-4 h-4" />
                             <span>Admin Panel</span>
                           </Link>
                         )}
@@ -166,7 +187,7 @@ export default function Home() {
             </div>
           </div>
           <p className="text-white/90 text-sm">
-            ระบบอยู่ระหว่างการพัฒนา (InDev) หากเจอข้อผิดพลาดของระบบ (บัค) สามารถรายงานเรามาได้เลย Version: 0.1Dev
+            ยินดีต้อนรับ!
           </p>
         </header>
 
@@ -303,9 +324,12 @@ export default function Home() {
           {/* Top Header */}
           <header className="bg-bg-card border-b border-border-light sticky top-0 z-10 -mx-6 lg:-mx-8 xl:-mx-12 px-6 lg:px-8 xl:px-12">
             <div className="pt-5 pb-4">
-              <h1 className="text-2xl font-bold text-text-primary">{greeting}</h1>
+              <h1 className="text-2xl font-bold text-text-primary">
+                {greeting}
+                {user ? `, ${welcomeName}` : ""}
+              </h1>
               <p className="text-text-secondary text-sm mt-0.5">
-                ระบบอยู่ระหว่างการพัฒนา (InDev) หากเจอข้อผิดพลาดของระบบ (บัค) สามารถรายงานเรามาได้เลย Version: 0.1Dev
+                ยินดีต้อนรับ!
               </p>
             </div>
           </header>
