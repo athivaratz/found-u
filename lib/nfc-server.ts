@@ -229,3 +229,80 @@ function stripUndefinedAdmin<T extends Record<string, unknown>>(obj: T): T {
   }
   return result;
 }
+
+function adminTimestampToIso(value: unknown): string {
+  if (value && typeof value === "object" && "toDate" in value && typeof (value as { toDate: () => Date }).toDate === "function") {
+    return (value as { toDate: () => Date }).toDate().toISOString();
+  }
+  if (value instanceof Date) return value.toISOString();
+  return new Date().toISOString();
+}
+
+export async function getOwnerNfcDashboardAdmin(ownerId: string) {
+  const [tagsSnap, reportsSnap] = await Promise.all([
+    adminDb
+      .collection("nfcTags")
+      .where("ownerId", "==", ownerId)
+      .orderBy("registeredAt", "desc")
+      .get(),
+    adminDb
+      .collection("nfcFoundReports")
+      .where("ownerId", "==", ownerId)
+      .orderBy("createdAt", "desc")
+      .get(),
+  ]);
+
+  const tags = tagsSnap.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      tagUid: data.tagUid,
+      ownerId: data.ownerId,
+      itemName: data.itemName,
+      category: data.category,
+      description: data.description,
+      contacts: data.contacts || [],
+      status: data.status,
+      readOnlyLocked: data.readOnlyLocked ?? false,
+      lostItemId: data.lostItemId,
+      lastFoundReportId: data.lastFoundReportId,
+      registeredAt: adminTimestampToIso(data.registeredAt),
+      updatedAt: adminTimestampToIso(data.updatedAt),
+    };
+  });
+
+  const reports = reportsSnap.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      tagId: data.tagId,
+      ownerId: data.ownerId,
+      finderUserId: data.finderUserId,
+      finderMessage: data.finderMessage,
+      locationFound: data.locationFound,
+      locationCoords: data.locationCoords,
+      finderContacts: data.finderContacts,
+      status: data.status,
+      createdAt: adminTimestampToIso(data.createdAt),
+    };
+  });
+
+  return { tags, reports };
+}
+
+export async function updateNfcFoundReportStatusAdmin(
+  reportId: string,
+  ownerId: string,
+  status: "viewed" | "resolved"
+): Promise<void> {
+  const reportRef = adminDb.collection("nfcFoundReports").doc(reportId);
+  const reportDoc = await reportRef.get();
+  if (!reportDoc.exists) throw new Error("report_not_found");
+
+  const data = reportDoc.data()!;
+  if (data.ownerId !== ownerId && !(await isAdminUser(ownerId))) {
+    throw new Error("forbidden");
+  }
+
+  await reportRef.update({ status });
+}

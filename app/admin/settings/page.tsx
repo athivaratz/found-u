@@ -410,7 +410,7 @@ export default function AdminSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ตั้งค่า</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          จัดการการตั้งค่าระบบ BD2Fondue
+          จัดการการตั้งค่าระบบ Found-U
         </p>
       </div>
 
@@ -569,7 +569,7 @@ export default function AdminSettingsPage() {
                       type="text"
                       value={betaSettings.ogTitle || ''}
                       onChange={(e) => setBetaSettings({ ...betaSettings, ogTitle: e.target.value })}
-                      placeholder="Ex. BD2Fondue | ระบบแจ้งของหาย"
+                      placeholder="Ex. Found-U | ระบบแจ้งของหาย"
                       className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                     />
                   </div>

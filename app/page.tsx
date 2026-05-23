@@ -86,7 +86,7 @@ export default function Home() {
               </div>
               <div>
                 <p className="text-white/80 text-sm">{greeting} 👋</p>
-                <h1 className="text-white text-xl font-semibold">BD2Fondue</h1>
+                <h1 className="text-white text-xl font-semibold">Found-U</h1>
               </div>
             </div>
 

@@ -159,7 +159,7 @@ export default function AdminLayout({
               </div>
               <div>
                 <h1 className="font-bold text-gray-900 dark:text-white">Admin Panel</h1>
-                <p className="text-xs text-gray-500">BD2Fondue</p>
+                <p className="text-xs text-gray-500">Found-U</p>
               </div>
             </div>
             <button

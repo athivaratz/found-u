@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Radio, Loader2, Keyboard } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Radio, Loader2, Keyboard, QrCode } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isWebNfcSupported, readNfcTag, getNfcErrorMessage } from "@/lib/nfc";
 
@@ -11,6 +11,8 @@ interface NfcScannerProps {
   disabled?: boolean;
   className?: string;
   scanLabel?: string;
+  /** When false, scan button stays disabled (e.g. iOS / desktop). */
+  nfcSupported?: boolean;
 }
 
 export default function NfcScanner({
@@ -19,14 +21,25 @@ export default function NfcScanner({
   disabled,
   className,
   scanLabel = "สแกน NFC Tag",
+  nfcSupported: nfcSupportedProp,
 }: NfcScannerProps) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
   const [manualId, setManualId] = useState("");
   const [showManual, setShowManual] = useState(false);
+  const [nfcSupported, setNfcSupported] = useState(false);
+
+  useEffect(() => {
+    setNfcSupported(nfcSupportedProp ?? isWebNfcSupported());
+    if (!(nfcSupportedProp ?? isWebNfcSupported())) {
+      setShowManual(true);
+    }
+  }, [nfcSupportedProp]);
+
+  const canScan = nfcSupported && !disabled;
 
   const handleScan = async () => {
-    if (!isWebNfcSupported()) {
+    if (!nfcSupported) {
       setError(getNfcErrorMessage(new Error("web_nfc_not_supported")));
       setShowManual(true);
       return;
@@ -60,10 +73,12 @@ export default function NfcScanner({
       <button
         type="button"
         onClick={handleScan}
-        disabled={disabled || scanning}
+        disabled={!canScan || scanning}
         className={cn(
           "w-full flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-medium transition-colors",
-          "bg-[#06C755] text-white hover:bg-[#05b34d] disabled:opacity-50"
+          canScan
+            ? "bg-[#06C755] text-white hover:bg-[#05b34d] disabled:opacity-50"
+            : "bg-gray-200 dark:bg-gray-800 text-gray-500 cursor-not-allowed"
         )}
       >
         {scanning ? (
@@ -79,10 +94,14 @@ export default function NfcScanner({
         )}
       </button>
 
-      {!isWebNfcSupported() && (
-        <p className="text-sm text-amber-600 dark:text-amber-400 text-center">
-          Web NFC ใช้ได้บน Chrome/Android — iOS ให้สแกน QR หรือกรอกรหัส Tag
-        </p>
+      {!nfcSupported && (
+        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-200 text-center space-y-1">
+          <p className="flex items-center justify-center gap-2 font-medium">
+            <QrCode className="w-4 h-4" />
+            อุปกรณ์นี้ไม่รองรับ Web NFC
+          </p>
+          <p>ใช้ QR Code บนสติ๊กเกอร์แทน (iOS / Desktop) — ลงทะเบียนแล้วพิมพ์ QR ได้ทันที</p>
+        </div>
       )}
 
       {error && <p className="text-sm text-red-500 text-center">{error}</p>}

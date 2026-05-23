@@ -35,7 +35,7 @@ export default function TagQrPrint({ tagUrl, tagId, itemName, className }: TagQr
   return (
     <div className={cn("nfc-print-area", className)}>
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 text-center print:border-0 print:shadow-none">
-        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">BD2Fondue NFC</p>
+        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Found-U NFC</p>
         <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-1">{itemName}</h3>
         <p className="text-sm text-gray-500 mb-4">สแกนเมื่อพบของนี้</p>
         <canvas ref={canvasRef} className="mx-auto rounded-lg" />

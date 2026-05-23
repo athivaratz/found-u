@@ -46,6 +46,13 @@ export default function NfcRegisterPage() {
     null
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [nfcSupported, setNfcSupported] = useState(false);
+  const [nfcChecked, setNfcChecked] = useState(false);
+
+  useEffect(() => {
+    setNfcSupported(isWebNfcSupported());
+    setNfcChecked(true);
+  }, []);
 
   useEffect(() => {
     const unsubCategories = subscribeToCategories(setCategories);
@@ -83,7 +90,7 @@ export default function NfcRegisterPage() {
   const handleRegister = async () => {
     if (!validate()) return;
 
-    if (readOnlyLocked) {
+    if (readOnlyLocked && nfcSupported) {
       const ok = await showConfirm({
         title: "ล็อกแท็กเป็น Read-Only?",
         message:
@@ -114,9 +121,9 @@ export default function NfcRegisterPage() {
       );
 
       setRegisteredTag(result);
-      setStep("write");
 
-      if (isWebNfcSupported()) {
+      if (nfcSupported) {
+        setStep("write");
         try {
           const url = result.tagUrl.startsWith("http")
             ? result.tagUrl
@@ -162,7 +169,7 @@ export default function NfcRegisterPage() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || !nfcChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
@@ -249,21 +256,35 @@ export default function NfcRegisterPage() {
     <AppShell>
       <Header title="ลงทะเบียน Tag" showBack />
       <main className="px-4 py-6 pb-28 space-y-5">
-        <section className="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
-          <p className="text-sm font-medium mb-3">ขั้นตอนที่ 1: สแกนแท็ก (ไม่บังคับ)</p>
-          <NfcScanner
-            scanLabel="สแกนแท็กเพื่อบันทึก UID"
-            onScan={(r) => {
-              if (r.tagUid) setTagUid(r.tagUid);
-            }}
-          />
-          {tagUid && (
-            <p className="text-xs text-gray-500 mt-2 font-mono">UID: {tagUid}</p>
-          )}
-        </section>
+        {!nfcSupported && (
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4 text-sm text-amber-800 dark:text-amber-200">
+            <p className="font-medium">อุปกรณ์นี้ไม่รองรับ Web-NFC</p>
+            <p className="mt-1">
+              โหมด Qr Code ; ลงทะเบียนแล้วพิมพ์ QR ติดบนของได้เลย
+            </p>
+          </div>
+        )}
+
+        {nfcSupported && (
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
+            <p className="text-sm font-medium mb-3">ขั้นตอนที่ 1: สแกนแท็ก (ไม่บังคับ)</p>
+            <NfcScanner
+              nfcSupported={nfcSupported}
+              scanLabel="สแกนแท็กเพื่อบันทึก UID"
+              onScan={(r) => {
+                if (r.tagUid) setTagUid(r.tagUid);
+              }}
+            />
+            {tagUid && (
+              <p className="text-xs text-gray-500 mt-2 font-mono">UID: {tagUid}</p>
+            )}
+          </section>
+        )}
 
         <section className="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 space-y-4">
-          <p className="text-sm font-medium">ขั้นตอนที่ 2: ข้อมูลสิ่งของ</p>
+          <p className="text-sm font-medium">
+            {nfcSupported ? "ขั้นตอนที่ 2: ข้อมูลสิ่งของ" : "ข้อมูลสิ่งของ"}
+          </p>
 
           <div>
             <label className="text-sm text-gray-600 dark:text-gray-400">ชื่อสิ่งของ</label>
@@ -350,24 +371,26 @@ export default function NfcRegisterPage() {
           </div>
         </section>
 
-        <section className="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={readOnlyLocked}
-              onChange={(e) => setReadOnlyLocked(e.target.checked)}
-              className="mt-1"
-            />
-            <div>
-              <p className="font-medium flex items-center gap-2">
-                <Lock className="w-4 h-4" /> ล็อกแท็กเป็น Read-Only
-              </p>
-              <p className="text-sm text-gray-500 mt-1">
-                เขียนได้ครั้งเดียว ป้องกันคนอื่นแก้ไขข้อมูลบนแท็ก (แนะนำ)
-              </p>
-            </div>
-          </label>
-        </section>
+        {nfcSupported && (
+          <section className="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={readOnlyLocked}
+                onChange={(e) => setReadOnlyLocked(e.target.checked)}
+                className="mt-1"
+              />
+              <div>
+                <p className="font-medium flex items-center gap-2">
+                  <Lock className="w-4 h-4" /> ล็อกแท็กเป็น Read-Only
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  เขียนได้ครั้งเดียว ป้องกันคนอื่นแก้ไขข้อมูลบนแท็ก (แนะนำ)
+                </p>
+              </div>
+            </label>
+          </section>
+        )}
 
         <button
           type="button"
@@ -378,7 +401,7 @@ export default function NfcRegisterPage() {
             isSubmitting && "opacity-50"
           )}
         >
-          {isSubmitting ? "กำลังลงทะเบียน..." : "ลงทะเบียน Tag"}
+          {isSubmitting ? "กำลังลงทะเบียน..." : nfcSupported ? "ลงทะเบียนและเขียนแท็ก" : "ลงทะเบียนและพิมพ์ QR"}
         </button>
       </main>
       {dialog}

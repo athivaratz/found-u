@@ -136,7 +136,7 @@ export default function LoginPage() {
             <div className="w-9 h-9 rounded-xl bg-line-green flex items-center justify-center">
               <Package className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-text-primary">BD2Fondue</span>
+            <span className="font-bold text-text-primary">Found-U</span>
           </div>
           <button
             onClick={handleSignIn}

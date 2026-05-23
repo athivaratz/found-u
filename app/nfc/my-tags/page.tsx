@@ -24,14 +24,15 @@ import {
   type NfcFoundReport,
 } from "@/lib/types";
 import { cn, formatThaiDate, generateTrackingCode } from "@/lib/utils";
-import { buildTagUrl } from "@/lib/nfc";
+import { buildTagUrl, isWebNfcSupported } from "@/lib/nfc";
 import {
-  subscribeToNfcTagsByOwnerId,
-  subscribeToNfcFoundReportsByOwnerId,
   addLostItem,
-  updateNfcFoundReport,
 } from "@/lib/firestore";
-import { updateNfcTagStatusApi } from "@/lib/nfc-api";
+import {
+  updateNfcTagStatusApi,
+  fetchMyNfcDashboardApi,
+  updateNfcReportStatusApi,
+} from "@/lib/nfc-api";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { logItemCreated } from "@/lib/logger";
@@ -44,7 +45,22 @@ export default function NfcMyTagsPage() {
   const [tags, setTags] = useState<NfcTag[]>([]);
   const [reports, setReports] = useState<NfcFoundReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [expandedTag, setExpandedTag] = useState<string | null>(null);
+
+  const loadDashboard = async () => {
+    if (!user?.uid) return;
+    try {
+      setLoadError("");
+      const data = await fetchMyNfcDashboardApi();
+      setTags(data.tags);
+      setReports(data.reports);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "โหลดข้อมูลไม่สำเร็จ");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user?.uid) {
@@ -54,16 +70,11 @@ export default function NfcMyTagsPage() {
       return;
     }
 
-    const unsubTags = subscribeToNfcTagsByOwnerId(user.uid, (items) => {
-      setTags(items);
-      setLoading(false);
-    });
-    const unsubReports = subscribeToNfcFoundReportsByOwnerId(user.uid, setReports);
+    setLoading(true);
+    loadDashboard();
 
-    return () => {
-      unsubTags();
-      unsubReports();
-    };
+    const interval = setInterval(loadDashboard, 30000);
+    return () => clearInterval(interval);
   }, [user?.uid]);
 
   const reportsByTag = useMemo(() => {
@@ -117,6 +128,7 @@ export default function NfcMyTagsPage() {
       }
 
       await updateNfcTagStatusApi(tag.id, "lost", lostItemId);
+      await loadDashboard();
       await showAlert({
         title: "แจ้งของหายแล้ว",
         message: createLost
@@ -145,8 +157,9 @@ export default function NfcMyTagsPage() {
       await Promise.all(
         tagReports
           .filter((r) => r.status !== "resolved")
-          .map((r) => updateNfcFoundReport(r.id, { status: "resolved" }))
+          .map((r) => updateNfcReportStatusApi(r.id, "resolved"))
       );
+      await loadDashboard();
     } catch (err) {
       await showAlert({
         title: "ไม่สำเร็จ",
@@ -157,7 +170,10 @@ export default function NfcMyTagsPage() {
 
   const handleMarkReportViewed = async (report: NfcFoundReport) => {
     if (report.status !== "pending") return;
-    await updateNfcFoundReport(report.id, { status: "viewed" });
+    await updateNfcReportStatusApi(report.id, "viewed");
+    setReports((prev) =>
+      prev.map((r) => (r.id === report.id ? { ...r, status: "viewed" } : r))
+    );
   };
 
   if (authLoading || loading) {
@@ -182,6 +198,11 @@ export default function NfcMyTagsPage() {
     <AppShell>
       <Header title="แท็กของฉัน" showBack />
       <main className="px-4 py-6 pb-28 space-y-4">
+        {loadError && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 text-sm text-red-700 dark:text-red-300">
+            {loadError}
+          </div>
+        )}
         {pendingCount > 0 && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex items-center gap-3">
             <MessageSquare className="w-6 h-6 text-amber-600" />

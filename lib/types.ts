@@ -1,4 +1,4 @@
-// Types สำหรับระบบ BD2Fondue
+// Types สำหรับระบบ Found-U
 
 // User Role
 export type UserRole = 'user' | 'admin';
@@ -79,7 +79,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   restrictModeEnabled: true,
   betaRequestsEnabled: true,
   betaClosedMessage: "ขออภัย รอบนี้ปิดรับสมัครแล้ว กรุณารอรอบถัดไป",
-  ogTitle: "BD2Fondue | ระบบแจ้งของหาย-ของเจอ",
+  ogTitle: "Found-U | ระบบแจ้งของหาย-ของเจอ",
   ogDescription: "ระบบแจ้งของหายและของเจอสำหรับโรงเรียน โดยนร.บด.๒ - แจ้งง่าย ติดตามสะดวก",
   aiRateLimitEnabled: true,
   aiRateLimitPerMinute: 5,

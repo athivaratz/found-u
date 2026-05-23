@@ -93,7 +93,7 @@ export default function PendingPage() {
             <Beaker className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-semibold text-text-primary">BD2Fondue</h1>
+            <h1 className="font-semibold text-text-primary">Found-U</h1>
             <p className="text-xs text-text-secondary">Beta Testing</p>
           </div>
         </div>

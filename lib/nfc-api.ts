@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import type { ContactInfo, ItemCategory, NfcTagStatus } from "@/lib/types";
+import type { ContactInfo, ItemCategory, NfcFoundReport, NfcTag, NfcTagStatus } from "@/lib/types";
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const user = auth.currentUser;
@@ -86,6 +86,53 @@ export async function updateNfcTagStatusApi(
     method: "PATCH",
     headers,
     body: JSON.stringify({ status, lostItemId }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || data.error || "update_failed");
+  }
+}
+
+function parseNfcTag(raw: NfcTag & { registeredAt: string; updatedAt: string }): NfcTag {
+  return {
+    ...raw,
+    registeredAt: new Date(raw.registeredAt),
+    updatedAt: new Date(raw.updatedAt),
+  };
+}
+
+function parseNfcFoundReport(raw: NfcFoundReport & { createdAt: string }): NfcFoundReport {
+  return {
+    ...raw,
+    createdAt: new Date(raw.createdAt),
+  };
+}
+
+export async function fetchMyNfcDashboardApi(): Promise<{
+  tags: NfcTag[];
+  reports: NfcFoundReport[];
+}> {
+  const headers = await getAuthHeaders();
+  const res = await fetch("/api/nfc/my-tags", { headers });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || data.error || "fetch_failed");
+  }
+  return {
+    tags: (data.tags || []).map(parseNfcTag),
+    reports: (data.reports || []).map(parseNfcFoundReport),
+  };
+}
+
+export async function updateNfcReportStatusApi(
+  reportId: string,
+  status: "viewed" | "resolved"
+): Promise<void> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`/api/nfc/reports/${encodeURIComponent(reportId)}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ status }),
   });
   const data = await res.json();
   if (!res.ok) {

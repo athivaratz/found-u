@@ -17,7 +17,7 @@ interface TutorialStep {
 const tutorialSteps: TutorialStep[] = [
   {
     id: 1,
-    title: "ยินดีต้อนรับสู่ BD2Fondue",
+    title: "ยินดีต้อนรับสู่ Found-U",
     description: "ระบบแจ้งของหายและของเจอสำหรับโรงเรียน\nช่วยให้คุณตามหาของที่หายได้ง่ายขึ้น",
     icon: <Sparkles className="w-12 h-12 text-white" />,
     bgColor: "from-[#06C755] to-[#04a044]",

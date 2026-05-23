@@ -20,7 +20,7 @@ const kanit = Kanit({
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getAppSettings().catch(() => DEFAULT_APP_SETTINGS);
 
-  const title = settings.ogTitle || DEFAULT_APP_SETTINGS.ogTitle || "BD2Fondue";
+  const title = settings.ogTitle || DEFAULT_APP_SETTINGS.ogTitle || "Found-U";
   const description = settings.ogDescription || DEFAULT_APP_SETTINGS.ogDescription || "ระบบแจ้งของหาย-ของเจอ";
   const images = settings.ogImage ? [settings.ogImage] : [];
 
@@ -35,7 +35,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       images,
       type: 'website',
-      siteName: 'BD2Fondue',
+      siteName: 'Found-U',
       locale: 'th_TH',
     },
     twitter: {

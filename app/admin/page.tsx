@@ -477,7 +477,7 @@ export default function AdminDashboard() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ภาพรวม</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          สถิติและข้อมูลทั่วไปของระบบ BD2Fondue
+          สถิติและข้อมูลทั่วไปของระบบ Found-U
         </p>
       </div>
 

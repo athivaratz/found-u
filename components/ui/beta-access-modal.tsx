@@ -71,7 +71,7 @@ export function BetaAccessModal({
               🧪 ช่วง Beta Testing
             </h2>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-              เว็บไซต์ BD2Fondue กำลังอยู่ในช่วงทดสอบระบบ
+              เว็บไซต์ Found-U กำลังอยู่ในช่วงทดสอบระบบ
               <br />
               เปิดให้ใช้งานเฉพาะผู้ที่ได้รับสิทธิ์เท่านั้น
             </p>

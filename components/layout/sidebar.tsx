@@ -38,7 +38,7 @@ export default function Sidebar() {
             <Package className="w-6 h-6 text-line-green" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-text-primary">BD2Fondue</h1>
+            <h1 className="text-lg font-bold text-text-primary">Found-U</h1>
             <p className="text-xs text-text-secondary">Lost & Found</p>
           </div>
         </Link>
