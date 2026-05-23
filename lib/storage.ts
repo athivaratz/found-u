@@ -8,6 +8,7 @@ export interface CompressionOptions {
   maxSizeMB?: number;        // ขนาดไฟล์สูงสุด (default: 0.5MB)
   maxWidthOrHeight?: number; // ขนาดกว้าง/สูงสูงสุด (default: 1024px)
   useWebWorker?: boolean;    // ใช้ Web Worker (default: true)
+  initialQuality?: number;   // คุณภาพ JPEG หลังบีบอัด (0–1)
 }
 
 /**
@@ -20,11 +21,11 @@ export async function compressImage(
   options?: CompressionOptions
 ): Promise<File> {
   const defaultOptions = {
-    maxSizeMB: 0.5,          // 500KB
-    maxWidthOrHeight: 1024,  // 1024px
+    maxSizeMB: 0.5,
+    maxWidthOrHeight: 1024,
     useWebWorker: true,
-    fileType: 'image/jpeg',
-    initialQuality: 0.8,
+    fileType: "image/jpeg" as const,
+    initialQuality: options?.initialQuality ?? 0.8,
   };
 
   try {
@@ -51,30 +52,21 @@ export async function compressImage(
  * อัปโหลดรูป
  */
 export async function uploadImage(file: File, path: string): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('path', path);
+
   const response = await fetch('/api/storage/upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      path,
-      contentType: file.type || 'application/octet-stream',
-    }),
+    body: formData,
   });
 
   if (!response.ok) {
-    throw new Error('Failed to request upload URL');
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload image through server API');
   }
 
   const data = await response.json();
-  const uploadResponse = await fetch(data.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type || 'application/octet-stream' },
-    body: file,
-  });
-
-  if (!uploadResponse.ok) {
-    throw new Error('Upload failed');
-  }
-
   return data.publicUrl as string;
 }
 
@@ -82,12 +74,12 @@ export async function uploadImage(file: File, path: string): Promise<string> {
  * อัปโหลดรูปของเจอ พร้อมบีบอัดอัตโนมัติ
  */
 export async function uploadFoundItemImage(
-  file: File, 
+  file: File,
   itemId: string,
-  compress: boolean = true
+  compress: boolean = true,
+  compressionOptions?: CompressionOptions
 ): Promise<string> {
-  // บีบอัดรูปก่อนอัปโหลด (ถ้าเปิดใช้งาน)
-  const fileToUpload = compress ? await compressImage(file) : file;
+  const fileToUpload = compress ? await compressImage(file, compressionOptions) : file;
   
   const extension = 'jpg'; // บังคับใช้ jpg หลังบีบอัด
   const path = `found-items/${itemId}/${Date.now()}.${extension}`;

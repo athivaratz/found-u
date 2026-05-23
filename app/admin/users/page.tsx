@@ -461,7 +461,7 @@ export default function AdminUsersPage() {
 
       {/* Ban Modal */}
       {showBanModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="overlay-modal fixed inset-0 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowBanModal(false)}
@@ -536,7 +536,7 @@ export default function AdminUsersPage() {
 
       {/* Timeout Modal */}
       {showTimeoutModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="overlay-modal fixed inset-0 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowTimeoutModal(false)}

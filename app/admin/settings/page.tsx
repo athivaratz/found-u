@@ -38,9 +38,11 @@ import { cn } from "@/lib/utils";
 import type { AppUser, AppSettings, GeoPoint } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 import MapCanvas from "@/components/ui/map-canvas";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 
 export default function AdminSettingsPage() {
   const { user, appSettings: contextAppSettings } = useAuth();
+  const { showAlert, showConfirm, dialog } = useAppDialog();
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AppUser[]>([]);
@@ -58,14 +60,21 @@ export default function AdminSettingsPage() {
     setUploadingOg(true);
     try {
       // Compress
-      const compressed = await compressImage(file, { maxWidthOrHeight: 1200 });
+      const compressed = await compressImage(file, {
+        maxWidthOrHeight: 1200,
+        initialQuality: betaSettings.compressionQuality ?? DEFAULT_APP_SETTINGS.compressionQuality,
+      });
       // Upload
       const url = await uploadImage(compressed, `settings/og-image-${Date.now()}.jpg`);
 
       setBetaSettings(prev => ({ ...prev, ogImage: url }));
     } catch (error) {
       console.error('Error uploading OG image:', error);
-      alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ');
+      void showAlert({
+        title: "อัปโหลดไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ",
+        variant: "error",
+      });
     } finally {
       setUploadingOg(false);
     }
@@ -101,16 +110,6 @@ export default function AdminSettingsPage() {
     loadSettings();
   }, []);
 
-  // Settings state
-  const [settings, setSettings] = useState({
-    autoDeleteDays: 30,
-    notifyOnNewReport: true,
-    notifyOnStatusChange: true,
-    requireApproval: false,
-    maxImageSize: 5, // MB
-    compressionQuality: 0.8,
-  });
-
   const handleSaveBetaSettings = async () => {
     if (!user?.uid) return;
 
@@ -121,6 +120,11 @@ export default function AdminSettingsPage() {
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
       console.error('Error saving beta settings:', error);
+      void showAlert({
+        title: "บันทึกไม่สำเร็จ",
+        message: "กรุณาตรวจสอบสิทธิ์ Admin และการเชื่อมต่อ Firebase",
+        variant: "error",
+      });
     } finally {
       setSaving(false);
     }
@@ -131,15 +135,6 @@ export default function AdminSettingsPage() {
   const mapPolygon = betaSettings.mapSchoolBoundary || [];
 
   const [processingData, setProcessingData] = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    // Simulate save for other settings
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSaving(false);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
-  };
 
   // Export Data as CSV
   const handleExport = async () => {
@@ -222,7 +217,11 @@ export default function AdminSettingsPage() {
 
     } catch (error) {
       console.error("Export error:", error);
-      alert("เกิดข้อผิดพลาดในการส่งออกข้อมูล");
+      void showAlert({
+        title: "ส่งออกไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาดในการส่งออกข้อมูล",
+        variant: "error",
+      });
     } finally {
       setProcessingData(false);
     }
@@ -233,8 +232,13 @@ export default function AdminSettingsPage() {
     const file = event.target.files?.[0];
     if (!file || processingData) return;
 
-    if (!confirm("การนำเข้าข้อมูลอาจทำให้สับสนไดหากข้อมูลซ้ำซ้อน ต้องการทำต่อหรือไม่?")) {
-      event.target.value = ""; // Reset input
+    const proceedImport = await showConfirm({
+      title: "ยืนยันการนำเข้าข้อมูล",
+      message: "การนำเข้าข้อมูลอาจทำให้สับสนได้หากข้อมูลซ้ำซ้อน ต้องการทำต่อหรือไม่?",
+      variant: "warning",
+    });
+    if (!proceedImport) {
+      event.target.value = "";
       return;
     }
 
@@ -310,13 +314,21 @@ export default function AdminSettingsPage() {
           await batch.commit();
         }
 
-        alert("นำเข้าข้อมูลสำเร็จ!");
+        await showAlert({
+          title: "นำเข้าสำเร็จ",
+          message: "นำเข้าข้อมูลสำเร็จ",
+          variant: "success",
+        });
         // Refresh page or state?
         window.location.reload();
 
       } catch (error) {
         console.error("Import error:", error);
-        alert("เกิดข้อผิดพลาดในการนำเข้า");
+        void showAlert({
+          title: "นำเข้าไม่สำเร็จ",
+          message: "เกิดข้อผิดพลาดในการนำเข้า",
+          variant: "error",
+        });
       } finally {
         setProcessingData(false);
         event.target.value = "";
@@ -328,8 +340,20 @@ export default function AdminSettingsPage() {
 
   // Delete All Data
   const handleDeleteAll = async () => {
-    if (!confirm("คุณแน่ใจหรือไม่ที่จะลบข้อมูลรายการทั้งหมด (ของหายและของเจอ)?")) return;
-    if (!confirm("ยืนยันครั้งสุดท้าย: การกระทำนี้ไม่สามารถกู้คืนได้")) return;
+    const confirmDelete = await showConfirm({
+      title: "ลบข้อมูลทั้งหมด",
+      message: "คุณแน่ใจหรือไม่ที่จะลบข้อมูลรายการทั้งหมด (ของหายและของเจอ)?",
+      variant: "warning",
+    });
+    if (!confirmDelete) return;
+
+    const confirmFinal = await showConfirm({
+      title: "ยืนยันครั้งสุดท้าย",
+      message: "การกระทำนี้ไม่สามารถกู้คืนได้",
+      variant: "error",
+      confirmLabel: "ลบทั้งหมด",
+    });
+    if (!confirmFinal) return;
 
     if (processingData) return;
     setProcessingData(true);
@@ -361,12 +385,20 @@ export default function AdminSettingsPage() {
         await batch.commit();
       }
 
-      alert("ลบข้อมูลสำเร็จ");
+      await showAlert({
+        title: "ลบสำเร็จ",
+        message: "ลบข้อมูลสำเร็จ",
+        variant: "success",
+      });
       window.location.reload();
 
     } catch (error) {
       console.error("Delete error:", error);
-      alert("ลบข้อมูลล้มเหลว");
+      void showAlert({
+        title: "ลบไม่สำเร็จ",
+        message: "ลบข้อมูลล้มเหลว",
+        variant: "error",
+      });
     } finally {
       setProcessingData(false);
     }
@@ -400,7 +432,9 @@ export default function AdminSettingsPage() {
               </div>
               <div>
                 <h2 className="font-semibold text-gray-900 dark:text-white">การตั้งค่าระบบ (System Settings)</h2>
-                <p className="text-sm text-gray-500">จัดการระบบ Restrict Mode, การขอสิทธิ์ และ SEO</p>
+                <p className="text-sm text-gray-500">
+                  Restrict Mode, แผนที่/GPS, การแจ้งเตือน, การจัดเก็บ และ SEO
+                </p>
               </div>
             </div>
             <button
@@ -1068,17 +1102,20 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">แจ้งเมื่อมีรายการใหม่</span>
               <button
                 onClick={() =>
-                  setSettings({ ...settings, notifyOnNewReport: !settings.notifyOnNewReport })
+                  setBetaSettings({
+                    ...betaSettings,
+                    notifyOnNewReport: !betaSettings.notifyOnNewReport,
+                  })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
-                  settings.notifyOnNewReport ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                  betaSettings.notifyOnNewReport ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                    settings.notifyOnNewReport ? "right-1" : "left-1"
+                    betaSettings.notifyOnNewReport ? "right-1" : "left-1"
                   )}
                 />
               </button>
@@ -1088,17 +1125,20 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">แจ้งเมื่อสถานะเปลี่ยน</span>
               <button
                 onClick={() =>
-                  setSettings({ ...settings, notifyOnStatusChange: !settings.notifyOnStatusChange })
+                  setBetaSettings({
+                    ...betaSettings,
+                    notifyOnStatusChange: !betaSettings.notifyOnStatusChange,
+                  })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
-                  settings.notifyOnStatusChange ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                  betaSettings.notifyOnStatusChange ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                    settings.notifyOnStatusChange ? "right-1" : "left-1"
+                    betaSettings.notifyOnStatusChange ? "right-1" : "left-1"
                   )}
                 />
               </button>
@@ -1108,17 +1148,20 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">ต้องอนุมัติก่อนแสดง</span>
               <button
                 onClick={() =>
-                  setSettings({ ...settings, requireApproval: !settings.requireApproval })
+                  setBetaSettings({
+                    ...betaSettings,
+                    requireApproval: !betaSettings.requireApproval,
+                  })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
-                  settings.requireApproval ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                  betaSettings.requireApproval ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                    settings.requireApproval ? "right-1" : "left-1"
+                    betaSettings.requireApproval ? "right-1" : "left-1"
                   )}
                 />
               </button>
@@ -1144,9 +1187,12 @@ export default function AdminSettingsPage() {
               </label>
               <input
                 type="number"
-                value={settings.autoDeleteDays}
+                value={betaSettings.autoDeleteDays ?? 0}
                 onChange={(e) =>
-                  setSettings({ ...settings, autoDeleteDays: parseInt(e.target.value) || 0 })
+                  setBetaSettings({
+                    ...betaSettings,
+                    autoDeleteDays: parseInt(e.target.value, 10) || 0,
+                  })
                 }
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white"
               />
@@ -1159,9 +1205,12 @@ export default function AdminSettingsPage() {
               </label>
               <input
                 type="number"
-                value={settings.maxImageSize}
+                value={betaSettings.maxImageSize ?? 5}
                 onChange={(e) =>
-                  setSettings({ ...settings, maxImageSize: parseInt(e.target.value) || 1 })
+                  setBetaSettings({
+                    ...betaSettings,
+                    maxImageSize: Math.max(1, parseInt(e.target.value, 10) || 1),
+                  })
                 }
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white"
               />
@@ -1169,16 +1218,19 @@ export default function AdminSettingsPage() {
 
             <div>
               <label className="text-sm text-gray-700 dark:text-gray-300 mb-2 block">
-                คุณภาพการบีบอัด ({Math.round(settings.compressionQuality * 100)}%)
+                คุณภาพการบีบอัด ({Math.round((betaSettings.compressionQuality ?? 0.8) * 100)}%)
               </label>
               <input
                 type="range"
                 min="0.1"
                 max="1"
                 step="0.1"
-                value={settings.compressionQuality}
+                value={betaSettings.compressionQuality ?? 0.8}
                 onChange={(e) =>
-                  setSettings({ ...settings, compressionQuality: parseFloat(e.target.value) })
+                  setBetaSettings({
+                    ...betaSettings,
+                    compressionQuality: parseFloat(e.target.value),
+                  })
                 }
                 className="w-full accent-[#06C755]"
               />
@@ -1247,20 +1299,10 @@ export default function AdminSettingsPage() {
         </div>
       </div>
 
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-6 py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors"
-        >
-          {saving ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <Save className="w-5 h-5" />
-          )}
-          บันทึกการตั้งค่า
-        </button>
+      <div className="rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 p-4 text-sm text-blue-800 dark:text-blue-300">
+        การตั้งค่า <strong>การแจ้งเตือน</strong> และ <strong>การจัดเก็บ</strong> บันทึกลง Firestore ที่{" "}
+        <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">settings/appSettings</code> พร้อมกับการตั้งค่าระบบอื่น
+        — กดปุ่ม <strong>บันทึก</strong> ที่การ์ด &quot;การตั้งค่าระบบ (System Settings)&quot; ด้านบน
       </div>
 
       {/* Firebase Rules Info */}
@@ -1278,6 +1320,7 @@ export default function AdminSettingsPage() {
           </div>
         </div>
       </div>
+      {dialog}
     </div>
   );
 }

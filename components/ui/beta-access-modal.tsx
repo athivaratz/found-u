@@ -41,7 +41,7 @@ export function BetaAccessModal({
   const currentStatus = localStatus !== betaStatus ? localStatus : betaStatus;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    <div className="overlay-modal fixed inset-0 flex items-center justify-center">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 

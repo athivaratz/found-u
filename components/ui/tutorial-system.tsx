@@ -131,7 +131,7 @@ export function TutorialSystem({ isOpen, userId, onComplete }: TutorialSystemPro
   const isLastStep = currentStep === tutorialSteps.length - 1;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80">
+    <div className="overlay-modal fixed inset-0 flex items-center justify-center bg-black/80">
       {/* Tutorial Card */}
       <div
         className="relative w-full max-w-md mx-4 overflow-hidden animate-fade-in"

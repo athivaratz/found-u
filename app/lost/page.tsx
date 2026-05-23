@@ -28,11 +28,13 @@ import {
   type ContactTypeConfig,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { logItemCreated } from "@/lib/logger";
 
 export default function ReportLostPage() {
   const router = useRouter();
   const { user, loading: authLoading, appSettings } = useAuth();
+  const { showAlert, dialog } = useAppDialog();
 
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
@@ -177,15 +179,15 @@ export default function ReportLostPage() {
       const itemId = await addLostItem({
         itemName: formData.itemName,
         category: formData.category as ItemCategory,
-        description: formData.description,
+        description: formData.description.trim() || formData.itemName,
         locationLost: formData.locationLost,
         locationPlaceName: formData.locationLost,
-        locationCoords: locationCoords || undefined,
         contacts: validContacts,
-        userId: user?.uid,
         trackingCode: newTrackingCode,
         status: "searching",
         dateLost: new Date(),
+        ...(locationCoords ? { locationCoords } : {}),
+        ...(user?.uid ? { userId: user.uid } : {}),
       });
 
       await logItemCreated(
@@ -215,7 +217,11 @@ export default function ReportLostPage() {
       setShowSuccess(true);
     } catch (error) {
       console.error("Error submitting form:", error);
-      alert("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+      void showAlert({
+        title: "ส่งข้อมูลไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูลที่จำเป็นแล้วลองใหม่อีกครั้ง",
+        variant: "error",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -559,6 +565,7 @@ export default function ReportLostPage() {
           </div>
         </form>
       </div>
+      {dialog}
     </AppShell>
   );
 }

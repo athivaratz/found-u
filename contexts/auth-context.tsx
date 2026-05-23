@@ -11,6 +11,8 @@ interface AuthContextType {
   user: User | null;
   appUser: AppUser | null;
   appSettings: AppSettings;
+  /** True after the first Firestore appSettings snapshot (or default fallback). */
+  appSettingsReady: boolean;
   loading: boolean;
   isAuthActionLoading: boolean;
   isAdmin: boolean;
@@ -32,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [appSettingsReady, setAppSettingsReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
 
@@ -83,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = subscribeToAppSettings((settings) => {
       setAppSettings(settings);
+      setAppSettingsReady(true);
     });
 
     return () => unsubscribe();
@@ -138,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         appUser,
         appSettings,
+        appSettingsReady,
         loading,
         isAuthActionLoading,
         isAdmin: appUser?.role === 'admin',

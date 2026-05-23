@@ -289,3 +289,59 @@ body {
 .safe-top {
   padding-top: env(safe-area-inset-top, 0);
 }
+
+/*
+ * Leaflet sets pane/control z-index in the 400–1000 range globally,
+ * which stacks above Tailwind overlays (z-50). Scope all map layers
+ * inside .map-canvas-root so modals and dialogs stay on top.
+ */
+.map-canvas-root {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
+.map-canvas-root .leaflet-container {
+  z-index: 0 !important;
+  font-family: inherit;
+}
+
+.map-canvas-root .leaflet-pane {
+  z-index: 1 !important;
+}
+
+.map-canvas-root .leaflet-tile-pane {
+  z-index: 1 !important;
+}
+
+.map-canvas-root .leaflet-overlay-pane {
+  z-index: 2 !important;
+}
+
+.map-canvas-root .leaflet-shadow-pane {
+  z-index: 3 !important;
+}
+
+.map-canvas-root .leaflet-marker-pane {
+  z-index: 4 !important;
+}
+
+.map-canvas-root .leaflet-tooltip-pane {
+  z-index: 5 !important;
+}
+
+.map-canvas-root .leaflet-popup-pane {
+  z-index: 6 !important;
+}
+
+.map-canvas-root .leaflet-control-container,
+.map-canvas-root .leaflet-top,
+.map-canvas-root .leaflet-bottom,
+.map-canvas-root .leaflet-control {
+  z-index: 10 !important;
+}
+
+/* Shared overlay layer — above Leaflet and page chrome */
+.overlay-modal {
+  z-index: 1000;
+}

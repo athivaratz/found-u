@@ -54,6 +54,16 @@ export interface AppSettings {
   mapSchoolBoundary?: GeoPoint[]; // Polygon points
   mapEnforceFoundInSchool?: boolean;
 
+  // Notification settings
+  notifyOnNewReport?: boolean;
+  notifyOnStatusChange?: boolean;
+  requireApproval?: boolean;
+
+  // Storage settings
+  autoDeleteDays?: number; // 0 = ไม่ลบอัตโนมัติ
+  maxImageSize?: number; // MB สูงสุดก่อนอัปโหลด
+  compressionQuality?: number; // 0.1–1 สำหรับบีบอัดรูป
+
   // Other settings
   updatedAt?: Date;
   updatedBy?: string;
@@ -92,6 +102,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   mapDefaultZoom: 17,
   mapSchoolBoundary: [],
   mapEnforceFoundInSchool: true,
+  notifyOnNewReport: true,
+  notifyOnStatusChange: true,
+  requireApproval: false,
+  autoDeleteDays: 30,
+  maxImageSize: 5,
+  compressionQuality: 0.8,
 };
 
 // AI Rate Limit Usage Record
@@ -242,6 +258,20 @@ export interface FoundItem {
   createdAt: Date;
   updatedAt: Date;
   matchedLostId?: string; // ID ของ LostItem ที่ match
+}
+
+/** Discriminate lost vs found — do not use `itemName` (found items may have it from AI). */
+export function isLostItem(item: LostItem | FoundItem): item is LostItem {
+  return "locationLost" in item;
+}
+
+export function isFoundItem(item: LostItem | FoundItem): item is FoundItem {
+  return "locationFound" in item;
+}
+
+export function getItemDisplayName(item: LostItem | FoundItem): string {
+  if (isLostItem(item)) return item.itemName;
+  return item.itemName?.trim() || item.description;
 }
 
 // ข้อมูล Category สำหรับแสดงผล

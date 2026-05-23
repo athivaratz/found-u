@@ -36,6 +36,51 @@ export function formatTime(date: Date): string {
   });
 }
 
+/** Normalize Firestore/plain objects to { lat, lng } (handles latitude/longitude). */
+export function normalizeGeoPoint(point: unknown): GeoPoint | null {
+  if (!point || typeof point !== "object") return null;
+  const p = point as Record<string, unknown>;
+  const lat =
+    typeof p.lat === "number"
+      ? p.lat
+      : typeof p.latitude === "number"
+        ? p.latitude
+        : null;
+  const lng =
+    typeof p.lng === "number"
+      ? p.lng
+      : typeof p.longitude === "number"
+        ? p.longitude
+        : null;
+  if (lat === null || lng === null) return null;
+  return { lat, lng };
+}
+
+/** Max GPS accuracy (meters) to accept for strict school-boundary checks. */
+export const STRICT_GPS_MAX_ACCURACY_METERS = 150;
+
+export function normalizeGeoPolygon(polygon: unknown): GeoPoint[] {
+  if (Array.isArray(polygon)) {
+    return polygon
+      .map(normalizeGeoPoint)
+      .filter((p): p is GeoPoint => p !== null);
+  }
+
+  // Firestore sometimes stores arrays as maps with numeric keys ("0", "1", …)
+  if (polygon && typeof polygon === "object") {
+    const record = polygon as Record<string, unknown>;
+    const keys = Object.keys(record).filter((k) => /^\d+$/.test(k));
+    if (keys.length === 0) return [];
+
+    return keys
+      .sort((a, b) => Number(a) - Number(b))
+      .map((key) => normalizeGeoPoint(record[key]))
+      .filter((p): p is GeoPoint => p !== null);
+  }
+
+  return [];
+}
+
 // Ray-casting algorithm for point-in-polygon
 export function isPointInPolygon(point: GeoPoint, polygon: GeoPoint[]): boolean {
   if (!polygon || polygon.length < 3) return false;

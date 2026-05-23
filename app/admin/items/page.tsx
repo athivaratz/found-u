@@ -26,11 +26,20 @@ import {
   getCategories,
   getLocations,
 } from "@/lib/firestore";
-import { STATUS_CONFIG, type LostItem, type FoundItem, type ItemStatus } from "@/lib/types";
+import {
+  STATUS_CONFIG,
+  getItemDisplayName,
+  isFoundItem,
+  isLostItem,
+  type LostItem,
+  type FoundItem,
+  type ItemStatus,
+} from "@/lib/types";
 import type { CategoryConfig, LocationConfig } from "@/lib/firestore";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { logStatusChanged, logActivity } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import MapCanvas from "@/components/ui/map-canvas";
 
 type Tab = "lost" | "found";
@@ -75,7 +84,8 @@ export default function AdminItemsPage() {
     };
   }, []);
 
-  const { user, appSettings } = useAuth(); // Add user auth context
+  const { user, appSettings } = useAuth();
+  const { showAlert, showConfirm, dialog } = useAppDialog();
 
   const mapCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
   const mapZoom = appSettings.mapDefaultZoom ?? 17;
@@ -83,26 +93,42 @@ export default function AdminItemsPage() {
   const handleStatusUpdate = async (item: LostItem | FoundItem, newStatus: ItemStatus) => {
     setUpdating(true);
     try {
-      if ("itemName" in item) {
+      if (isLostItem(item)) {
         await updateLostItem(item.id, { status: newStatus });
         await logStatusChanged("lost", item.id, item.itemName, newStatus, user?.email || undefined);
       } else {
         await updateFoundItem(item.id, { status: newStatus });
-        await logStatusChanged("found", item.id, item.description, newStatus, user?.email || undefined);
+        await logStatusChanged(
+          "found",
+          item.id,
+          getItemDisplayName(item),
+          newStatus,
+          user?.email || undefined
+        );
       }
       setShowModal(false);
     } catch (error) {
       console.error("Error updating status:", error);
-      alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ");
+      void showAlert({
+        title: "อัปเดตไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาดในการอัปเดตสถานะ",
+        variant: "error",
+      });
     }
     setUpdating(false);
   };
 
   const handleDelete = async (item: LostItem | FoundItem) => {
-    if (!confirm("ต้องการลบรายการนี้หรือไม่?")) return;
+    const confirmed = await showConfirm({
+      title: "ลบรายการ",
+      message: "ต้องการลบรายการนี้หรือไม่?",
+      variant: "warning",
+      confirmLabel: "ลบ",
+    });
+    if (!confirmed) return;
 
     try {
-      if ("itemName" in item) {
+      if (isLostItem(item)) {
         await deleteLostItem(item.id);
         await logActivity({
           action: `ลบรายการของหาย: ${item.itemName}`,
@@ -126,7 +152,11 @@ export default function AdminItemsPage() {
       setShowModal(false);
     } catch (error) {
       console.error("Error deleting item:", error);
-      alert("เกิดข้อผิดพลาดในการลบ");
+      void showAlert({
+        title: "ลบไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาดในการลบ",
+        variant: "error",
+      });
     }
   };
 
@@ -152,7 +182,7 @@ export default function AdminItemsPage() {
     .map((item) => ({
       id: item.id,
       position: item.locationCoords!,
-      label: "itemName" in item ? item.itemName : item.description,
+      label: getItemDisplayName(item),
       color: activeTab === "lost" ? "#ef4444" : "#06C755",
     }));
 
@@ -300,7 +330,7 @@ export default function AdminItemsPage() {
                   </td>
                   <td className="py-4 px-6">
                     <span className="text-gray-900 dark:text-white">
-                      {"itemName" in item ? item.itemName : item.description}
+                      {getItemDisplayName(item)}
                     </span>
                   </td>
                   <td className="py-4 px-6 text-gray-500 dark:text-gray-400">
@@ -365,7 +395,7 @@ export default function AdminItemsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-900 dark:text-white truncate">
-                    {"itemName" in item ? item.itemName : item.description}
+                    {getItemDisplayName(item)}
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     <span className="font-mono text-[#06C755]">{item.trackingCode}</span>
@@ -397,7 +427,7 @@ export default function AdminItemsPage() {
 
       {/* Detail Modal */}
       {showModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div className="overlay-modal fixed inset-0 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -432,7 +462,7 @@ export default function AdminItemsPage() {
                 <p className="font-mono text-lg text-[#06C755]">{selectedItem.trackingCode}</p>
               </div>
 
-              {"itemName" in selectedItem && (
+              {isLostItem(selectedItem) && (
                 <>
                   <div>
                     <label className="text-sm text-gray-500">สิ่งของ</label>
@@ -464,7 +494,7 @@ export default function AdminItemsPage() {
                 </>
               )}
 
-              {"description" in selectedItem && !("itemName" in selectedItem) && (
+              {isFoundItem(selectedItem) && (
                 <>
                   <div>
                     <label className="text-sm text-gray-500">รายละเอียด</label>
@@ -528,6 +558,7 @@ export default function AdminItemsPage() {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

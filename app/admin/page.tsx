@@ -24,7 +24,16 @@ import {
   subscribeToAIUsage,
   getAllUsers,
 } from "@/lib/firestore";
-import { CATEGORIES, STATUS_CONFIG, type LostItem, type FoundItem, type AIUsageRecord, type AppUser } from "@/lib/types";
+import {
+  CATEGORIES,
+  STATUS_CONFIG,
+  getItemDisplayName,
+  isLostItem,
+  type LostItem,
+  type FoundItem,
+  type AIUsageRecord,
+  type AppUser,
+} from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
 
 // Tab type
@@ -572,7 +581,7 @@ export default function AdminDashboard() {
               </div>
             ) : (
               recentActivity.map((item) => {
-                const isLost = "itemName" in item;
+                const isLost = isLostItem(item);
                 return (
                   <div key={item.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <div className="flex items-center gap-4">
@@ -592,7 +601,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 dark:text-white truncate">
-                          {isLost ? (item as LostItem).itemName : (item as FoundItem).description}
+                          {getItemDisplayName(item)}
                         </p>
                         <p className="text-sm text-gray-500 truncate">
                           {isLost ? "แจ้งของหาย" : "แจ้งเจอของ"} •{" "}

@@ -32,9 +32,18 @@ import {
   getCategories,
   getLocations,
 } from "@/lib/firestore";
-import { STATUS_CONFIG, type LostItem, type FoundItem, type ItemStatus } from "@/lib/types";
+import {
+  STATUS_CONFIG,
+  getItemDisplayName,
+  isFoundItem,
+  isLostItem,
+  type LostItem,
+  type FoundItem,
+  type ItemStatus,
+} from "@/lib/types";
 import type { CategoryConfig, LocationConfig } from "@/lib/firestore";
 import { cn, formatThaiDate } from "@/lib/utils";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 
 export default function AdminModerationPage() {
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
@@ -46,6 +55,7 @@ export default function AdminModerationPage() {
   const [processing, setProcessing] = useState(false);
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [locations, setLocations] = useState<LocationConfig[]>([]);
+  const { showAlert, showConfirm, dialog } = useAppDialog();
 
   useEffect(() => {
     // Load categories and locations from Firestore
@@ -117,14 +127,18 @@ export default function AdminModerationPage() {
   const handleApprove = async (item: LostItem | FoundItem) => {
     setProcessing(true);
     try {
-      if ("itemName" in item) {
+      if (isLostItem(item)) {
         await updateLostItem(item.id, { status: "found" });
       } else {
         await updateFoundItem(item.id, { status: "found" });
       }
     } catch (error) {
       console.error("Error approving item:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "ดำเนินการไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setProcessing(false);
   };
@@ -133,7 +147,7 @@ export default function AdminModerationPage() {
   const handleMarkClaimed = async (item: LostItem | FoundItem) => {
     setProcessing(true);
     try {
-      if ("itemName" in item) {
+      if (isLostItem(item)) {
         await updateLostItem(item.id, { status: "claimed" });
       } else {
         await updateFoundItem(item.id, { status: "claimed" });
@@ -141,18 +155,28 @@ export default function AdminModerationPage() {
       setShowDetailModal(false);
     } catch (error) {
       console.error("Error marking as claimed:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "ดำเนินการไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setProcessing(false);
   };
 
   // Delete item
   const handleDelete = async (item: LostItem | FoundItem) => {
-    if (!confirm("ต้องการลบรายการนี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้")) return;
+    const confirmed = await showConfirm({
+      title: "ลบรายการ",
+      message: "ต้องการลบรายการนี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้",
+      variant: "warning",
+      confirmLabel: "ลบ",
+    });
+    if (!confirmed) return;
 
     setProcessing(true);
     try {
-      if ("itemName" in item) {
+      if (isLostItem(item)) {
         await deleteLostItem(item.id);
       } else {
         await deleteFoundItem(item.id);
@@ -160,7 +184,11 @@ export default function AdminModerationPage() {
       setShowDetailModal(false);
     } catch (error) {
       console.error("Error deleting item:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "ลบไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setProcessing(false);
   };
@@ -258,7 +286,7 @@ export default function AdminModerationPage() {
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
             {filteredItems.map((item) => {
-              const isLost = "itemName" in item;
+              const isLost = isLostItem(item);
               const isOld = (() => {
                 if (item.createdAt) {
                   const createdDate = timestampToDate(item.createdAt as any);
@@ -386,7 +414,7 @@ export default function AdminModerationPage() {
 
       {/* Detail Modal */}
       {showDetailModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div className="overlay-modal fixed inset-0 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="p-6 border-b border-gray-100 dark:border-gray-700">
@@ -425,7 +453,7 @@ export default function AdminModerationPage() {
               </div>
 
               {/* Details */}
-              {"itemName" in selectedItem && (
+              {isLostItem(selectedItem) && (
                 <>
                   <div>
                     <label className="text-sm text-gray-500">สิ่งของ</label>
@@ -457,7 +485,7 @@ export default function AdminModerationPage() {
                 </>
               )}
 
-              {"description" in selectedItem && !("itemName" in selectedItem) && (
+              {isFoundItem(selectedItem) && (
                 <>
                   <div>
                     <label className="text-sm text-gray-500">รายละเอียด</label>
@@ -527,6 +555,7 @@ export default function AdminModerationPage() {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

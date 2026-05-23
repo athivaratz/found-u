@@ -32,6 +32,7 @@ import { db } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import { logConfigChanged } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 
 // Types
 interface Category {
@@ -100,6 +101,7 @@ const CONTACT_EMOJI_OPTIONS = ["📞", "💬", "📷", "📘", "📧", "💌", "
 
 export default function AdminCategoriesPage() {
   const { user } = useAuth();
+  const { showAlert, showConfirm, dialog } = useAppDialog();
   const [activeTab, setActiveTab] = useState<"categories" | "locations" | "contacts">("categories");
   const [categories, setCategories] = useState<Category[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -214,10 +216,18 @@ export default function AdminCategoriesPage() {
         }
       }
 
-      alert("บันทึกค่าเริ่มต้นสำเร็จ");
+      void showAlert({
+        title: "บันทึกสำเร็จ",
+        message: "บันทึกค่าเริ่มต้นสำเร็จ",
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error initializing defaults:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "บันทึกไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setSaving(false);
   };
@@ -225,7 +235,11 @@ export default function AdminCategoriesPage() {
   // Add handlers for each type
   const handleAdd = async () => {
     if (!newForm.value.trim() || !newForm.label.trim()) {
-      alert("กรุณากรอกข้อมูลให้ครบ");
+      void showAlert({
+        title: "ข้อมูลไม่ครบ",
+        message: "กรุณากรอกข้อมูลให้ครบ",
+        variant: "warning",
+      });
       return;
     }
 
@@ -253,7 +267,11 @@ export default function AdminCategoriesPage() {
       setShowAddForm(false);
     } catch (error) {
       console.error("Error adding:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "เพิ่มไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setSaving(false);
   };
@@ -261,7 +279,11 @@ export default function AdminCategoriesPage() {
   // Update handler
   const handleUpdate = async (id: string) => {
     if (id.startsWith("default-")) {
-      alert("กรุณาบันทึกค่าเริ่มต้นก่อน");
+      void showAlert({
+        title: "ยังไม่พร้อมแก้ไข",
+        message: "กรุณาบันทึกค่าเริ่มต้นก่อน",
+        variant: "warning",
+      });
       return;
     }
 
@@ -286,7 +308,11 @@ export default function AdminCategoriesPage() {
       setEditingId(null);
     } catch (error) {
       console.error("Error updating:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "อัปเดตไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setSaving(false);
   };
@@ -294,11 +320,21 @@ export default function AdminCategoriesPage() {
   // Delete handler
   const handleDelete = async (id: string, name: string) => {
     if (id.startsWith("default-")) {
-      alert("ไม่สามารถลบค่าเริ่มต้นได้ กรุณาบันทึกค่าเริ่มต้นก่อน");
+      void showAlert({
+        title: "ลบไม่ได้",
+        message: "ไม่สามารถลบค่าเริ่มต้นได้ กรุณาบันทึกค่าเริ่มต้นก่อน",
+        variant: "warning",
+      });
       return;
     }
 
-    if (!confirm(`ต้องการลบ "${name}" หรือไม่?`)) return;
+    const confirmed = await showConfirm({
+      title: "ลบรายการ",
+      message: `ต้องการลบ "${name}" หรือไม่?`,
+      variant: "warning",
+      confirmLabel: "ลบ",
+    });
+    if (!confirmed) return;
 
     try {
       const collectionName = activeTab === "categories" ? "categories" : activeTab === "locations" ? "locations" : "contactTypes";
@@ -306,7 +342,11 @@ export default function AdminCategoriesPage() {
       await logConfigChanged("delete", activeTab === "categories" ? "category" : activeTab === "locations" ? "location" : "contactType", name, user?.email || undefined);
     } catch (error) {
       console.error("Error deleting:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "ลบไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
   };
 
@@ -555,6 +595,7 @@ export default function AdminCategoriesPage() {
           💡 <strong>หมายเหตุ:</strong> สถานที่จะใช้ร่วมกันทั้งในฟอร์ม "สถานที่หาย" และ "สถานที่ส่งคืน"
         </p>
       </div>
+      {dialog}
     </div>
   );
 }

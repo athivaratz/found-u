@@ -25,6 +25,7 @@ import { cn, formatThaiDate } from "@/lib/utils";
 import { findMatchesForLostItem, findMatchesForFoundItem, MatchScore, getMatchConfidence } from "@/lib/matching";
 import { logItemMatched } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useCategories } from "@/contexts/DataContext";
 import type { LostItem, FoundItem } from "@/lib/types";
 
@@ -42,6 +43,7 @@ interface DisplayMatch extends MatchScore {
 
 export default function AdminMatchingPage() {
     const { user } = useAuth();
+    const { showAlert, dialog } = useAppDialog();
     const { categories, getCategoryByValue } = useCategories();
     const [activeTab, setActiveTab] = useState<"lost" | "found">("lost");
     const [lostItems, setLostItems] = useState<LostItem[]>([]);
@@ -202,10 +204,18 @@ export default function AdminMatchingPage() {
             // Reset selection
             setSelectedItem(null);
             setMatches([]);
-            alert("จับคู่สำเร็จ!");
+            void showAlert({
+                title: "จับคู่สำเร็จ",
+                message: "อัปเดตสถานะรายการเป็นคืนของแล้ว",
+                variant: "success",
+            });
         } catch (error) {
             console.error("Error confirming match:", error);
-            alert("เกิดข้อผิดพลาด");
+            void showAlert({
+                title: "จับคู่ไม่สำเร็จ",
+                message: "เกิดข้อผิดพลาด",
+                variant: "error",
+            });
             // Clear processing IDs on error
             setProcessingIds(prev => {
                 const next = new Set(prev);
@@ -663,6 +673,7 @@ export default function AdminMatchingPage() {
                     </div>
                 </div>
             )}
+            {dialog}
         </div>
     );
 }

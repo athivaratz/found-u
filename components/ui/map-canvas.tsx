@@ -184,7 +184,10 @@ export default function MapCanvas({
   return (
     <div
       ref={containerRef}
-      className={cn("w-full rounded-2xl border border-gray-200 dark:border-gray-700", className)}
+      className={cn(
+        "map-canvas-root relative z-0 isolate overflow-hidden w-full rounded-2xl border border-gray-200 dark:border-gray-700",
+        className
+      )}
     />
   );
 }

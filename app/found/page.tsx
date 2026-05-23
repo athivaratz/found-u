@@ -30,7 +30,12 @@ import {
   type ItemCategory,
   type LocationCoords,
 } from "@/lib/types";
-import { cn, generateTrackingCode, isPointInPolygon } from "@/lib/utils";
+import {
+  cn,
+  generateTrackingCode,
+  isPointInPolygon,
+  STRICT_GPS_MAX_ACCURACY_METERS,
+} from "@/lib/utils";
 import {
   addFoundItem,
   subscribeToCategories,
@@ -41,7 +46,16 @@ import {
   type LocationConfig,
 } from "@/lib/firestore";
 import { uploadFoundItemImage } from "@/lib/storage";
+import {
+  getCompressionOptionsFromSettings,
+  getMaxUploadBytes,
+} from "@/lib/image-upload-settings";
+import {
+  queryGeolocationPermission,
+  watchGeolocationPermission,
+} from "@/lib/geolocation";
 import { useAuth } from "@/contexts/auth-context";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { logItemCreated } from "@/lib/logger";
 
 type ReportMode = "vision" | "manual";
@@ -49,12 +63,26 @@ type ReportMode = "vision" | "manual";
 export default function ReportFoundPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user, loading: authLoading, appSettings } = useAuth();
+  const { user, loading: authLoading, appSettings, appSettingsReady, isAdmin } = useAuth();
+  const { showAlert, dialog } = useAppDialog();
 
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [locations, setLocations] = useState<LocationConfig[]>([]);
   const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
+
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
+  const [locationErrorType, setLocationErrorType] = useState<
+    | "permission"
+    | "timeout"
+    | "position"
+    | "outside"
+    | "boundary_not_configured"
+    | "low_accuracy"
+    | null
+  >(null);
+  const [userCurrentCoords, setUserCurrentCoords] = useState<LocationCoords | null>(null);
 
   const [reportMode, setReportMode] = useState<ReportMode>("vision");
   const [visionQuota, setVisionQuota] = useState<{
@@ -87,6 +115,7 @@ export default function ReportFoundPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [trackingCode, setTrackingCode] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [showMatches, setShowMatches] = useState(false);
   const [matches, setMatches] = useState<any[]>([]);
 
@@ -144,6 +173,123 @@ export default function ReportFoundPage() {
     return () => clearInterval(interval);
   }, [user?.uid, reportMode]);
 
+  const enforcementRequired = appSettingsReady && !!appSettings.mapEnforceFoundInSchool;
+  const waitingForSettings =
+    !authLoading && !configLoading && !!user && !appSettingsReady;
+  const showLocationGate = waitingForSettings || (enforcementRequired && locationVerified !== true);
+
+  const verifyLocation = async () => {
+    const polygon = appSettings.mapSchoolBoundary || [];
+
+    if (!appSettings.mapEnforceFoundInSchool) {
+      setLocationVerified(true);
+      setLocationErrorType(null);
+      setGpsLoading(false);
+      return;
+    }
+
+    setLocationVerified(null);
+    setLocationErrorType(null);
+
+    if (polygon.length < 3) {
+      setLocationVerified(false);
+      setLocationErrorType("boundary_not_configured");
+      setGpsLoading(false);
+      return;
+    }
+
+    setGpsLoading(true);
+
+    if (!navigator.geolocation) {
+      setLocationErrorType("position");
+      setLocationVerified(false);
+      setGpsLoading(false);
+      return;
+    }
+
+    const permission = await queryGeolocationPermission();
+    if (permission === "denied") {
+      setLocationErrorType("permission");
+      setLocationVerified(false);
+      setGpsLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const accuracy = pos.coords.accuracy;
+        if (accuracy == null || accuracy > STRICT_GPS_MAX_ACCURACY_METERS) {
+          setLocationVerified(false);
+          setLocationErrorType("low_accuracy");
+          setGpsLoading(false);
+          return;
+        }
+
+        const coords: LocationCoords = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy,
+          source: "gps",
+        };
+        setUserCurrentCoords(coords);
+
+        const inside = isPointInPolygon(coords, polygon);
+        if (inside) {
+          setLocationVerified(true);
+          setLocationCoords(coords);
+        } else {
+          setLocationVerified(false);
+          setLocationErrorType("outside");
+        }
+        setGpsLoading(false);
+      },
+      (error) => {
+        console.error("GPS Verification Error:", error);
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationErrorType("permission");
+        } else if (error.code === error.TIMEOUT) {
+          setLocationErrorType("timeout");
+        } else {
+          setLocationErrorType("position");
+        }
+        setLocationVerified(false);
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  const boundaryString = JSON.stringify(appSettings?.mapSchoolBoundary || []);
+
+  useEffect(() => {
+    if (!authLoading && !configLoading && appSettingsReady && user) {
+      void verifyLocation();
+    }
+  }, [
+    authLoading,
+    configLoading,
+    appSettingsReady,
+    user,
+    appSettings.mapEnforceFoundInSchool,
+    boundaryString,
+  ]);
+
+  useEffect(() => {
+    if (!enforcementRequired) return;
+
+    const unwatch = watchGeolocationPermission((state) => {
+      if (state === "denied") {
+        setLocationVerified(false);
+        setLocationErrorType("permission");
+        setGpsLoading(false);
+      } else if (state === "granted" && locationVerified !== true) {
+        void verifyLocation();
+      }
+    });
+
+    return unwatch;
+  }, [enforcementRequired]);
+
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -151,6 +297,9 @@ export default function ReportFoundPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+    if (warnings[name]) {
+      setWarnings((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
@@ -175,12 +324,22 @@ export default function ReportFoundPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("ไฟล์ใหญ่เกินไป (สูงสุด 5MB)");
+    const maxBytes = getMaxUploadBytes(appSettings);
+    if (file.size > maxBytes) {
+      const maxMb = Math.round(maxBytes / (1024 * 1024));
+      void showAlert({
+        title: "ไฟล์ใหญ่เกินไป",
+        message: `กรุณาเลือกรูปที่มีขนาดไม่เกิน ${maxMb} MB`,
+        variant: "warning",
+      });
       return;
     }
     if (!file.type.startsWith("image/")) {
-      alert("กรุณาเลือกไฟล์รูปภาพ");
+      void showAlert({
+        title: "ไฟล์ไม่ถูกต้อง",
+        message: "กรุณาเลือกไฟล์รูปภาพ (PNG, JPG)",
+        variant: "warning",
+      });
       return;
     }
 
@@ -276,6 +435,7 @@ export default function ReportFoundPage() {
 
   const validateForm = () => {
     const nextErrors: Record<string, string> = {};
+    const nextWarnings: Record<string, string> = {};
 
     if (!formData.description.trim() && !formData.itemName.trim()) {
       nextErrors.description = "กรุณากรอกชื่อหรือรายละเอียดของที่เจอ";
@@ -302,7 +462,24 @@ export default function ReportFoundPage() {
       }
     }
 
+    if (!formData.itemName.trim()) {
+      nextWarnings.itemName = "ยังไม่ได้กรอกชื่อ (ไม่บังคับ)";
+    }
+    if (!formData.category) {
+      nextWarnings.category = "ยังไม่ได้เลือกหมวดหมู่ (ไม่บังคับ)";
+    }
+    if (!formData.color.trim()) {
+      nextWarnings.color = "ยังไม่ได้กรอกสี (ไม่บังคับ)";
+    }
+    if (!formData.brand.trim()) {
+      nextWarnings.brand = "ยังไม่ได้กรอกยี่ห้อ (ไม่บังคับ)";
+    }
+    if (contacts.length === 0) {
+      nextWarnings.contacts = "ยังไม่ได้เพิ่มช่องทางติดต่อ (ไม่บังคับ)";
+    }
+
     setErrors(nextErrors);
+    setWarnings(nextWarnings);
     return Object.keys(nextErrors).length === 0;
   };
 
@@ -317,7 +494,12 @@ export default function ReportFoundPage() {
 
       let photoUrl = "";
       if (imageFile) {
-        photoUrl = await uploadFoundItemImage(imageFile, newTrackingCode);
+        photoUrl = await uploadFoundItemImage(
+          imageFile,
+          newTrackingCode,
+          true,
+          getCompressionOptionsFromSettings(appSettings)
+        );
       }
 
       const validContacts = contacts.filter((c) => c.value.trim());
@@ -331,21 +513,21 @@ export default function ReportFoundPage() {
           : formData.dropOffLocation;
 
       const itemId = await addFoundItem({
-        itemName: formData.itemName || undefined,
-        category: formData.category || undefined,
-        color: formData.color || undefined,
-        brand: formData.brand || undefined,
         description,
         locationFound: formData.locationFound,
         locationPlaceName: formData.locationFound,
-        locationCoords: locationCoords || undefined,
         dropOffLocation: finalDropOffLocation as DropOffLocation,
-        finderContacts: validContacts.length > 0 ? validContacts : undefined,
-        userId: user?.uid,
-        photoUrl,
         trackingCode: newTrackingCode,
         status: "found",
         dateFound: new Date(),
+        ...(photoUrl ? { photoUrl } : {}),
+        ...(formData.itemName.trim() ? { itemName: formData.itemName.trim() } : {}),
+        ...(formData.category ? { category: formData.category as ItemCategory } : {}),
+        ...(formData.color.trim() ? { color: formData.color.trim() } : {}),
+        ...(formData.brand.trim() ? { brand: formData.brand.trim() } : {}),
+        ...(locationCoords ? { locationCoords } : {}),
+        ...(validContacts.length > 0 ? { finderContacts: validContacts } : {}),
+        ...(user?.uid ? { userId: user.uid } : {}),
       });
 
       await logItemCreated(
@@ -375,7 +557,11 @@ export default function ReportFoundPage() {
       setShowSuccess(true);
     } catch (error) {
       console.error("Error submitting form:", error);
-      alert("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+      void showAlert({
+        title: "ส่งข้อมูลไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูลที่จำเป็นแล้วลองใหม่อีกครั้ง",
+        variant: "error",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -402,6 +588,8 @@ export default function ReportFoundPage() {
       </div>
     );
   }
+
+
 
   if (showSuccess) {
     return (
@@ -531,6 +719,8 @@ export default function ReportFoundPage() {
                     setLocationCoords(null);
                     setShowMatches(false);
                     setMatches([]);
+                    setErrors({});
+                    setWarnings({});
                   }}
                   className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors shadow-sm"
                 >
@@ -552,7 +742,12 @@ export default function ReportFoundPage() {
 
   return (
     <AppShell>
-      <div className="min-h-screen bg-bg-secondary pb-24 md:pb-8 transition-colors">
+      <div
+        className={cn(
+          "min-h-screen bg-bg-secondary pb-24 md:pb-8 transition-colors",
+          showLocationGate && "blur-md pointer-events-none select-none"
+        )}
+      >
         <div className="md:hidden">
           <Header title="แจ้งเจอของ" showBack />
         </div>
@@ -699,8 +894,11 @@ export default function ReportFoundPage() {
                 value={formData.itemName}
                 onChange={handleFormChange}
                 placeholder="เช่น กระเป๋าสตางค์"
-                className="input-line"
+                className={cn("input-line", warnings.itemName && "ring-1 ring-amber-300")}
               />
+              {warnings.itemName && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{warnings.itemName}</p>
+              )}
             </div>
 
             <div>
@@ -712,7 +910,11 @@ export default function ReportFoundPage() {
                   name="category"
                   value={formData.category}
                   onChange={handleFormChange}
-                  className={cn("input-line appearance-none pr-10", !formData.category && "text-gray-400")}
+                  className={cn(
+                    "input-line appearance-none pr-10",
+                    !formData.category && "text-gray-400",
+                    warnings.category && "ring-1 ring-amber-300"
+                  )}
                 >
                   <option value="">เลือกหมวดหมู่</option>
                   {categories.map((cat) => (
@@ -723,6 +925,9 @@ export default function ReportFoundPage() {
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
               </div>
+              {warnings.category && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{warnings.category}</p>
+              )}
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
@@ -736,8 +941,11 @@ export default function ReportFoundPage() {
                   value={formData.color}
                   onChange={handleFormChange}
                   placeholder="เช่น ดำ"
-                  className="input-line"
+                  className={cn("input-line", warnings.color && "ring-1 ring-amber-300")}
                 />
+                {warnings.color && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{warnings.color}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -749,8 +957,11 @@ export default function ReportFoundPage() {
                   value={formData.brand}
                   onChange={handleFormChange}
                   placeholder="เช่น Apple"
-                  className="input-line"
+                  className={cn("input-line", warnings.brand && "ring-1 ring-amber-300")}
                 />
+                {warnings.brand && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{warnings.brand}</p>
+                )}
               </div>
             </div>
 
@@ -888,6 +1099,9 @@ export default function ReportFoundPage() {
                   <p className="text-xs text-gray-400 mt-0.5">
                     ไม่บังคับ - สำหรับติดต่อกลับหากต้องการข้อมูลเพิ่ม
                   </p>
+                  {warnings.contacts && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{warnings.contacts}</p>
+                  )}
                 </div>
                 {contacts.length < 3 && (
                   <button
@@ -947,7 +1161,7 @@ export default function ReportFoundPage() {
           <div className="mt-8">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || showLocationGate}
               className={cn(
                 "w-full py-4 rounded-full font-medium text-white transition-all",
                 isSubmitting
@@ -960,6 +1174,137 @@ export default function ReportFoundPage() {
           </div>
         </form>
       </div>
+
+      {/* Modal overlay */}
+      {showLocationGate && (
+        <div className="overlay-modal fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-bg-card border border-border-light rounded-3xl p-6 md:p-8 flex flex-col items-center text-center shadow-2xl max-w-md w-full animate-scale-up">
+            {waitingForSettings ? (
+              <>
+                <div className="w-20 h-20 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-6 border border-green-100 dark:border-green-900/30">
+                  <Loader2 className="w-10 h-10 text-[#06C755] animate-spin" />
+                </div>
+                <h2 className="text-xl font-bold text-text-primary mb-2">กำลังโหลดการตั้งค่า</h2>
+                <p className="text-text-secondary text-sm leading-relaxed">
+                  ระบบกำลังดึงขอบเขตพื้นที่และกฎ GPS จากเซิร์ฟเวอร์
+                </p>
+              </>
+            ) : gpsLoading || locationVerified === null ? (
+              <>
+                <div className="w-20 h-20 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-6 border border-green-100 dark:border-green-900/30">
+                  <MapPin className="w-10 h-10 text-[#06C755] animate-bounce" />
+                </div>
+                <h2 className="text-xl font-bold text-text-primary mb-2">กำลังยืนยันตำแหน่งของคุณ</h2>
+                <p className="text-text-secondary text-sm leading-relaxed mb-4">
+                  เพื่อความปลอดภัยและป้องกันข้อมูลเท็จ ระบบกำลังตรวจสอบว่าตำแหน่งอุปกรณ์ของคุณอยู่ภายในขอบเขตสถาบันการศึกษาหรือไม่
+                </p>
+                <div className="flex items-center gap-2 text-xs text-text-tertiary justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#06C755]" />
+                  <span>กำลังเรียกพิกัดจาก GPS...</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center mb-6 border border-red-100 dark:border-red-900/30">
+                  <X className="w-8 h-8 text-red-500" />
+                </div>
+
+                {locationErrorType === "boundary_not_configured" ? (
+                  <>
+                    <h2 className="text-xl font-bold text-text-primary mb-2">
+                      ยังไม่ได้ตั้งค่าขอบเขตพื้นที่
+                    </h2>
+                    <p className="text-text-secondary text-sm leading-relaxed mb-8">
+                      ผู้ดูแลระบบเปิดบังคับตรวจ GPS แล้ว แต่ยังไม่ได้วาด Polygon ขอบเขตใน Admin Settings
+                      (ต้องมีอย่างน้อย 3 จุด) กรุณาติดต่อผู้ดูแลระบบ
+                    </p>
+                  </>
+                ) : locationErrorType === "outside" ? (
+                  <>
+                    <h2 className="text-xl font-bold text-text-primary mb-2">อยู่นอกพื้นที่ขอบเขตที่กำหนด</h2>
+                    <p className="text-text-secondary text-sm leading-relaxed mb-6">
+                      ขออภัยด้วยครับ ระบบแจ้งเจอของได้รับการกำหนดให้ใช้ได้เฉพาะภายในพื้นที่ที่กำหนดเท่านั้น (เช่น บริเวณโรงเรียน/มหาวิทยาลัย) เพื่อให้ของที่เจอได้รับการคืนสู่เจ้าของอย่างรวดเร็วและถูกต้อง
+                    </p>
+                    
+                    {appSettings.mapsEnabled && appSettings.mapSchoolBoundary && (
+                      <div className="w-full mb-6 relative overflow-hidden rounded-2xl border border-border-light shadow-sm">
+                        <MapCanvas
+                          center={appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 }}
+                          zoom={appSettings.mapDefaultZoom ?? 17}
+                          tileUrl={appSettings.mapTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
+                          attribution={appSettings.mapAttribution || ""}
+                          mode="marker"
+                          marker={userCurrentCoords}
+                          onMarkerChange={undefined}
+                          polygon={appSettings.mapSchoolBoundary || []}
+                          className="h-44"
+                        />
+                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 rounded">
+                          🔵 ตำแหน่งของคุณอยู่นอกขอบเขตสีเขียว
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : locationErrorType === "low_accuracy" ? (
+                  <>
+                    <h2 className="text-xl font-bold text-text-primary mb-2">
+                      ตำแหน่งไม่แม่นยำพอ (ไม่ใช่ GPS จริง)
+                    </h2>
+                    <p className="text-text-secondary text-sm leading-relaxed mb-8">
+                      อุปกรณ์นี้ใช้ตำแหน่งจาก Wi‑Fi/IP (เช่น คอมพิวเตอร์) ซึ่งไม่แม่นยำพอสำหรับการยืนยันภายในพื้นที่
+                      กรุณาใช้มือถือที่เปิด GPS และอยู่ในบริเวณโรงเรียน (ความแม่นยำต้องไม่เกิน {STRICT_GPS_MAX_ACCURACY_METERS} เมตร)
+                    </p>
+                  </>
+                ) : locationErrorType === "permission" ? (
+                  <>
+                    <h2 className="text-xl font-bold text-text-primary mb-2">ปิดการเข้าถึงตำแหน่ง (GPS)</h2>
+                    <p className="text-text-secondary text-sm leading-relaxed mb-8">
+                      เบราว์เซอร์ไม่อนุญาตให้ใช้ตำแหน่งสำหรับเว็บนี้ ไปที่ไอคอนกุญแจในแถบที่อยู่ → Location → ตั้งเป็น Allow
+                      แล้วกดลองใหม่อีกครั้ง (หรือปิด Sensors override ใน DevTools ถ้าเปิดทดสอบ)
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-xl font-bold text-text-primary mb-2">ไม่สามารถระบุตำแหน่งได้</h2>
+                    <p className="text-text-secondary text-sm leading-relaxed mb-8">
+                      ไม่สามารถดึงตำแหน่ง GPS ของคุณได้ในขณะนี้ กรุณาตรวจสอบสิทธิ์พิกัดหรือการเชื่อมต่อ GPS บนโทรศัพท์/คอมพิวเตอร์ของคุณแล้วลองใหม่อีกครั้ง
+                    </p>
+                  </>
+                )}
+
+                <div className="w-full space-y-3">
+                  <button
+                    onClick={() => void verifyLocation()}
+                    type="button"
+                    className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors shadow-sm"
+                  >
+                    ลองใหม่อีกครั้ง
+                  </button>
+                  
+                  {isAdmin && (
+                    <button
+                      onClick={() => setLocationVerified(true)}
+                      type="button"
+                      className="w-full py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors shadow-sm"
+                    >
+                      ข้ามการตรวจสอบ (ผู้ดูแลระบบ)
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => router.push("/")}
+                    type="button"
+                    className="w-full py-3 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light"
+                  >
+                    กลับหน้าหลัก
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {dialog}
     </AppShell>
   );
 }

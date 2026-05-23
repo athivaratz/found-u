@@ -16,6 +16,44 @@ export interface AIVisionConfig {
   maxOutputTokens?: number;
 }
 
+export interface VisionExtractDebug {
+  model: string;
+  generationConfig: {
+    temperature: number;
+    topP: number;
+    maxOutputTokens: number;
+  };
+  rawModelText: string;
+  rawParsedJson: Record<string, unknown> | null;
+  geminiResponse: unknown;
+}
+
+export interface VisionExtractResult {
+  data: VisionExtractedData;
+  debug?: VisionExtractDebug;
+}
+
+export const VISION_FIELD_LABELS: Record<keyof VisionExtractedData, string> = {
+  itemName: "ชื่อของที่เจอ",
+  category: "หมวดหมู่",
+  color: "สี",
+  brand: "ยี่ห้อ",
+  details: "รายละเอียด",
+  confidence: "ความมั่นใจ",
+};
+
+export const VISION_CATEGORY_LABELS: Record<ItemCategory, string> = {
+  wallet: "กระเป๋า/เงิน",
+  phone: "โทรศัพท์",
+  keys: "กุญแจ",
+  bag: "กระเป๋า",
+  electronics: "อิเล็กทรอนิกส์",
+  documents: "เอกสาร",
+  clothing: "เสื้อผ้า",
+  accessories: "เครื่องประดับ",
+  other: "อื่นๆ",
+};
+
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
 
@@ -70,11 +108,44 @@ Return ONLY JSON that follows this schema. No extra text.
 
 JSON Output:`;
 
+function normalizeVisionPayload(parsedData: Record<string, unknown>): VisionExtractedData {
+  const rawCategory = String(parsedData.category || "");
+  const normalizedCategory = ALLOWED_CATEGORIES.includes(rawCategory as ItemCategory)
+    ? (rawCategory as ItemCategory)
+    : "other";
+
+  return {
+    itemName: String(parsedData.itemName || normalizedCategory),
+    category: normalizedCategory,
+    color: parsedData.color == null ? null : String(parsedData.color),
+    brand: parsedData.brand == null ? null : String(parsedData.brand),
+    details: parsedData.details == null ? null : String(parsedData.details),
+    confidence:
+      parsedData.confidence === "high" ||
+      parsedData.confidence === "medium" ||
+      parsedData.confidence === "low"
+        ? parsedData.confidence
+        : "low",
+  };
+}
+
+export function mapVisionToFoundForm(data: VisionExtractedData) {
+  return {
+    itemName: data.itemName || "",
+    category: data.category || "",
+    color: data.color || "",
+    brand: data.brand || "",
+    description: data.details || "",
+    confidence: data.confidence,
+  };
+}
+
 export async function extractVisionData(
   imageBase64: string,
   mimeType: string,
-  config?: AIVisionConfig
-): Promise<VisionExtractedData | null> {
+  config?: AIVisionConfig,
+  options?: { includeDebug?: boolean }
+): Promise<VisionExtractedData | VisionExtractResult | null> {
   if (!GEMINI_API_KEY) {
     console.error("GEMMA_API_KEY not found");
     return null;
@@ -82,6 +153,12 @@ export async function extractVisionData(
 
   try {
     const resolvedConfig = resolveVisionConfig(config);
+    const generationConfig = {
+      temperature: resolvedConfig.temperature,
+      maxOutputTokens: resolvedConfig.maxOutputTokens,
+      topP: resolvedConfig.topP,
+    };
+
     const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -99,11 +176,7 @@ export async function extractVisionData(
             ],
           },
         ],
-        generationConfig: {
-          temperature: resolvedConfig.temperature,
-          maxOutputTokens: resolvedConfig.maxOutputTokens,
-          topP: resolvedConfig.topP,
-        },
+        generationConfig,
       }),
     });
 
@@ -113,34 +186,52 @@ export async function extractVisionData(
       return null;
     }
 
-    const data = await response.json();
+    const geminiResponse = await response.json();
 
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    if (
+      !geminiResponse.candidates ||
+      !geminiResponse.candidates[0] ||
+      !geminiResponse.candidates[0].content
+    ) {
       console.error("Invalid response format from Gemini API");
       return null;
     }
 
-    const generatedText = data.candidates[0].content.parts[0].text;
+    const generatedText = geminiResponse.candidates[0].content.parts[0].text as string;
     const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+
+    let rawParsedJson: Record<string, unknown> | null = null;
+    let normalized: VisionExtractedData | null = null;
+
+    if (jsonMatch) {
+      try {
+        rawParsedJson = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+        normalized = normalizeVisionPayload(rawParsedJson);
+      } catch (parseError) {
+        console.error("Failed to parse vision JSON:", parseError);
+      }
+    } else {
       console.error("No JSON found in response");
+    }
+
+    if (!normalized) {
       return null;
     }
 
-    const parsedData = JSON.parse(jsonMatch[0]);
-
-    const normalizedCategory = ALLOWED_CATEGORIES.includes(parsedData.category)
-      ? parsedData.category
-      : "other";
+    if (!options?.includeDebug) {
+      return normalized;
+    }
 
     return {
-      itemName: parsedData.itemName || normalizedCategory,
-      category: normalizedCategory,
-      color: parsedData.color ?? null,
-      brand: parsedData.brand ?? null,
-      details: parsedData.details ?? null,
-      confidence: parsedData.confidence || "low",
-    } as VisionExtractedData;
+      data: normalized,
+      debug: {
+        model: resolvedConfig.model,
+        generationConfig,
+        rawModelText: generatedText,
+        rawParsedJson,
+        geminiResponse,
+      },
+    };
   } catch (error) {
     console.error("Error calling Gemini API:", error);
     return null;

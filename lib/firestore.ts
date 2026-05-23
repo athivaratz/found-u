@@ -18,8 +18,57 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { normalizeGeoPoint, normalizeGeoPolygon } from './utils';
+import { stripUndefined } from './strip-undefined';
 import type { LostItem, FoundItem, ItemStatus, AppUser, UserRole, BetaStatus, BanStatus, AppSettings, ErrorLog, ErrorSeverity, ErrorSource, AIUsageRecord } from './types';
 import { DEFAULT_APP_SETTINGS } from './types';
+
+function mapAppSettingsFromFirestore(data: DocumentData): AppSettings {
+  const mapCenter = normalizeGeoPoint(data.mapDefaultCenter) || DEFAULT_APP_SETTINGS.mapDefaultCenter;
+
+  return {
+    restrictModeEnabled: data.restrictModeEnabled ?? DEFAULT_APP_SETTINGS.restrictModeEnabled,
+    betaRequestsEnabled: data.betaRequestsEnabled ?? DEFAULT_APP_SETTINGS.betaRequestsEnabled,
+    betaClosedMessage: data.betaClosedMessage ?? DEFAULT_APP_SETTINGS.betaClosedMessage,
+    ogTitle: data.ogTitle || DEFAULT_APP_SETTINGS.ogTitle,
+    ogDescription: data.ogDescription || DEFAULT_APP_SETTINGS.ogDescription,
+    ogImage: data.ogImage || DEFAULT_APP_SETTINGS.ogImage,
+    aiRateLimitEnabled: data.aiRateLimitEnabled ?? DEFAULT_APP_SETTINGS.aiRateLimitEnabled,
+    aiRateLimitPerMinute: data.aiRateLimitPerMinute ?? DEFAULT_APP_SETTINGS.aiRateLimitPerMinute,
+    aiRateLimitPerHour: data.aiRateLimitPerHour ?? DEFAULT_APP_SETTINGS.aiRateLimitPerHour,
+    aiRateLimitMessage: data.aiRateLimitMessage ?? DEFAULT_APP_SETTINGS.aiRateLimitMessage,
+    systemAiRateLimitEnabled: data.systemAiRateLimitEnabled ?? DEFAULT_APP_SETTINGS.systemAiRateLimitEnabled,
+    systemAiRateLimitPerMinute: data.systemAiRateLimitPerMinute ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerMinute,
+    systemAiRateLimitPerHour: data.systemAiRateLimitPerHour ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerHour,
+    aiNerModel: data.aiNerModel || DEFAULT_APP_SETTINGS.aiNerModel,
+    aiNerTemperature: data.aiNerTemperature ?? DEFAULT_APP_SETTINGS.aiNerTemperature,
+    aiNerTopP: data.aiNerTopP ?? DEFAULT_APP_SETTINGS.aiNerTopP,
+    aiNerMaxOutputTokens: data.aiNerMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiNerMaxOutputTokens,
+    aiMatchingModel: data.aiMatchingModel || DEFAULT_APP_SETTINGS.aiMatchingModel,
+    aiMatchingTemperature: data.aiMatchingTemperature ?? DEFAULT_APP_SETTINGS.aiMatchingTemperature,
+    aiMatchingTopP: data.aiMatchingTopP ?? DEFAULT_APP_SETTINGS.aiMatchingTopP,
+    aiMatchingMaxOutputTokens: data.aiMatchingMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiMatchingMaxOutputTokens,
+    aiVisionModel: data.aiVisionModel || DEFAULT_APP_SETTINGS.aiVisionModel,
+    aiVisionTemperature: data.aiVisionTemperature ?? DEFAULT_APP_SETTINGS.aiVisionTemperature,
+    aiVisionTopP: data.aiVisionTopP ?? DEFAULT_APP_SETTINGS.aiVisionTopP,
+    aiVisionMaxOutputTokens: data.aiVisionMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiVisionMaxOutputTokens,
+    mapsEnabled: data.mapsEnabled ?? DEFAULT_APP_SETTINGS.mapsEnabled,
+    mapTileUrl: data.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl,
+    mapAttribution: data.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution,
+    mapDefaultCenter: mapCenter,
+    mapDefaultZoom: data.mapDefaultZoom ?? DEFAULT_APP_SETTINGS.mapDefaultZoom,
+    mapSchoolBoundary: normalizeGeoPolygon(data.mapSchoolBoundary),
+    mapEnforceFoundInSchool: data.mapEnforceFoundInSchool ?? DEFAULT_APP_SETTINGS.mapEnforceFoundInSchool,
+    notifyOnNewReport: data.notifyOnNewReport ?? DEFAULT_APP_SETTINGS.notifyOnNewReport,
+    notifyOnStatusChange: data.notifyOnStatusChange ?? DEFAULT_APP_SETTINGS.notifyOnStatusChange,
+    requireApproval: data.requireApproval ?? DEFAULT_APP_SETTINGS.requireApproval,
+    autoDeleteDays: data.autoDeleteDays ?? DEFAULT_APP_SETTINGS.autoDeleteDays,
+    maxImageSize: data.maxImageSize ?? DEFAULT_APP_SETTINGS.maxImageSize,
+    compressionQuality: data.compressionQuality ?? DEFAULT_APP_SETTINGS.compressionQuality,
+    updatedAt: timestampToDate(data.updatedAt),
+    updatedBy: data.updatedBy,
+  };
+}
 
 // Collection names
 export const COLLECTIONS = {
@@ -371,46 +420,7 @@ export async function getAppSettings(): Promise<AppSettings> {
   const settingsDoc = await getDoc(settingsRef);
   
   if (settingsDoc.exists()) {
-    const data = settingsDoc.data();
-    return {
-      restrictModeEnabled: data.restrictModeEnabled ?? DEFAULT_APP_SETTINGS.restrictModeEnabled,
-      betaRequestsEnabled: data.betaRequestsEnabled ?? DEFAULT_APP_SETTINGS.betaRequestsEnabled,
-      betaClosedMessage: data.betaClosedMessage ?? DEFAULT_APP_SETTINGS.betaClosedMessage,
-      ogTitle: data.ogTitle || DEFAULT_APP_SETTINGS.ogTitle,
-      ogDescription: data.ogDescription || DEFAULT_APP_SETTINGS.ogDescription,
-      ogImage: data.ogImage || DEFAULT_APP_SETTINGS.ogImage,
-      // AI Rate Limit Settings (Per User)
-      aiRateLimitEnabled: data.aiRateLimitEnabled ?? DEFAULT_APP_SETTINGS.aiRateLimitEnabled,
-      aiRateLimitPerMinute: data.aiRateLimitPerMinute ?? DEFAULT_APP_SETTINGS.aiRateLimitPerMinute,
-      aiRateLimitPerHour: data.aiRateLimitPerHour ?? DEFAULT_APP_SETTINGS.aiRateLimitPerHour,
-      aiRateLimitMessage: data.aiRateLimitMessage ?? DEFAULT_APP_SETTINGS.aiRateLimitMessage,
-      // System-wide AI Rate Limit
-      systemAiRateLimitEnabled: data.systemAiRateLimitEnabled ?? DEFAULT_APP_SETTINGS.systemAiRateLimitEnabled,
-      systemAiRateLimitPerMinute: data.systemAiRateLimitPerMinute ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerMinute,
-      systemAiRateLimitPerHour: data.systemAiRateLimitPerHour ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerHour,
-      // AI Model Settings
-      aiNerModel: data.aiNerModel || DEFAULT_APP_SETTINGS.aiNerModel,
-      aiNerTemperature: data.aiNerTemperature ?? DEFAULT_APP_SETTINGS.aiNerTemperature,
-      aiNerTopP: data.aiNerTopP ?? DEFAULT_APP_SETTINGS.aiNerTopP,
-      aiNerMaxOutputTokens: data.aiNerMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiNerMaxOutputTokens,
-      aiMatchingModel: data.aiMatchingModel || DEFAULT_APP_SETTINGS.aiMatchingModel,
-      aiMatchingTemperature: data.aiMatchingTemperature ?? DEFAULT_APP_SETTINGS.aiMatchingTemperature,
-      aiMatchingTopP: data.aiMatchingTopP ?? DEFAULT_APP_SETTINGS.aiMatchingTopP,
-      aiMatchingMaxOutputTokens: data.aiMatchingMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiMatchingMaxOutputTokens,
-      aiVisionModel: data.aiVisionModel || DEFAULT_APP_SETTINGS.aiVisionModel,
-      aiVisionTemperature: data.aiVisionTemperature ?? DEFAULT_APP_SETTINGS.aiVisionTemperature,
-      aiVisionTopP: data.aiVisionTopP ?? DEFAULT_APP_SETTINGS.aiVisionTopP,
-      aiVisionMaxOutputTokens: data.aiVisionMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiVisionMaxOutputTokens,
-      mapsEnabled: data.mapsEnabled ?? DEFAULT_APP_SETTINGS.mapsEnabled,
-      mapTileUrl: data.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl,
-      mapAttribution: data.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution,
-      mapDefaultCenter: data.mapDefaultCenter || DEFAULT_APP_SETTINGS.mapDefaultCenter,
-      mapDefaultZoom: data.mapDefaultZoom ?? DEFAULT_APP_SETTINGS.mapDefaultZoom,
-      mapSchoolBoundary: data.mapSchoolBoundary || DEFAULT_APP_SETTINGS.mapSchoolBoundary,
-      mapEnforceFoundInSchool: data.mapEnforceFoundInSchool ?? DEFAULT_APP_SETTINGS.mapEnforceFoundInSchool,
-      updatedAt: timestampToDate(data.updatedAt),
-      updatedBy: data.updatedBy,
-    };
+    return mapAppSettingsFromFirestore(settingsDoc.data());
   }
   
   // Return default settings if not exists
@@ -419,57 +429,27 @@ export async function getAppSettings(): Promise<AppSettings> {
 
 export async function updateAppSettings(settings: Partial<AppSettings>, updatedBy: string): Promise<void> {
   const settingsRef = doc(db, COLLECTIONS.SETTINGS, APP_SETTINGS_DOC_ID);
-  await setDoc(settingsRef, {
-    ...settings,
+  const { updatedAt: _omitUpdatedAt, updatedBy: _omitUpdatedBy, ...payload } = settings;
+
+  const data: Record<string, unknown> = {
+    ...payload,
     updatedAt: serverTimestamp(),
     updatedBy,
-  }, { merge: true });
+  };
+
+  // Always persist boundary as a real array (avoids Firestore map conversion)
+  if (payload.mapSchoolBoundary !== undefined) {
+    data.mapSchoolBoundary = normalizeGeoPolygon(payload.mapSchoolBoundary);
+  }
+
+  await setDoc(settingsRef, data, { merge: true });
 }
 
 export function subscribeToAppSettings(callback: (settings: AppSettings) => void) {
   const settingsRef = doc(db, COLLECTIONS.SETTINGS, APP_SETTINGS_DOC_ID);
   return onSnapshot(settingsRef, (doc) => {
     if (doc.exists()) {
-      const data = doc.data();
-      callback({
-        restrictModeEnabled: data.restrictModeEnabled ?? DEFAULT_APP_SETTINGS.restrictModeEnabled,
-        betaRequestsEnabled: data.betaRequestsEnabled ?? DEFAULT_APP_SETTINGS.betaRequestsEnabled,
-        betaClosedMessage: data.betaClosedMessage ?? DEFAULT_APP_SETTINGS.betaClosedMessage,
-        ogTitle: data.ogTitle || DEFAULT_APP_SETTINGS.ogTitle,
-        ogDescription: data.ogDescription || DEFAULT_APP_SETTINGS.ogDescription,
-        ogImage: data.ogImage || DEFAULT_APP_SETTINGS.ogImage,
-        // AI Rate Limit Settings (Per User)
-        aiRateLimitEnabled: data.aiRateLimitEnabled ?? DEFAULT_APP_SETTINGS.aiRateLimitEnabled,
-        aiRateLimitPerMinute: data.aiRateLimitPerMinute ?? DEFAULT_APP_SETTINGS.aiRateLimitPerMinute,
-        aiRateLimitPerHour: data.aiRateLimitPerHour ?? DEFAULT_APP_SETTINGS.aiRateLimitPerHour,
-        aiRateLimitMessage: data.aiRateLimitMessage ?? DEFAULT_APP_SETTINGS.aiRateLimitMessage,
-        // System-wide AI Rate Limit
-        systemAiRateLimitEnabled: data.systemAiRateLimitEnabled ?? DEFAULT_APP_SETTINGS.systemAiRateLimitEnabled,
-        systemAiRateLimitPerMinute: data.systemAiRateLimitPerMinute ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerMinute,
-        systemAiRateLimitPerHour: data.systemAiRateLimitPerHour ?? DEFAULT_APP_SETTINGS.systemAiRateLimitPerHour,
-        // AI Model Settings
-        aiNerModel: data.aiNerModel || DEFAULT_APP_SETTINGS.aiNerModel,
-        aiNerTemperature: data.aiNerTemperature ?? DEFAULT_APP_SETTINGS.aiNerTemperature,
-        aiNerTopP: data.aiNerTopP ?? DEFAULT_APP_SETTINGS.aiNerTopP,
-        aiNerMaxOutputTokens: data.aiNerMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiNerMaxOutputTokens,
-        aiMatchingModel: data.aiMatchingModel || DEFAULT_APP_SETTINGS.aiMatchingModel,
-        aiMatchingTemperature: data.aiMatchingTemperature ?? DEFAULT_APP_SETTINGS.aiMatchingTemperature,
-        aiMatchingTopP: data.aiMatchingTopP ?? DEFAULT_APP_SETTINGS.aiMatchingTopP,
-        aiMatchingMaxOutputTokens: data.aiMatchingMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiMatchingMaxOutputTokens,
-        aiVisionModel: data.aiVisionModel || DEFAULT_APP_SETTINGS.aiVisionModel,
-        aiVisionTemperature: data.aiVisionTemperature ?? DEFAULT_APP_SETTINGS.aiVisionTemperature,
-        aiVisionTopP: data.aiVisionTopP ?? DEFAULT_APP_SETTINGS.aiVisionTopP,
-        aiVisionMaxOutputTokens: data.aiVisionMaxOutputTokens ?? DEFAULT_APP_SETTINGS.aiVisionMaxOutputTokens,
-        mapsEnabled: data.mapsEnabled ?? DEFAULT_APP_SETTINGS.mapsEnabled,
-        mapTileUrl: data.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl,
-        mapAttribution: data.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution,
-        mapDefaultCenter: data.mapDefaultCenter || DEFAULT_APP_SETTINGS.mapDefaultCenter,
-        mapDefaultZoom: data.mapDefaultZoom ?? DEFAULT_APP_SETTINGS.mapDefaultZoom,
-        mapSchoolBoundary: data.mapSchoolBoundary || DEFAULT_APP_SETTINGS.mapSchoolBoundary,
-        mapEnforceFoundInSchool: data.mapEnforceFoundInSchool ?? DEFAULT_APP_SETTINGS.mapEnforceFoundInSchool,
-        updatedAt: timestampToDate(data.updatedAt),
-        updatedBy: data.updatedBy,
-      });
+      callback(mapAppSettingsFromFirestore(doc.data()));
     } else {
       callback(DEFAULT_APP_SETTINGS);
     }
@@ -481,11 +461,14 @@ export function subscribeToAppSettings(callback: (settings: AppSettings) => void
 // ========================================
 
 export async function addLostItem(data: Omit<LostItem, 'id' | 'createdAt' | 'updatedAt'>) {
-  const docRef = await addDoc(collection(db, COLLECTIONS.LOST_ITEMS), {
-    ...data,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTIONS.LOST_ITEMS),
+    stripUndefined({
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  );
   return docRef.id;
 }
 
@@ -712,11 +695,14 @@ export async function deleteLostItem(id: string) {
 // ========================================
 
 export async function addFoundItem(data: Omit<FoundItem, 'id' | 'createdAt' | 'updatedAt'>) {
-  const docRef = await addDoc(collection(db, COLLECTIONS.FOUND_ITEMS), {
-    ...data,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTIONS.FOUND_ITEMS),
+    stripUndefined({
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  );
   return docRef.id;
 }
 

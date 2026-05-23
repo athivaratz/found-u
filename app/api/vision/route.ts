@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractVisionData } from "@/lib/vision";
+import { extractVisionData, mapVisionToFoundForm } from "@/lib/vision";
 import {
   checkAndRecordRateLimitAtomic,
   getAppSettingsAdmin,
   getRateLimitQuota,
 } from "@/lib/ai-rate-limit";
+import { adminDb } from "@/lib/firebase-admin";
+
+async function isAdminUser(userId: string): Promise<boolean> {
+  const userDoc = await adminDb.collection("users").doc(userId).get();
+  return userDoc.exists && userDoc.data()?.role === "admin";
+}
 
 function parseDataUrl(dataUrl: string) {
   const match = dataUrl.match(/^data:(.+);base64,(.*)$/);
@@ -33,11 +39,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imageDataUrl, imageBase64, mimeType, userId } = body as {
+    const { imageDataUrl, imageBase64, mimeType, userId, testMode } = body as {
       imageDataUrl?: string;
       imageBase64?: string;
       mimeType?: string;
       userId?: string;
+      testMode?: boolean;
     };
 
     let parsedMime = mimeType;
@@ -60,8 +67,9 @@ export async function POST(request: NextRequest) {
     }
 
     const settings = await getAppSettingsAdmin();
+    const adminTestMode = Boolean(testMode && userId && (await isAdminUser(userId)));
 
-    if (userId) {
+    if (userId && !adminTestMode) {
       const rateLimitResult = await checkAndRecordRateLimitAtomic(userId, settings, "vision");
       if (!rateLimitResult.allowed) {
         return NextResponse.json(
@@ -81,18 +89,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const visionData = await extractVisionData(parsedBase64, parsedMime, {
+    const visionConfig = {
       model: settings.aiVisionModel,
       temperature: settings.aiVisionTemperature,
       topP: settings.aiVisionTopP,
       maxOutputTokens: settings.aiVisionMaxOutputTokens,
-    });
+    };
 
-    if (!visionData) {
+    const visionResult = await extractVisionData(
+      parsedBase64,
+      parsedMime,
+      visionConfig,
+      { includeDebug: adminTestMode }
+    );
+
+    if (!visionResult) {
       return NextResponse.json({ error: "Vision analysis failed" }, { status: 500 });
     }
 
-    return NextResponse.json({ data: visionData });
+    const data = "data" in visionResult ? visionResult.data : visionResult;
+
+    if (adminTestMode) {
+      const quota = userId ? await getRateLimitQuota(userId, settings) : null;
+      return NextResponse.json({
+        data,
+        formMapping: mapVisionToFoundForm(data),
+        debug: "debug" in visionResult ? visionResult.debug : undefined,
+        meta: {
+          testMode: true,
+          skippedRateLimit: true,
+          model: visionConfig.model,
+          temperature: visionConfig.temperature,
+          topP: visionConfig.topP,
+          maxOutputTokens: visionConfig.maxOutputTokens,
+          imageMimeType: parsedMime,
+          imageBase64Length: parsedBase64.length,
+        },
+        quota,
+      });
+    }
+
+    return NextResponse.json({ data });
   } catch (error) {
     console.error("Error in vision API:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

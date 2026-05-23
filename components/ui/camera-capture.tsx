@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, RotateCcw, VideoOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +28,19 @@ const DEFAULT_LABELS: CameraCaptureLabels = {
   idle: "Camera is off",
 };
 
+async function requestCameraStream(): Promise<MediaStream> {
+  const withEnvironment = {
+    video: { facingMode: { ideal: "environment" } },
+    audio: false,
+  } satisfies MediaStreamConstraints;
+
+  try {
+    return await navigator.mediaDevices.getUserMedia(withEnvironment);
+  } catch {
+    return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  }
+}
+
 export default function CameraCapture({
   previewUrl,
   onCapture,
@@ -37,20 +50,24 @@ export default function CameraCapture({
 }: CameraCaptureProps) {
   const mergedLabels = { ...DEFAULT_LABELS, ...labels };
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-    }
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
     setStream(null);
-  };
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
-      stopCamera();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     };
   }, []);
 
@@ -58,23 +75,39 @@ export default function CameraCapture({
     if (previewUrl) {
       stopCamera();
     }
-  }, [previewUrl]);
+  }, [previewUrl, stopCamera]);
+
+  // Attach stream after <video> is mounted (stream toggles conditional UI)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
+
+    video.srcObject = stream;
+    void video.play().catch((err) => {
+      console.error("Video play failed", err);
+      setError(mergedLabels.unavailable);
+    });
+
+    return () => {
+      if (video.srcObject === stream) {
+        video.srcObject = null;
+      }
+    };
+  }, [stream, mergedLabels.unavailable]);
 
   const startCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError(mergedLabels.unavailable);
+      return;
+    }
+
     setIsStarting(true);
     setError(null);
 
     try {
-      const media = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      });
+      const media = await requestCameraStream();
+      streamRef.current = media;
       setStream(media);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = media;
-        await videoRef.current.play();
-      }
     } catch (err) {
       console.error("Failed to start camera", err);
       setError(mergedLabels.unavailable);
@@ -135,13 +168,23 @@ export default function CameraCapture({
 
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="relative rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-700">
-        {stream ? (
-          <video ref={videoRef} className="w-full h-56 object-cover" playsInline muted />
-        ) : (
-          <div className="w-full h-56 flex flex-col items-center justify-center text-gray-500 dark:text-gray-300 gap-2">
+      <div className="relative rounded-2xl overflow-hidden bg-gray-900">
+        <video
+          ref={videoRef}
+          className={cn(
+            "w-full h-56 object-cover bg-gray-900",
+            !stream && "hidden"
+          )}
+          playsInline
+          muted
+          autoPlay
+        />
+        {!stream && (
+          <div className="w-full h-56 flex flex-col items-center justify-center text-gray-400 gap-2 bg-gray-100 dark:bg-gray-700">
             <VideoOff className="w-6 h-6" />
-            <span className="text-sm">{error || mergedLabels.idle}</span>
+            <span className="text-sm text-gray-500 dark:text-gray-300">
+              {error || mergedLabels.idle}
+            </span>
           </div>
         )}
       </div>
@@ -154,7 +197,7 @@ export default function CameraCapture({
             className="flex-1 py-3 rounded-xl bg-[#06C755] text-white font-medium flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <Camera className="w-4 h-4" />
-            {mergedLabels.start}
+            {isStarting ? "กำลังเปิดกล้อง..." : mergedLabels.start}
           </button>
         ) : (
           <>
@@ -173,6 +216,7 @@ export default function CameraCapture({
                 setError(null);
               }}
               className="px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+              aria-label="ปิดกล้อง"
             >
               <RotateCcw className="w-4 h-4" />
             </button>

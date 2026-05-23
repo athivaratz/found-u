@@ -42,6 +42,34 @@ function buildPublicUrl(path: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    const contentTypeHeader = request.headers.get("content-type") || "";
+
+    if (contentTypeHeader.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const file = formData.get("file") as File;
+      const path = normalizePath(formData.get("path") as string || "");
+
+      if (!file || !path) {
+        return NextResponse.json({ error: "File and path are required" }, { status: 400 });
+      }
+
+      const bucket = getRequiredEnv("R2_BUCKET_NAME");
+      const client = getR2Client();
+      const buffer = Buffer.from(await file.arrayBuffer());
+
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: path,
+        ContentType: file.type || "application/octet-stream",
+        Body: buffer,
+      });
+
+      await client.send(command);
+      const publicUrl = buildPublicUrl(path);
+
+      return NextResponse.json({ publicUrl, path });
+    }
+
     const body = await request.json();
     const path = normalizePath(body.path || "");
     const contentType = body.contentType || "application/octet-stream";
