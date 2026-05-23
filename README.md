@@ -25,7 +25,7 @@ Found-U เป็นเว็บแอปพลิเคชันสำหรั
 
 ## ข้อมูลเพิ่มเติม
 - รายละเอียดด้านความปลอดภัยและการรายงานช่องโหว่: [SECURITY.md](SECURITY.md)
-- โปรเจกต์นี้ได้รับอนุญาตภายใต้: [MIT License](LICENSE)
+- This project is licensed under the [License](LICENSE)
 
 ---
 
@@ -54,7 +54,7 @@ Found-U addresses these bottlenecks by streamlining the reporting process for bo
 
 ## Other Details
 - For security policies and vulnerability reporting, see [SECURITY.md](SECURITY.md)
-- This project is licensed under the [MIT License](LICENSE)
+- This project is licensed under the [License](LICENSE)
 
 
 ---

@@ -1,14 +1,7 @@
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage';
-import { storage } from './firebase';
 import imageCompression from 'browser-image-compression';
 
 // ========================================
-// Image Compression (Zero Vercel Cost)
+// Image Compression
 // ========================================
 
 export interface CompressionOptions {
@@ -55,17 +48,34 @@ export async function compressImage(
 // ========================================
 
 /**
- * อัปโหลดรูปไป Firebase Storage
+ * อัปโหลดรูป
  */
 export async function uploadImage(file: File, path: string): Promise<string> {
-  const storageRef = ref(storage, path);
-  
-  const snapshot = await uploadBytes(storageRef, file, {
-    contentType: file.type,
+  const response = await fetch('/api/storage/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path,
+      contentType: file.type || 'application/octet-stream',
+    }),
   });
-  
-  const downloadUrl = await getDownloadURL(snapshot.ref);
-  return downloadUrl;
+
+  if (!response.ok) {
+    throw new Error('Failed to request upload URL');
+  }
+
+  const data = await response.json();
+  const uploadResponse = await fetch(data.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error('Upload failed');
+  }
+
+  return data.publicUrl as string;
 }
 
 /**
@@ -106,12 +116,15 @@ export async function uploadAvatar(
 // ========================================
 
 /**
- * ลบรูปจาก Firebase Storage
+ * ลบรูป
  */
 export async function deleteImage(url: string): Promise<void> {
   try {
-    const storageRef = ref(storage, url);
-    await deleteObject(storageRef);
+    await fetch('/api/storage/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
   } catch (error) {
     console.error('Error deleting image:', error);
   }
@@ -122,8 +135,11 @@ export async function deleteImage(url: string): Promise<void> {
  */
 export async function deleteImageByPath(path: string): Promise<void> {
   try {
-    const storageRef = ref(storage, path);
-    await deleteObject(storageRef);
+    await fetch('/api/storage/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
   } catch (error) {
     console.error('Error deleting image:', error);
   }
