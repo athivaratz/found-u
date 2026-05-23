@@ -2,13 +2,21 @@
 
 เว็บแอปสำหรับแจ้งของหาย–ของเจอภายในโรงเรียน
 
-**เวอร์ชันปัจจุบัน:** `0.1.2.2b` (Beta)
+**เวอร์ชันปัจจุบัน:** `0.1.3beta`
 
 ---
 
 ## บทนำ
 
 Found-U ช่วยให้ผู้ทำของหายและผู้พบเจอประสานงานผ่านระบบเดียว ลดขั้นตอนกระดาษและการติดตามที่ล่าช้า รองรับมือถือเป็นหลัก (mobile-first) และอัปเดตสถานะแบบ Real-time
+
+### v0.1.3beta — NFC Tag
+
+- ลงทะเบียน NFC Tag (NTAG214/215/216) พร้อมข้อมูลเจ้าของ
+- เขียน URL ลงแท็ก + ล็อก Read-Only (Android Chrome)
+- พิมพ์ QR Code สำหรับ iOS/Safari
+- แจ้งพบของผ่านสแกน/QR และฝากข้อความถึงเจ้าของ
+- แจ้งของหายจาก Tag (เลือกสร้าง Lost Item ได้)
 
 ## ปัญหาที่พบ (Pain Point)
 
@@ -23,6 +31,7 @@ Found-U ช่วยให้ผู้ทำของหายและผู้
 - **AI วิเคราะห์รูป** (Vision) เดาชื่อ หมวดหมู่ สี ยี่ห้อ จากภาพถ่าย
 - **AI แยกข้อมูลจากข้อความ** (NER) สำหรับรายการของหาย
 - **แผงผู้ดูแล** จัดการรายการ ผู้ใช้ การตั้งค่า moderation และทดสอบ AI
+- **NFC Tag** ลงทะเบียนแท็ก สแกน/QR แจ้งพบ และฝากข้อความถึงเจ้าของ
 
 ## เทคโนโลยี (Tech Stack)
 
@@ -46,10 +55,11 @@ Found-U ช่วยให้ผู้ทำของหายและผู้
 app/
   found/          แจ้งของเจอ (+ GPS, กล้อง, AI Vision)
   lost/           แจ้งของหาย
+  nfc/            ลงทะเบียน/แท็กของฉัน/แจ้งพบ NFC
   tracking/       ติดตามด้วยรหัส
   list/           รายการสาธารณะ
   admin/          แผงผู้ดูแล (items, users, matching, settings, AI, …)
-  api/            vision, ner, match, storage, ai/models
+  api/            vision, ner, match, storage, nfc, ai/models
 components/       UI, layout, map, camera, dialogs
 lib/              firestore, vision, ner, matching, geolocation, …
 contexts/         auth, data

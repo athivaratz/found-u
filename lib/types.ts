@@ -64,6 +64,11 @@ export interface AppSettings {
   maxImageSize?: number; // MB สูงสุดก่อนอัปโหลด
   compressionQuality?: number; // 0.1–1 สำหรับบีบอัดรูป
 
+  // NFC Tag settings
+  nfcEnabled?: boolean;
+  nfcPublicBaseUrl?: string;
+  nfcRequireLoginToReport?: boolean;
+
   // Other settings
   updatedAt?: Date;
   updatedBy?: string;
@@ -108,6 +113,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   autoDeleteDays: 30,
   maxImageSize: 5,
   compressionQuality: 0.8,
+  nfcEnabled: true,
+  nfcRequireLoginToReport: true,
 };
 
 // AI Rate Limit Usage Record
@@ -217,6 +224,66 @@ export type DropOffLocation =
   | "library"       // ห้องสมุด
   | "security"      // ห้องรปภ.
   | "other";        // อื่นๆ
+
+// NFC Tag status
+export type NfcTagStatus = "active" | "lost" | "returned" | "disabled";
+
+export interface NfcTag {
+  id: string;
+  tagUid?: string;
+  ownerId: string;
+  itemName: string;
+  category: ItemCategory;
+  description?: string;
+  contacts: ContactInfo[];
+  status: NfcTagStatus;
+  readOnlyLocked: boolean;
+  lostItemId?: string;
+  lastFoundReportId?: string;
+  registeredAt: Date;
+  updatedAt: Date;
+}
+
+export type NfcFoundReportStatus = "pending" | "viewed" | "resolved";
+
+export interface NfcFoundReport {
+  id: string;
+  tagId: string;
+  ownerId: string;
+  finderUserId: string;
+  finderMessage: string;
+  locationFound?: string;
+  locationCoords?: LocationCoords;
+  finderContacts?: ContactInfo[];
+  status: NfcFoundReportStatus;
+  createdAt: Date;
+}
+
+export const NFC_TAG_STATUS_CONFIG: Record<
+  NfcTagStatus,
+  { label: string; color: string; bgColor: string }
+> = {
+  active: {
+    label: "ใช้งานปกติ",
+    color: "text-[#06C755] dark:text-[#4ade80]",
+    bgColor: "bg-[#e8f8ef] dark:bg-[#06C755]/20",
+  },
+  lost: {
+    label: "แจ้งของหายแล้ว",
+    color: "text-amber-600 dark:text-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-900/30",
+  },
+  returned: {
+    label: "ได้รับคืนแล้ว",
+    color: "text-blue-600 dark:text-blue-400",
+    bgColor: "bg-blue-50 dark:bg-blue-900/30",
+  },
+  disabled: {
+    label: "ปิดใช้งาน",
+    color: "text-red-500 dark:text-red-400",
+    bgColor: "bg-red-50 dark:bg-red-900/30",
+  },
+};
 
 // รายการของหาย
 export interface LostItem {

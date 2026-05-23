@@ -164,5 +164,46 @@ service cloud.firestore {
       // ห้ามแก้ไขหรือลบ
       allow update, delete: if false;
     }
+
+    // ===== NFC Tags Collection =====
+    match /nfcTags/{tagId} {
+      allow read: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.ownerId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['ownerId', 'itemName', 'category', 'contacts', 'status', 'readOnlyLocked']);
+
+      allow update: if isAuthenticated() && (
+        (resource.data.ownerId == request.auth.uid &&
+         request.resource.data.ownerId == resource.data.ownerId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lostItemId', 'lastFoundReportId', 'updatedAt'])) ||
+        isAdmin()
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // ===== NFC Found Reports Collection =====
+    match /nfcFoundReports/{reportId} {
+      allow read: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.finderUserId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.finderUserId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['tagId', 'ownerId', 'finderUserId', 'finderMessage', 'status']);
+
+      allow update: if isAuthenticated() && (
+        (resource.data.ownerId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
+        isAdmin()
+      );
+
+      allow delete: if isAdmin();
+    }
   }
 }

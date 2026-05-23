@@ -1,0 +1,110 @@
+"use client";
+
+export const dynamic = "force-dynamic";
+
+import Link from "next/link";
+import { Radio, Plus, Tags, Search } from "lucide-react";
+import Header from "@/components/layout/header";
+import BottomNav from "@/components/layout/bottom-nav";
+import AppShell from "@/components/layout/app-shell";
+import { useAuth } from "@/contexts/auth-context";
+import LoginPrompt from "@/components/auth/login-prompt";
+
+const actions = [
+  {
+    href: "/nfc/register",
+    icon: Plus,
+    title: "ลงทะเบียน Tag",
+    subtitle: "ผูก NFC กับของของคุณ",
+    color: "bg-line-green-light",
+    iconColor: "text-line-green",
+  },
+  {
+    href: "/nfc/my-tags",
+    icon: Tags,
+    title: "แท็กของฉัน",
+    subtitle: "จัดการและดูข้อความจากผู้พบ",
+    color: "bg-status-info-light",
+    iconColor: "text-status-info",
+  },
+  {
+    href: "/nfc/found",
+    icon: Search,
+    title: "แจ้งพบของ (NFC)",
+    subtitle: "สแกนแท็กที่ติดอยู่กับของ",
+    color: "bg-status-warning-light",
+    iconColor: "text-amber-600",
+  },
+];
+
+export default function NfcHubPage() {
+  const { user, loading: authLoading, appSettings } = useAuth();
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5] dark:bg-[#0a0a0a]">
+        <div className="w-8 h-8 border-2 border-[#06C755] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <AppShell>
+        <Header title="NFC Tag" showBack />
+        <LoginPrompt />
+        <BottomNav />
+      </AppShell>
+    );
+  }
+
+  if (appSettings.nfcEnabled === false) {
+    return (
+      <AppShell>
+        <Header title="NFC Tag" showBack />
+        <main className="px-4 py-8 text-center">
+          <Radio className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">ระบบ NFC ถูกปิดใช้งานชั่วคราว</p>
+        </main>
+        <BottomNav />
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell>
+      <Header title="NFC Tag" showBack />
+      <main className="px-4 py-6 pb-28 space-y-4">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-3 mb-2">
+            <Radio className="w-8 h-8 text-[#06C755]" />
+            <div>
+              <h1 className="font-bold text-lg">ระบบ NFC Tag</h1>
+              <p className="text-sm text-gray-500">v0.1.3beta</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            ติดแท็ก NFC บนของสำคัญ เมื่อมีคนพบจะแจ้งถึงคุณผ่านแอปได้ทันที
+          </p>
+        </div>
+
+        {actions.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 hover:shadow-md transition-shadow"
+          >
+            <div className={`p-3 rounded-xl ${item.color}`}>
+              <item.icon className={`w-6 h-6 ${item.iconColor}`} />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 dark:text-white">{item.title}</p>
+              <p className="text-sm text-gray-500">{item.subtitle}</p>
+            </div>
+          </Link>
+        ))}
+      </main>
+      <BottomNav />
+    </AppShell>
+  );
+}

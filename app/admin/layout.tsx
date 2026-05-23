@@ -26,6 +26,7 @@ import {
   Users,
   UserX,
   AlertTriangle,
+  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ const navItems = [
   { href: "/admin/users", icon: UserX, label: "จัดการผู้ใช้", description: "Ban/Timeout ผู้ใช้" },
   { href: "/admin/beta-testers", icon: Users, label: "Beta Testers", description: "จัดการผู้ทดสอบ" },
   { href: "/admin/matching", icon: Sparkles, label: "Matching", description: "จับคู่ของหาย-ของเจอ" },
+  { href: "/admin/nfc", icon: Radio, label: "NFC Tags", description: "จัดการแท็ก NFC" },
   { href: "/admin/categories", icon: Tags, label: "หมวดหมู่", description: "เพิ่ม/ลบหมวดหมู่" },
   { href: "/admin/moderation", icon: Shield, label: "Moderation", description: "ตรวจสอบและอนุมัติ" },
   { href: "/admin/logs", icon: FileText, label: "Logs", description: "ประวัติการใช้งาน" },

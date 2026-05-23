@@ -1169,6 +1169,57 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
+        {/* NFC Settings */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">NFC Tag (v0.1.3beta)</h2>
+            <p className="text-sm text-gray-500">เปิด/ปิดระบบลงทะเบียนและแจ้งพบผ่าน NFC</p>
+          </div>
+          <div className="p-5 space-y-4">
+            <label className="flex items-center justify-between">
+              <span className="text-gray-700 dark:text-gray-300">เปิดใช้งาน NFC Tag</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setBetaSettings({
+                    ...betaSettings,
+                    nfcEnabled: !(betaSettings.nfcEnabled ?? true),
+                  })
+                }
+                className={cn(
+                  "w-12 h-7 rounded-full transition-colors relative",
+                  (betaSettings.nfcEnabled ?? true) ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                    (betaSettings.nfcEnabled ?? true) ? "right-1" : "left-1"
+                  )}
+                />
+              </button>
+            </label>
+            <div>
+              <label className="text-sm text-gray-700 dark:text-gray-300 mb-2 block">
+                Public Base URL (สำหรับ QR/NFC)
+              </label>
+              <input
+                type="url"
+                value={betaSettings.nfcPublicBaseUrl || ""}
+                onChange={(e) =>
+                  setBetaSettings({
+                    ...betaSettings,
+                    nfcPublicBaseUrl: e.target.value.trim() || undefined,
+                  })
+                }
+                placeholder="https://your-domain.com"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 mt-1">ว่างไว้เพื่อใช้ origin ของเว็บปัจจุบัน</p>
+            </div>
+          </div>
+        </div>
+
         {/* Storage Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">

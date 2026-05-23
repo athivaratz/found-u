@@ -4,7 +4,7 @@ import type { ErrorSeverity, ErrorSource } from "@/lib/types";
 
 // Activity log types
 export type ActionType = "create" | "update" | "delete" | "view" | "login" | "logout" | "match" | "ban" | "unban" | "timeout";
-export type TargetType = "lostItem" | "foundItem" | "category" | "location" | "contactType" | "user" | "system" | "match" | "error";
+export type TargetType = "lostItem" | "foundItem" | "category" | "location" | "contactType" | "user" | "system" | "match" | "error" | "nfcTag" | "nfcReport";
 
 interface LogActivityParams {
     action: string;
@@ -104,6 +104,39 @@ export async function logItemMatched(
         targetName: `${lostItemName} - ${foundItemName}`,
         userEmail,
         details: `Lost: ${lostItemId}, Found: ${foundItemId}`,
+    });
+}
+
+export async function logNfcTagRegistered(
+    tagId: string,
+    itemName: string,
+    userEmail?: string,
+    userName?: string
+): Promise<void> {
+    await logActivity({
+        action: `ลงทะเบียน NFC Tag: ${itemName} (${tagId})`,
+        actionType: "create",
+        targetType: "nfcTag",
+        targetId: tagId,
+        targetName: itemName,
+        userEmail,
+        userName,
+    });
+}
+
+export async function logNfcFoundReported(
+    tagId: string,
+    userEmail?: string,
+    userName?: string
+): Promise<void> {
+    await logActivity({
+        action: `แจ้งพบของผ่าน NFC Tag: ${tagId}`,
+        actionType: "create",
+        targetType: "nfcReport",
+        targetId: tagId,
+        targetName: tagId,
+        userEmail,
+        userName,
     });
 }
 

@@ -9,6 +9,16 @@ export function cn(...inputs: ClassValue[]) {
 
 // สร้าง Tracking Code แบบสุ่ม
 // type: 'lost' | 'found' - determines prefix (LOST- or FOUND-)
+/** Public NFC tag ID for URLs and QR codes (12 chars, no ambiguous chars). */
+export function generateNfcTagId(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let id = "";
+  for (let i = 0; i < 12; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
 export function generateTrackingCode(type: 'lost' | 'found' = 'lost'): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const prefix = type === 'found' ? 'FOUND-' : 'LOST-';

@@ -1,4 +1,4 @@
-import { Search, Camera, Clock, Package } from "lucide-react";
+import { Search, Camera, Clock, Package, Radio } from "lucide-react";
 
 export const menuItems = [
   {
@@ -24,6 +24,14 @@ export const menuItems = [
     subtitle: "I Found Something",
     color: "bg-line-green-light",
     iconColor: "text-line-green",
+  },
+  {
+    href: "/nfc",
+    icon: Radio,
+    title: "NFC Tag",
+    subtitle: "Register & Scan",
+    color: "bg-purple-50 dark:bg-purple-900/20",
+    iconColor: "text-purple-600 dark:text-purple-400",
   },
   {
     href: "/tracking",

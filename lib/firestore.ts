@@ -20,7 +20,7 @@ import {
 import { db } from './firebase';
 import { normalizeGeoPoint, normalizeGeoPolygon } from './utils';
 import { stripUndefined } from './strip-undefined';
-import type { LostItem, FoundItem, ItemStatus, AppUser, UserRole, BetaStatus, BanStatus, AppSettings, ErrorLog, ErrorSeverity, ErrorSource, AIUsageRecord } from './types';
+import type { LostItem, FoundItem, ItemStatus, AppUser, UserRole, BetaStatus, BanStatus, AppSettings, ErrorLog, ErrorSeverity, ErrorSource, AIUsageRecord, NfcTag, NfcTagStatus, NfcFoundReport, NfcFoundReportStatus } from './types';
 import { DEFAULT_APP_SETTINGS } from './types';
 
 function mapAppSettingsFromFirestore(data: DocumentData): AppSettings {
@@ -65,6 +65,9 @@ function mapAppSettingsFromFirestore(data: DocumentData): AppSettings {
     autoDeleteDays: data.autoDeleteDays ?? DEFAULT_APP_SETTINGS.autoDeleteDays,
     maxImageSize: data.maxImageSize ?? DEFAULT_APP_SETTINGS.maxImageSize,
     compressionQuality: data.compressionQuality ?? DEFAULT_APP_SETTINGS.compressionQuality,
+    nfcEnabled: data.nfcEnabled ?? DEFAULT_APP_SETTINGS.nfcEnabled,
+    nfcPublicBaseUrl: data.nfcPublicBaseUrl || DEFAULT_APP_SETTINGS.nfcPublicBaseUrl,
+    nfcRequireLoginToReport: data.nfcRequireLoginToReport ?? DEFAULT_APP_SETTINGS.nfcRequireLoginToReport,
     updatedAt: timestampToDate(data.updatedAt),
     updatedBy: data.updatedBy,
   };
@@ -78,6 +81,8 @@ export const COLLECTIONS = {
   SETTINGS: 'settings',
   AI_USAGE: 'aiUsage', // สำหรับ rate limit tracking
   ERROR_LOGS: 'errorLogs', // สำหรับเก็บ errors
+  NFC_TAGS: 'nfcTags',
+  NFC_FOUND_REPORTS: 'nfcFoundReports',
 } as const;
 
 // Settings document ID
@@ -1334,4 +1339,138 @@ export async function cleanupOldAIUsage(): Promise<number> {
   await Promise.all(deletePromises);
 
   return snapshot.size;
+}
+
+// ========================================
+// NFC Tags
+// ========================================
+
+function mapNfcTagFromFirestore(id: string, data: DocumentData): NfcTag {
+  return {
+    id,
+    tagUid: data.tagUid,
+    ownerId: data.ownerId,
+    itemName: data.itemName,
+    category: data.category,
+    description: data.description,
+    contacts: data.contacts || [],
+    status: data.status,
+    readOnlyLocked: data.readOnlyLocked ?? false,
+    lostItemId: data.lostItemId,
+    lastFoundReportId: data.lastFoundReportId,
+    registeredAt: timestampToDate(data.registeredAt),
+    updatedAt: timestampToDate(data.updatedAt),
+  };
+}
+
+function mapNfcFoundReportFromFirestore(id: string, data: DocumentData): NfcFoundReport {
+  return {
+    id,
+    tagId: data.tagId,
+    ownerId: data.ownerId,
+    finderUserId: data.finderUserId,
+    finderMessage: data.finderMessage,
+    locationFound: data.locationFound,
+    locationCoords: data.locationCoords,
+    finderContacts: data.finderContacts,
+    status: data.status,
+    createdAt: timestampToDate(data.createdAt),
+  };
+}
+
+export async function getNfcTagById(tagId: string): Promise<NfcTag | null> {
+  const docRef = doc(db, COLLECTIONS.NFC_TAGS, tagId.toUpperCase());
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) return null;
+  return mapNfcTagFromFirestore(docSnap.id, docSnap.data());
+}
+
+export async function getNfcTagsByOwnerId(ownerId: string): Promise<NfcTag[]> {
+  const q = query(
+    collection(db, COLLECTIONS.NFC_TAGS),
+    where('ownerId', '==', ownerId),
+    orderBy('registeredAt', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => mapNfcTagFromFirestore(d.id, d.data()));
+}
+
+export function subscribeToNfcTagsByOwnerId(
+  ownerId: string,
+  callback: (tags: NfcTag[]) => void
+): () => void {
+  const q = query(
+    collection(db, COLLECTIONS.NFC_TAGS),
+    where('ownerId', '==', ownerId),
+    orderBy('registeredAt', 'desc')
+  );
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => mapNfcTagFromFirestore(d.id, d.data())));
+  });
+}
+
+export async function updateNfcTag(
+  tagId: string,
+  data: Partial<Omit<NfcTag, 'id' | 'registeredAt'>>
+): Promise<void> {
+  const docRef = doc(db, COLLECTIONS.NFC_TAGS, tagId.toUpperCase());
+  await updateDoc(docRef, stripUndefined({
+    ...data,
+    updatedAt: serverTimestamp(),
+  }));
+}
+
+export async function createNfcFoundReport(
+  data: Omit<NfcFoundReport, 'id' | 'createdAt'>
+): Promise<string> {
+  const docRef = await addDoc(
+    collection(db, COLLECTIONS.NFC_FOUND_REPORTS),
+    stripUndefined({
+      ...data,
+      createdAt: serverTimestamp(),
+    })
+  );
+  return docRef.id;
+}
+
+export async function getNfcFoundReportsByTagId(tagId: string): Promise<NfcFoundReport[]> {
+  const q = query(
+    collection(db, COLLECTIONS.NFC_FOUND_REPORTS),
+    where('tagId', '==', tagId.toUpperCase()),
+    orderBy('createdAt', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => mapNfcFoundReportFromFirestore(d.id, d.data()));
+}
+
+export function subscribeToNfcFoundReportsByOwnerId(
+  ownerId: string,
+  callback: (reports: NfcFoundReport[]) => void
+): () => void {
+  const q = query(
+    collection(db, COLLECTIONS.NFC_FOUND_REPORTS),
+    where('ownerId', '==', ownerId),
+    orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => mapNfcFoundReportFromFirestore(d.id, d.data())));
+  });
+}
+
+export async function updateNfcFoundReport(
+  reportId: string,
+  data: Partial<Pick<NfcFoundReport, 'status'>>
+): Promise<void> {
+  const docRef = doc(db, COLLECTIONS.NFC_FOUND_REPORTS, reportId);
+  await updateDoc(docRef, stripUndefined(data));
+}
+
+export async function getAllNfcTags(limitCount = 200): Promise<NfcTag[]> {
+  const q = query(
+    collection(db, COLLECTIONS.NFC_TAGS),
+    orderBy('registeredAt', 'desc'),
+    limit(limitCount)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => mapNfcTagFromFirestore(d.id, d.data()));
 }
