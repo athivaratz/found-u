@@ -16,7 +16,6 @@ import {
   UserX,
   UserCheck,
   AlertTriangle,
-  X,
 } from "lucide-react";
 import { 
   getAllUsers, 
@@ -30,6 +29,7 @@ import { logUserBanned, logUserUnbanned, logUserTimeout } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
 import type { AppUser, BanStatus } from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 
 const BAN_STATUS_CONFIG: Record<BanStatus, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
   none: {
@@ -459,63 +459,23 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      {/* Ban Modal */}
-      {showBanModal && selectedUser && (
-        <div className="overlay-modal fixed inset-0 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setShowBanModal(false)}
-          />
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <button
-              onClick={() => setShowBanModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <Ban className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  แบนผู้ใช้
-                </h2>
-                <p className="text-sm text-gray-500">{selectedUser.email}</p>
-              </div>
-            </div>
-
-            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 mb-6">
-              <div className="flex gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-600">
-                  การแบนถาวรจะทำให้ผู้ใช้ไม่สามารถเข้าใช้งานระบบได้จนกว่าจะปลดแบน
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                เหตุผลในการแบน *
-              </label>
-              <textarea
-                value={banReason}
-                onChange={(e) => setBanReason(e.target.value)}
-                placeholder="ระบุเหตุผลในการแบนผู้ใช้..."
-                rows={3}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 dark:text-white resize-none"
-              />
-            </div>
-
-            <div className="flex gap-3">
+      <ResponsiveModal
+        open={showBanModal && !!selectedUser}
+        onClose={() => setShowBanModal(false)}
+        title="แบนผู้ใช้"
+        description={selectedUser?.email}
+        footer={
+          selectedUser ? (
+            <div className="flex gap-3 w-full">
               <button
+                type="button"
                 onClick={() => setShowBanModal(false)}
                 className="flex-1 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 ยกเลิก
               </button>
               <button
+                type="button"
                 onClick={handleBan}
                 disabled={!banReason.trim() || actionLoading === selectedUser.uid}
                 className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -530,38 +490,87 @@ export default function AdminUsersPage() {
                 )}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Timeout Modal */}
-      {showTimeoutModal && selectedUser && (
-        <div className="overlay-modal fixed inset-0 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setShowTimeoutModal(false)}
-          />
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <button
-              onClick={() => setShowTimeoutModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                <Clock className="w-6 h-6 text-amber-600" />
+          ) : null
+        }
+      >
+        {selectedUser && (
+          <>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <Ban className="w-6 h-6 text-red-600" />
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Timeout ผู้ใช้
-                </h2>
-                <p className="text-sm text-gray-500">{selectedUser.email}</p>
+              <p className="text-sm text-gray-500">ผู้ใช้: {selectedUser.displayName || selectedUser.email}</p>
+            </div>
+
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 mb-4">
+              <div className="flex gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-600">
+                  การแบนถาวรจะทำให้ผู้ใช้ไม่สามารถเข้าใช้งานระบบได้จนกว่าจะปลดแบน
+                </p>
               </div>
             </div>
 
-            <div className="mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                เหตุผลในการแบน *
+              </label>
+              <textarea
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                placeholder="ระบุเหตุผลในการแบนผู้ใช้..."
+                rows={3}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 dark:text-white resize-none"
+              />
+            </div>
+          </>
+        )}
+      </ResponsiveModal>
+
+      <ResponsiveModal
+        open={showTimeoutModal && !!selectedUser}
+        onClose={() => setShowTimeoutModal(false)}
+        title="Timeout ผู้ใช้"
+        description={selectedUser?.email}
+        footer={
+          selectedUser ? (
+            <div className="flex gap-3 w-full">
+              <button
+                type="button"
+                onClick={() => setShowTimeoutModal(false)}
+                className="flex-1 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleTimeout}
+                disabled={!banReason.trim() || actionLoading === selectedUser.uid}
+                className="flex-1 px-4 py-3 rounded-xl bg-amber-600 text-white font-medium hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {actionLoading === selectedUser.uid ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Clock className="w-5 h-5" />
+                    Timeout
+                  </>
+                )}
+              </button>
+            </div>
+          ) : null
+        }
+      >
+        {selectedUser && (
+          <>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <Clock className="w-6 h-6 text-amber-600" />
+              </div>
+              <p className="text-sm text-gray-500">ผู้ใช้: {selectedUser.displayName || selectedUser.email}</p>
+            </div>
+
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 ระยะเวลา Timeout
               </label>
@@ -578,7 +587,7 @@ export default function AdminUsersPage() {
               </select>
             </div>
 
-            <div className="mb-6">
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 เหตุผลในการ Timeout *
               </label>
@@ -590,32 +599,9 @@ export default function AdminUsersPage() {
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-gray-900 dark:text-white resize-none"
               />
             </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowTimeoutModal(false)}
-                className="flex-1 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleTimeout}
-                disabled={!banReason.trim() || actionLoading === selectedUser.uid}
-                className="flex-1 px-4 py-3 rounded-xl bg-amber-600 text-white font-medium hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {actionLoading === selectedUser.uid ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <Clock className="w-5 h-5" />
-                    Timeout
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ResponsiveModal>
     </div>
   );
 }

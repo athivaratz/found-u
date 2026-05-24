@@ -29,20 +29,68 @@ export function generateTrackingCode(type: 'lost' | 'found' = 'lost'): string {
   return code;
 }
 
+/** Normalize Firestore Timestamp, plain objects, ISO strings, or epoch ms to Date. */
+export function coerceToDate(value: unknown): Date {
+  if (value == null) return new Date();
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? new Date() : value;
+  }
+
+  if (typeof value === "object") {
+    const maybeTimestamp = value as { toDate?: () => Date };
+    if (typeof maybeTimestamp.toDate === "function") {
+      const converted = maybeTimestamp.toDate();
+      if (converted instanceof Date && !Number.isNaN(converted.getTime())) {
+        return converted;
+      }
+    }
+
+    const record = value as Record<string, unknown>;
+    const seconds =
+      typeof record.seconds === "number"
+        ? record.seconds
+        : typeof record._seconds === "number"
+          ? record._seconds
+          : null;
+    const nanoseconds =
+      typeof record.nanoseconds === "number"
+        ? record.nanoseconds
+        : typeof record._nanoseconds === "number"
+          ? record._nanoseconds
+          : 0;
+
+    if (seconds !== null) {
+      return new Date(seconds * 1000 + nanoseconds / 1_000_000);
+    }
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(value);
+  }
+
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  return new Date();
+}
+
 // Format วันที่เป็นภาษาไทย
-export function formatThaiDate(date: Date): string {
-  return date.toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+export function formatThaiDate(date: Date | unknown): string {
+  return coerceToDate(date).toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 }
 
 // Format เวลา
-export function formatTime(date: Date): string {
-  return date.toLocaleTimeString('th-TH', {
-    hour: '2-digit',
-    minute: '2-digit',
+export function formatTime(date: Date | unknown): string {
+  return coerceToDate(date).toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 

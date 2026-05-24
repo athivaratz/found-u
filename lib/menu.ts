@@ -28,8 +28,8 @@ export const menuItems = [
   {
     href: "/nfc",
     icon: Radio,
-    title: "NFC Tag",
-    subtitle: "Register & Scan",
+    title: "สแกน NFC",
+    subtitle: "ลงทะเบียนและสแกน NFC",
     color: "bg-purple-50 dark:bg-purple-900/20",
     iconColor: "text-purple-600 dark:text-purple-400",
   },

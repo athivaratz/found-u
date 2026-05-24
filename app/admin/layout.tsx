@@ -7,12 +7,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { useTheme } from "next-themes";
 import {
   Package,
-  Search,
-  Settings,
-  BarChart3,
-  FileText,
-  Shield,
-  Tags,
   Home,
   LogOut,
   Moon,
@@ -21,33 +15,14 @@ import {
   X,
   Loader2,
   ChevronRight,
-  Sparkles,
-  Bot,
-  Users,
-  UserX,
-  AlertTriangle,
-  Radio,
   UserCog,
+  Shield,
 } from "lucide-react";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { adminNavGroups, isAdminNavActive } from "@/lib/admin-nav";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { getUserShownName } from "@/lib/user-display";
 import { cn } from "@/lib/utils";
-
-// Admin navigation items
-const navItems = [
-  { href: "/admin", icon: BarChart3, label: "ภาพรวม", description: "สถิติและข้อมูลทั่วไป" },
-  { href: "/admin/items", icon: Package, label: "จัดการรายการ", description: "ของหาย/ของเจอ" },
-  { href: "/admin/students", icon: Users, label: "นักเรียน", description: "CSV และ whitelist แอดมิน" },
-  { href: "/admin/users", icon: UserX, label: "จัดการผู้ใช้", description: "Ban/Timeout ผู้ใช้" },
-  { href: "/admin/matching", icon: Sparkles, label: "Matching", description: "จับคู่ของหาย-ของเจอ" },
-  { href: "/admin/nfc", icon: Radio, label: "NFC Tags", description: "จัดการแท็ก NFC" },
-  { href: "/admin/categories", icon: Tags, label: "หมวดหมู่", description: "เพิ่ม/ลบหมวดหมู่" },
-  { href: "/admin/moderation", icon: Shield, label: "Moderation", description: "ตรวจสอบและอนุมัติ" },
-  { href: "/admin/logs", icon: FileText, label: "Logs", description: "ประวัติการใช้งาน" },
-  { href: "/admin/error-logs", icon: AlertTriangle, label: "Error Logs", description: "Errors ในระบบ" },
-  { href: "/admin/ai", icon: Bot, label: "AI", description: "โมเดลและการทดสอบ" },
-  { href: "/admin/settings", icon: Settings, label: "ตั้งค่าระบบ", description: "System Settings" },
-];
 
 export default function AdminLayout({
   children,
@@ -175,34 +150,54 @@ export default function AdminLayout({
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 pb-4 space-y-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 240px)" }}>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
+        <nav className="p-4 pb-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 240px)" }}>
+          {adminNavGroups.map((group) => {
+            const groupActive = group.items.some((item) =>
+              isAdminNavActive(pathname, item.href)
+            );
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
-                  isActive
-                    ? "bg-[#e8f8ef] text-[#06C755] dark:bg-[#06C755]/20"
-                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                )}
+              <CollapsibleSection
+                key={group.id}
+                title={group.label}
+                defaultOpen={group.defaultOpen ?? groupActive}
+                storageKey={`admin-nav-${group.id}`}
+                className="border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30"
+                headerClassName="py-2.5 text-sm"
               >
-                <Icon className="w-5 h-5" />
-                <div className="flex-1">
-                  <span className="font-medium">{item.label}</span>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{item.description}</p>
+                <div className="space-y-0.5 pt-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = isAdminNavActive(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setSidebarOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group",
+                          isActive
+                            ? "bg-[#e8f8ef] text-[#06C755] dark:bg-[#06C755]/20"
+                            : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        )}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium text-sm block truncate">{item.label}</span>
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                            {item.description}
+                          </p>
+                        </div>
+                        <ChevronRight
+                          className={cn(
+                            "w-3.5 h-3.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity",
+                            isActive && "opacity-100"
+                          )}
+                        />
+                      </Link>
+                    );
+                  })}
                 </div>
-                <ChevronRight
-                  className={cn(
-                    "w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity",
-                    isActive && "opacity-100"
-                  )}
-                />
-              </Link>
+              </CollapsibleSection>
             );
           })}
 

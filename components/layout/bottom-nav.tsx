@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, Camera, Clock, User } from "lucide-react";
+import { Home, Search, Camera, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Navigation items
@@ -17,10 +17,12 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom md:hidden">
-      {/* Container ให้ตรงกับ max-w-md ของ layout */}
-      <div className="w-full">
-        <div className="flex items-center justify-around bg-bg-primary border-t border-border-light px-2 py-2 transition-colors">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 safe-bottom md:hidden"
+      style={{ height: "var(--bottom-nav-height)" }}
+    >
+      <div className="w-full h-full">
+        <div className="flex h-full items-center justify-around bg-bg-primary border-t border-border-light px-2 py-1 transition-colors">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;

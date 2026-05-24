@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -13,13 +13,16 @@ import {
   Search,
   X,
 } from "lucide-react";
-import Header from "@/components/layout/header";
-import BottomNav from "@/components/layout/bottom-nav";
-import AppShell from "@/components/layout/app-shell";
 import LoginPrompt from "@/components/auth/login-prompt";
-import MapCanvas from "@/components/ui/map-canvas";
+import { StudentAppShell } from "@/components/layout/student-app-shell";
+import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
+import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
+import { PageHeader } from "@/components/layout/page-header";
+import { AnimatePresence, m } from "framer-motion";
+import { slideUp } from "@/lib/motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { type ContactInfo, type ContactType, type ItemCategory, type LocationCoords } from "@/lib/types";
-import { cn, generateTrackingCode } from "@/lib/utils";
+import { cn, generateTrackingCode, isPointInPolygon, normalizeGeoPolygon } from "@/lib/utils";
 import {
   addLostItem,
   subscribeToCategories,
@@ -29,12 +32,21 @@ import {
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
+import { useMapView } from "@/hooks/use-map-view";
 import { logItemCreated } from "@/lib/logger";
+
+const LOST_FORM_STEPS = [
+  { id: "details", label: "รายละเอียด" },
+  { id: "location", label: "สถานที่" },
+  { id: "contact", label: "ติดต่อ" },
+] as const;
 
 export default function ReportLostPage() {
   const router = useRouter();
   const { user, loading: authLoading, appSettings } = useAuth();
   const { showAlert, dialog } = useAppDialog();
+  const reduced = useReducedMotion();
+  const [formStep, setFormStep] = useState(0);
 
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
@@ -56,6 +68,32 @@ export default function ReportLostPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showMatches, setShowMatches] = useState(false);
   const [matches, setMatches] = useState<any[]>([]);
+
+  const mapFallbackCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
+  const mapFallbackZoom = appSettings.mapDefaultZoom ?? 17;
+
+  const schoolBoundary = useMemo(
+    () => normalizeGeoPolygon(appSettings.mapSchoolBoundary),
+    [appSettings.mapSchoolBoundary]
+  );
+
+  const boundaryEnforced = schoolBoundary.length >= 3;
+
+  const isWithinSchoolBoundary = (coords: { lat: number; lng: number }) =>
+    !boundaryEnforced || isPointInPolygon(coords, schoolBoundary);
+
+  const {
+    center: formMapCenter,
+    zoom: formMapZoom,
+    fitPoints: formFitPoints,
+  } = useMapView({
+    enabled: appSettings.mapsEnabled,
+    fallbackCenter: mapFallbackCenter,
+    fallbackZoom: mapFallbackZoom,
+    polygon: appSettings.mapSchoolBoundary,
+    marker: locationCoords,
+    locateUser: true,
+  });
 
   useEffect(() => {
     let loadedCount = 0;
@@ -122,52 +160,80 @@ export default function ReportLostPage() {
 
   const handleMapSelect = (coords: LocationCoords | null) => {
     if (!coords) return;
+    if (!isWithinSchoolBoundary(coords)) return;
     setLocationCoords(coords);
+    setErrors((prev) => ({ ...prev, locationCoords: "" }));
   };
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocationCoords({
+        const coords: LocationCoords = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
           source: "gps",
-        });
+        };
+        if (!isWithinSchoolBoundary(coords)) return;
+        setLocationCoords(coords);
+        setErrors((prev) => ({ ...prev, locationCoords: "" }));
       },
       () => {
-        setErrors((prev) => ({ ...prev, locationCoords: "ไม่สามารถระบุตำแหน่งได้" }));
+        /* GPS unavailable — no error banner; user can pin manually on the map */
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
-  const validateForm = () => {
+  const validateStep = (step: number) => {
     const nextErrors: Record<string, string> = {};
+    let outsideBoundary = false;
 
-    if (!formData.itemName.trim()) {
-      nextErrors.itemName = "กรุณากรอกชื่อสิ่งของ";
-    }
-    if (!formData.category) {
-      nextErrors.category = "กรุณาเลือกประเภท";
-    }
-    if (!formData.locationLost.trim()) {
-      nextErrors.locationLost = "กรุณากรอกสถานที่ทำหาย";
+    if (step === 0) {
+      if (!formData.itemName.trim()) {
+        nextErrors.itemName = "กรุณากรอกชื่อสิ่งของ";
+      }
+      if (!formData.category) {
+        nextErrors.category = "กรุณาเลือกประเภท";
+      }
     }
 
-    const validContacts = contacts.filter((c) => c.value.trim());
-    if (validContacts.length === 0) {
-      nextErrors.contacts = "กรุณากรอกช่องทางการติดต่ออย่างน้อย 1 ช่องทาง";
+    if (step === 1) {
+      if (!formData.locationLost.trim()) {
+        nextErrors.locationLost = "กรุณากรอกสถานที่ทำหาย";
+      }
+      if (
+        locationCoords &&
+        boundaryEnforced &&
+        !isPointInPolygon(locationCoords, schoolBoundary)
+      ) {
+        outsideBoundary = true;
+      }
+    }
+
+    if (step === 2) {
+      const validContacts = contacts.filter((c) => c.value.trim());
+      if (validContacts.length === 0) {
+        nextErrors.contacts = "กรุณากรอกช่องทางการติดต่ออย่างน้อย 1 ช่องทาง";
+      }
     }
 
     setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return Object.keys(nextErrors).length === 0 && !outsideBoundary;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  const goNextStep = () => {
+    if (!validateStep(formStep)) return;
+    setFormStep((s) => Math.min(s + 1, LOST_FORM_STEPS.length - 1));
+  };
+
+  const goPrevStep = () => {
+    setFormStep((s) => Math.max(s - 1, 0));
+  };
+
+  const handleSubmit = async () => {
+    if (!validateStep(2)) return;
 
     setIsSubmitting(true);
     try {
@@ -237,32 +303,20 @@ export default function ReportLostPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-bg-secondary pb-24 transition-colors">
-        <Header title="แจ้งของหาย" showBack />
+      <StudentAppShell headerTitle="แจ้งของหาย" headerBackHref="/">
         <LoginPrompt
           title="เข้าสู่ระบบเพื่อแจ้งของหาย"
           description="คุณต้องเข้าสู่ระบบเพื่อแจ้งของหาย เพื่อให้เราแจ้งเตือนคุณเมื่อมีคนเจอของ"
           feature="รับการแจ้งเตือนอัตโนมัติเมื่อมีคนเจอของคุณ!"
         />
-        <BottomNav />
-      </div>
+      </StudentAppShell>
     );
   }
 
   if (showSuccess) {
     return (
-      <AppShell>
-        <div className="min-h-screen bg-bg-secondary pb-24 md:pb-8 transition-colors">
-          <div className="md:hidden">
-            <Header title="แจ้งของหายสำเร็จ" />
-          </div>
-
-          <div className="hidden md:block px-8 py-6 border-b border-border-light bg-bg-secondary sticky top-0 z-10">
-            <h1 className="text-2xl font-bold text-text-primary">แจ้งของหายสำเร็จ</h1>
-            <p className="text-text-secondary text-sm mt-1">ระบบได้รับข้อมูลเรียบร้อยแล้ว</p>
-          </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 md:py-12">
+      <StudentAppShell headerTitle="แจ้งของหายสำเร็จ" showBottomNav maxWidth="lg">
+          <div className="flex flex-col items-center justify-center py-4 md:py-8">
             <div className="w-full max-w-lg bg-bg-card rounded-2xl shadow-sm border border-border-light p-6 md:p-8 animate-fade-in text-center">
               <div className="w-20 h-20 rounded-full bg-[#e8f8ef] dark:bg-[#06C755]/20 flex items-center justify-center mb-6 mx-auto animate-fade-in">
                 <CheckCircle2 className="w-10 h-10 text-[#06C755]" />
@@ -359,27 +413,41 @@ export default function ReportLostPage() {
               </div>
             </div>
           </div>
-        </div>
-      </AppShell>
+      </StudentAppShell>
     );
   }
 
   return (
-    <AppShell>
-      <div className="min-h-screen bg-bg-secondary pb-24 md:pb-8 transition-colors">
-        <div className="md:hidden">
-          <Header title="แจ้งของหาย" showBack />
-        </div>
+    <StudentAppShell headerTitle="แจ้งของหาย" headerBackHref="/" showBottomNav maxWidth="lg">
+        <PageHeader
+          title="แจ้งของหาย"
+          subtitle="กรอกข้อมูลให้ละเอียดเพื่อให้ง่ายต่อการค้นหา"
+          className="hidden md:flex mb-6"
+        />
 
-        <div className="hidden md:block px-8 py-6 border-b border-border-light bg-bg-secondary sticky top-0 z-10">
-          <h1 className="text-2xl font-bold text-text-primary">แจ้งของหาย</h1>
-          <p className="text-text-secondary text-sm mt-1">กรอกข้อมูลให้ละเอียดเพื่อให้ง่ายต่อการค้นหา</p>
-        </div>
+        <FormStepper steps={[...LOST_FORM_STEPS]} currentStep={formStep} className="mb-6" />
 
-        <form onSubmit={handleSubmit} className="px-5 py-6 max-w-2xl mx-auto">
-          <div className="space-y-5">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (formStep < LOST_FORM_STEPS.length - 1) goNextStep();
+            else void handleSubmit();
+          }}
+          className="pb-4"
+        >
+          <AnimatePresence mode="wait">
+            <m.div
+              key={formStep}
+              initial={reduced ? false : slideUp.initial}
+              animate={slideUp.animate}
+              exit={slideUp.exit}
+              transition={slideUp.transition}
+              className="space-y-5"
+            >
+            {formStep === 0 && (
+            <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
                 ชื่อสิ่งของ <span className="text-red-500">*</span>
               </label>
               <input
@@ -433,9 +501,13 @@ export default function ReportLostPage() {
                 className="input-line resize-none"
               />
             </div>
+            </>
+            )}
 
+            {formStep === 1 && (
+            <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
                 สถานที่ทำหาย <span className="text-red-500">*</span>
               </label>
               <input
@@ -456,37 +528,45 @@ export default function ReportLostPage() {
 
             {appSettings.mapsEnabled && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-sm font-medium text-text-secondary">
                     ปักพิกัดบนแผนที่ (ถ้ามี)
                   </label>
                   <button
                     type="button"
                     onClick={handleUseCurrentLocation}
-                    className="text-xs text-[#06C755] hover:text-[#05b34d] flex items-center gap-1"
+                    className="text-xs text-line-green hover:text-line-green-hover flex items-center gap-1 shrink-0"
                   >
                     <MapPin className="w-3 h-3" />
                     ใช้ตำแหน่งปัจจุบัน
                   </button>
                 </div>
-                <MapCanvas
-                  center={appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 }}
-                  zoom={appSettings.mapDefaultZoom ?? 17}
+                <MapCanvasLazy
+                  center={formMapCenter}
+                  zoom={formMapZoom}
+                  fitPoints={formFitPoints}
                   tileUrl={appSettings.mapTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
                   attribution={appSettings.mapAttribution || ""}
                   mode="marker"
                   marker={locationCoords}
                   onMarkerChange={handleMapSelect}
-                  polygon={appSettings.mapSchoolBoundary || []}
-                  className="h-56"
+                  polygon={schoolBoundary}
+                  showPolygonVertices={false}
+                  className="h-[200px] sm:h-[240px] rounded-xl overflow-hidden"
                 />
-                {errors.locationCoords && (
-                  <p className="text-xs text-red-500">{errors.locationCoords}</p>
+                {boundaryEnforced && (
+                  <p className="text-xs text-text-tertiary">
+                    ปักพิกัดได้เฉพาะภายในกรอบเขตโรงเรียน
+                  </p>
                 )}
               </div>
             )}
+            </>
+            )}
 
-            <div className="border-t border-gray-100 dark:border-gray-700 pt-5">
+            {formStep === 2 && (
+            <>
+            <div className="pt-1">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -511,12 +591,15 @@ export default function ReportLostPage() {
 
             <div className="space-y-3">
               {contacts.map((contact, index) => (
-                <div key={index} className="flex gap-2">
-                  <div className="relative w-36 flex-shrink-0">
+                <div
+                  key={index}
+                  className="grid grid-cols-[minmax(7rem,auto)_1fr_auto] gap-2 items-center"
+                >
+                  <div className="relative min-w-0">
                     <select
                       value={contact.type}
                       onChange={(e) => handleContactChange(index, "type", e.target.value)}
-                      className="w-full h-12 px-3 bg-gray-50 dark:bg-gray-700 rounded-xl text-gray-900 dark:text-white appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-[#06C755] border border-gray-100 dark:border-gray-600"
+                      className="w-full h-11 px-2 input-line appearance-none pr-7 text-sm"
                     >
                       {contactTypes.map((type) => (
                         <option key={type.value} value={type.value}>
@@ -524,7 +607,7 @@ export default function ReportLostPage() {
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
                   </div>
 
                   <input
@@ -534,38 +617,37 @@ export default function ReportLostPage() {
                     placeholder={
                       contactTypes.find((t) => t.value === contact.type)?.placeholder || ""
                     }
-                    className="flex-1 h-12 px-4 bg-gray-50 dark:bg-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#06C755] border border-gray-100 dark:border-gray-600"
+                    className="input-line h-11 min-w-0"
                   />
 
                   <button
                     type="button"
                     onClick={() => removeContact(index)}
-                    className="w-12 h-12 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                    className="w-11 h-11 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition-colors shrink-0"
+                    aria-label="ลบช่องทางติดต่อ"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               ))}
             </div>
-          </div>
+            </>
+            )}
+            </m.div>
+          </AnimatePresence>
 
-          <div className="mt-8">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={cn(
-                "w-full py-4 rounded-full font-medium text-white transition-all",
-                isSubmitting
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-[#06C755] hover:bg-[#05b34d] active:scale-[0.98]"
-              )}
-            >
-              {isSubmitting ? "กำลังส่ง..." : "ส่งแจ้งของหาย"}
-            </button>
-          </div>
+          <FormStepperActions
+            currentStep={formStep}
+            totalSteps={LOST_FORM_STEPS.length}
+            onBack={goPrevStep}
+            onNext={goNextStep}
+            onSubmit={() => void handleSubmit()}
+            submitLabel="ส่งแจ้งของหาย"
+            isSubmitting={isSubmitting}
+            className="mt-6"
+          />
         </form>
-      </div>
       {dialog}
-    </AppShell>
+    </StudentAppShell>
   );
 }

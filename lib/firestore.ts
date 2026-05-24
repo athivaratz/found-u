@@ -18,7 +18,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { normalizeGeoPoint, normalizeGeoPolygon } from './utils';
+import { coerceToDate, normalizeGeoPoint, normalizeGeoPolygon } from './utils';
 import { stripUndefined } from './strip-undefined';
 import type { LostItem, FoundItem, ItemStatus, AppUser, UserRole, BanStatus, AppSettings, ErrorLog, ErrorSeverity, ErrorSource, AIUsageRecord, NfcTag, NfcTagStatus, NfcFoundReport, NfcFoundReportStatus } from './types';
 import { DEFAULT_APP_SETTINGS } from './types';
@@ -586,6 +586,46 @@ export function subscribeToLostItemsByUserId(userId: string, callback: (items: L
   });
 }
 
+function mapFoundItemDoc(docSnap: { id: string; data: () => DocumentData }): FoundItem {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    trackingCode: data.trackingCode,
+    photoUrl: data.photoUrl,
+    itemName: data.itemName,
+    category: data.category,
+    color: data.color ?? null,
+    brand: data.brand ?? null,
+    description: data.description,
+    locationFound: data.locationFound,
+    locationPlaceName: data.locationPlaceName,
+    locationCoords: data.locationCoords,
+    dateFound: timestampToDate(data.dateFound),
+    dropOffLocation: data.dropOffLocation,
+    finderContacts: data.finderContacts,
+    userId: data.userId,
+    status: data.status,
+    createdAt: timestampToDate(data.createdAt),
+    updatedAt: timestampToDate(data.updatedAt),
+    matchedLostId: data.matchedLostId,
+  } as FoundItem;
+}
+
+export function subscribeToFoundItemsByUserId(
+  userId: string,
+  callback: (items: FoundItem[]) => void
+) {
+  const q = query(
+    collection(db, COLLECTIONS.FOUND_ITEMS),
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc")
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => mapFoundItemDoc(d)));
+  });
+}
+
 export async function getLatestLostItems(count: number = 5) {
   const q = query(
     collection(db, COLLECTIONS.LOST_ITEMS),
@@ -856,12 +896,8 @@ export function subscribeToFoundItems(callback: (items: FoundItem[]) => void) {
 }
 
 // Helper to convert Firestore Timestamp to Date
-export function timestampToDate(timestamp: Timestamp | Date | undefined): Date {
-  if (!timestamp) return new Date();
-  if (timestamp instanceof Timestamp) {
-    return timestamp.toDate();
-  }
-  return timestamp;
+export function timestampToDate(timestamp: Timestamp | Date | undefined | unknown): Date {
+  return coerceToDate(timestamp);
 }
 
 // ========================================

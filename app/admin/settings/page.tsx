@@ -24,16 +24,27 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { getAllUsers, getAppSettings, updateAppSettings, timestampToDate } from "@/lib/firestore";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, writeBatch, doc, serverTimestamp } from "firebase/firestore";
 import { uploadImage, compressImage } from "@/lib/storage";
 import { cn } from "@/lib/utils";
-import type { AppUser, AppSettings, GeoPoint } from "@/lib/types";
+import type { AppUser, AppSettings } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
-import MapCanvas from "@/components/ui/map-canvas";
 import { useAppDialog } from "@/hooks/use-app-dialog";
+import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+
+const SETTINGS_TABS = [
+  { id: "seo", label: "SEO" },
+  { id: "notifications", label: "การแจ้งเตือน" },
+  { id: "storage", label: "Storage" },
+  { id: "ai", label: "AI" },
+  { id: "data", label: "เครื่องมือข้อมูล" },
+] as const;
+
+type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
 
 export default function AdminSettingsPage() {
   const { user, appSettings: contextAppSettings } = useAuth();
@@ -44,6 +55,7 @@ export default function AdminSettingsPage() {
   const [loadingAdmins, setLoadingAdmins] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [uploadingOg, setUploadingOg] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTabId>("seo");
 
   // App settings state
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -124,10 +136,6 @@ export default function AdminSettingsPage() {
       setSaving(false);
     }
   };
-
-  const mapCenter = settings.mapDefaultCenter || DEFAULT_APP_SETTINGS.mapDefaultCenter!;
-  const mapZoom = settings.mapDefaultZoom ?? DEFAULT_APP_SETTINGS.mapDefaultZoom ?? 17;
-  const mapPolygon = settings.mapSchoolBoundary || [];
 
   const [processingData, setProcessingData] = useState(false);
 
@@ -417,8 +425,36 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
+      <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-200/80 dark:border-gray-800">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <SegmentedTabs<SettingsTabId>
+            items={[...SETTINGS_TABS]}
+            value={settingsTab}
+            onChange={setSettingsTab}
+            className="flex-1 min-w-0"
+            size="sm"
+          />
+          <button
+            onClick={handleSaveSettings}
+            disabled={saving || loadingSettings}
+            className={cn(
+              "flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors shrink-0",
+              "bg-line-green text-white hover:bg-line-green-hover",
+              (saving || loadingSettings) && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            บันทึกการตั้งค่า
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* System Settings - Full Width */}
+        {(settingsTab === "seo" || settingsTab === "ai") && (
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -432,22 +468,6 @@ export default function AdminSettingsPage() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleSaveSettings}
-              disabled={saving || loadingSettings}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors",
-                "bg-line-green text-white hover:bg-line-green-hover",
-                (saving || loadingSettings) && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              {saving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              บันทึก
-            </button>
           </div>
 
           {loadingSettings ? (
@@ -456,6 +476,8 @@ export default function AdminSettingsPage() {
             </div>
           ) : (
             <div className="p-5 space-y-6">
+              {settingsTab === "seo" && (
+              <>
               {/* OG Settings */}
               <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
                 <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
@@ -548,7 +570,39 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
-              {/* AI Rate Limit Settings */}
+              {/* Map & GPS — managed on dedicated page */}
+              <Link
+                href="/admin/maps"
+                className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600/80 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-[#06C755] transition-colors">
+                      แผนที่และ GPS
+                    </h3>
+                    <span
+                      className={cn(
+                        "text-xs px-2 py-0.5 rounded-full shrink-0",
+                        settings.mapsEnabled
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                          : "bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300"
+                      )}
+                    >
+                      {settings.mapsEnabled ? "เปิดใช้งาน" : "ปิด"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    ตั้งค่าแผนที่ ขอบเขตโรงเรียน และการบังคับ GPS — จัดการที่หน้าแยก
+                  </p>
+                </div>
+              </Link>
+              </>
+              )}
+
+              {settingsTab === "ai" && (
               <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
                 <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
                   <RefreshCw className="w-5 h-5 text-purple-600" />
@@ -696,218 +750,14 @@ export default function AdminSettingsPage() {
                   )}
                 </div>
               </div>
-
-              {/* Map & GPS Settings */}
-              <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-5 h-5 text-green-600" />
-                </div>
-                <div className="flex-1 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium text-gray-900 dark:text-white">แผนที่และ GPS</h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        ใช้แผนที่เพื่อปักพิกัดและกำหนดขอบเขตโรงเรียน
-                      </p>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setSettings({
-                          ...settings,
-                          mapsEnabled: !settings.mapsEnabled,
-                        })
-                      }
-                      className={cn(
-                        "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                        settings.mapsEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                          settings.mapsEnabled ? "right-1" : "left-1"
-                        )}
-                      />
-                    </button>
-                  </div>
-
-                  {settings.mapsEnabled && (
-                    <div className="space-y-4">
-                      <div className="grid gap-3 lg:grid-cols-2">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            ลิงก์แผนที่ (Tile URL)
-                          </label>
-                          <input
-                            type="text"
-                            value={settings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl}
-                            onChange={(e) =>
-                              setSettings({ ...settings, mapTileUrl: e.target.value })
-                            }
-                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            แหล่งที่มา (Attribution)
-                          </label>
-                          <input
-                            type="text"
-                            value={settings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
-                            onChange={(e) =>
-                              setSettings({ ...settings, mapAttribution: e.target.value })
-                            }
-                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            ละติจูดศูนย์กลาง
-                          </label>
-                          <input
-                            type="number"
-                            step="0.000001"
-                            value={mapCenter.lat}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                mapDefaultCenter: {
-                                  lat: Number(e.target.value),
-                                  lng: mapCenter.lng,
-                                },
-                              })
-                            }
-                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            ลองจิจูดศูนย์กลาง
-                          </label>
-                          <input
-                            type="number"
-                            step="0.000001"
-                            value={mapCenter.lng}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                mapDefaultCenter: {
-                                  lat: mapCenter.lat,
-                                  lng: Number(e.target.value),
-                                },
-                              })
-                            }
-                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            ระดับซูมเริ่มต้น
-                          </label>
-                          <input
-                            type="number"
-                            min={10}
-                            max={22}
-                            value={mapZoom}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                mapDefaultZoom: Number(e.target.value),
-                              })
-                            }
-                            className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-start justify-between gap-4 p-3 bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            บังคับพิกัดในโรงเรียน (เฉพาะแจ้งเจอของ)
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            บล็อกการส่งถ้าอยู่นอกขอบเขตที่กำหนด
-                          </p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            setSettings({
-                              ...settings,
-                              mapEnforceFoundInSchool: !settings.mapEnforceFoundInSchool,
-                            })
-                          }
-                          className={cn(
-                            "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                            settings.mapEnforceFoundInSchool
-                              ? "bg-line-green"
-                              : "bg-gray-300 dark:bg-gray-500"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                              settings.mapEnforceFoundInSchool ? "right-1" : "left-1"
-                            )}
-                          />
-                        </button>
-                      </div>
-
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          ขอบเขตโรงเรียน (Polygon)
-                        </label>
-                        <MapCanvas
-                          center={mapCenter}
-                          zoom={mapZoom}
-                          tileUrl={settings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl!}
-                          attribution={settings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
-                          mode="polygon"
-                          polygon={mapPolygon}
-                          onPolygonChange={(points: GeoPoint[]) =>
-                            setSettings({ ...settings, mapSchoolBoundary: points })
-                          }
-                          className="h-64"
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSettings({ ...settings, mapSchoolBoundary: [] })
-                            }
-                            className="px-3 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
-                          >
-                            ล้างขอบเขต
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSettings({
-                                ...settings,
-                                mapSchoolBoundary: mapPolygon.slice(0, -1),
-                              })
-                            }
-                            className="px-3 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
-                          >
-                            ลบจุดล่าสุด
-                          </button>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          คลิกบนแผนที่เพื่อเพิ่มจุด (ต้องมีอย่างน้อย 3 จุด)
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
 
             </div>
           )}
         </div>
+        )}
 
-        {/* Admin Users */}
+        {settingsTab === "seo" && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
@@ -961,8 +811,10 @@ export default function AdminSettingsPage() {
             </p>
           </div>
         </div>
+        )}
 
-        {/* Notification Settings */}
+        {settingsTab === "notifications" && (
+        <>
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
@@ -1045,7 +897,6 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
-        {/* NFC Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
             <h2 className="font-semibold text-gray-900 dark:text-white">NFC Tag (v0.1.3beta)</h2>
@@ -1095,9 +946,11 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         </div>
+        </>
+        )}
 
-        {/* Storage Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+        {settingsTab === "storage" && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden lg:col-span-2">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
               <Database className="w-5 h-5 text-orange-500" />
@@ -1164,9 +1017,10 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* Data Management */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+        {settingsTab === "data" && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden lg:col-span-2">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <Trash2 className="w-5 h-5 text-red-500" />
@@ -1224,12 +1078,13 @@ export default function AdminSettingsPage() {
             </button>
           </div>
         </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 p-4 text-sm text-blue-800 dark:text-blue-300">
-        การตั้งค่า <strong>การแจ้งเตือน</strong> และ <strong>การจัดเก็บ</strong> บันทึกลง Firestore ที่{" "}
-        <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">settings/appSettings</code> พร้อมกับการตั้งค่าระบบอื่น
-        — กดปุ่ม <strong>บันทึก</strong> ที่การ์ด &quot;การตั้งค่าระบบ (System Settings)&quot; ด้านบน
+        การตั้งค่าทั้งหมดบันทึกลง Firestore ที่{" "}
+        <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">settings/appSettings</code>
+        — กดปุ่ม <strong>บันทึกการตั้งค่า</strong> ด้านบน
       </div>
 
       {/* Firebase Rules Info */}

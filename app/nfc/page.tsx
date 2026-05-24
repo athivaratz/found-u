@@ -80,7 +80,7 @@ export default function NfcHubPage() {
             <Radio className="w-8 h-8 text-[#06C755]" />
             <div>
               <h1 className="font-bold text-lg">ระบบ NFC Tag</h1>
-              <p className="text-sm text-gray-500">v0.1.3beta</p>
+              <p className="text-sm text-gray-500">NFC Tag system</p>
             </div>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400">

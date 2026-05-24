@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AnimatePresence, m } from "framer-motion";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2, Package, KeyRound, Shield, Fingerprint } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,11 +13,17 @@ import {
   postPinLogin,
 } from "@/lib/student-auth-api";
 import { startAuthentication } from "@simplewebauthn/browser";
+import { MotionProvider } from "@/components/motion/motion-provider";
+import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { slideUp } from "@/lib/motion";
 
 type LoginMode = "password" | "pin";
 
 const GoogleIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24">
+  <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden>
     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -25,10 +32,20 @@ const GoogleIcon = () => (
 );
 
 const secondaryButtonClass =
-  "w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-border-light bg-bg-primary font-medium hover:bg-bg-secondary transition-colors disabled:opacity-50";
+  "w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-border-light bg-bg-primary font-medium hover:bg-bg-secondary transition-colors disabled:opacity-50";
 
 export default function LoginPage() {
+  return (
+    <MotionProvider>
+      <LoginPageContent />
+    </MotionProvider>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
+  const reduced = useReducedMotion();
+  const compactViewport = useMediaQuery("(max-height: 700px)");
   const {
     user,
     loading,
@@ -129,8 +146,8 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-bg-secondary flex flex-col">
-      <header className="border-b border-border-light bg-bg-primary/80 backdrop-blur-lg">
-        <div className="max-w-md mx-auto px-4 py-4 flex items-center gap-3">
+      <header className="border-b border-border-light bg-bg-primary/80 backdrop-blur-lg shrink-0">
+        <div className="max-w-md mx-auto px-4 py-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-line-green flex items-center justify-center">
             <Package className="w-5 h-5 text-white" />
           </div>
@@ -141,123 +158,136 @@ export default function LoginPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-md mx-auto w-full px-4 py-8">
-        <div className="bg-bg-primary rounded-2xl border border-border-light shadow-card p-6">
-          <Shield className="w-8 h-8 text-line-green mb-3" />
-          <h2 className="text-xl font-bold text-text-primary mb-1">ยินดีต้อนรับ</h2>
-          <p className="text-sm text-text-secondary mb-6">ใช้เลขประจำตัวและรหัสผ่านจากโรงเรียน</p>
+      <main className="flex-1 max-w-md mx-auto w-full px-4 py-4 sm:py-6">
+        <div className="bg-bg-primary rounded-2xl border border-border-light shadow-card p-5 sm:p-6">
+          <Shield className="w-7 h-7 text-line-green mb-2" />
+          <h2 className="text-xl font-bold text-text-primary mb-0.5">ยินดีต้อนรับ</h2>
+          <p className="text-sm text-text-secondary mb-4">ใช้เลขประจำตัวและรหัสผ่านจากโรงเรียน</p>
 
-          <div className="flex gap-2 mb-6 p-1 bg-bg-secondary rounded-xl">
-            {([
-              { id: "password" as const, label: "รหัสผ่าน", icon: KeyRound },
-              { id: "pin" as const, label: "PIN", icon: Shield },
-            ]).map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setMode(id)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors",
-                  mode === id ? "bg-bg-primary text-line-green shadow-sm" : "text-text-secondary"
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </button>
-            ))}
-          </div>
+          <SegmentedTabs<LoginMode>
+            value={mode}
+            onChange={setMode}
+            items={[
+              { id: "password", label: "รหัสผ่าน", icon: KeyRound },
+              { id: "pin", label: "PIN", icon: Shield },
+            ]}
+            className="mb-4"
+          />
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-text-secondary mb-1">เลขประจำตัว (5 หลัก)</label>
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-text-secondary mb-1">
+              เลขประจำตัว (5 หลัก)
+            </label>
             <input
               type="text"
               inputMode="numeric"
               maxLength={5}
               value={studentId}
               onChange={(e) => setStudentId(e.target.value.replace(/\D/g, "").slice(0, 5))}
-              className="w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary font-mono text-lg tracking-widest"
+              className="w-full px-4 py-2.5 rounded-xl border border-border-light bg-bg-primary font-mono text-lg tracking-widest"
               placeholder="12345"
             />
           </div>
 
-          {mode === "password" && (
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">รหัสผ่าน</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary"
-                  required
-                />
-              </div>
-              <Link href="/login/reset-password" className="text-sm text-line-green hover:underline block">
-                ลืมรหัสผ่าน? ใช้รหัสจากโรงเรียนเพื่อรีเซ็ต
-              </Link>
-              <SubmitButton loading={submitting} label="เข้าสู่ระบบ" />
-            </form>
+          <AnimatePresence mode="wait">
+            {mode === "password" ? (
+              <m.form
+                key="password"
+                onSubmit={handlePasswordLogin}
+                className="space-y-3"
+                initial={reduced ? false : slideUp.initial}
+                animate={slideUp.animate}
+                exit={slideUp.exit}
+                transition={slideUp.transition}
+              >
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">
+                    รหัสผ่าน
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-border-light bg-bg-primary"
+                    required
+                  />
+                </div>
+                <Link
+                  href="/login/reset-password"
+                  className="text-sm text-line-green hover:underline block"
+                >
+                  ลืมรหัสผ่าน? ใช้รหัสจากโรงเรียนเพื่อรีเซ็ต
+                </Link>
+                <SubmitButton loading={submitting} label="เข้าสู่ระบบ" />
+              </m.form>
+            ) : (
+              <m.form
+                key="pin"
+                onSubmit={handlePinLogin}
+                className="space-y-3"
+                initial={reduced ? false : slideUp.initial}
+                animate={slideUp.animate}
+                exit={slideUp.exit}
+                transition={slideUp.transition}
+              >
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">
+                    PIN 6 หลัก
+                  </label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-border-light bg-bg-primary font-mono text-lg tracking-widest"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-text-tertiary">ตั้ง PIN ได้หลังเข้าสู่ระบบที่หน้าตั้งค่า</p>
+                <SubmitButton loading={submitting} label="เข้าด้วย PIN" />
+              </m.form>
+            )}
+          </AnimatePresence>
+
+          {errorMsg && (
+            <p className="mt-3 text-sm text-red-600 dark:text-red-400">{errorMsg}</p>
           )}
 
-          {mode === "pin" && (
-            <form onSubmit={handlePinLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">PIN 6 หลัก</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary font-mono text-lg tracking-widest"
-                  required
-                />
+          <div className="mt-4">
+            <CollapsibleSection
+              title="เข้าสู่ระบบด้วยวิธีอื่น"
+              defaultOpen={!compactViewport}
+            >
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handlePasskeyLogin}
+                  disabled={submitting}
+                  className={secondaryButtonClass}
+                >
+                  {submitting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Fingerprint className="w-5 h-5 text-text-secondary" />
+                  )}
+                  เข้าด้วย PassKey
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={submitting}
+                  className={secondaryButtonClass}
+                >
+                  <GoogleIcon />
+                  เข้าสู่ระบบด้วย Google
+                </button>
+                <p className="text-xs text-text-tertiary text-center pt-1">
+                  PassKey ใช้ได้กับบัญชีที่ลงทะเบียนแล้ว · Google ครั้งแรกต้องยืนยันตัวตน
+                </p>
               </div>
-              <p className="text-xs text-text-tertiary">ตั้ง PIN ได้หลังเข้าสู่ระบบที่หน้าตั้งค่าความปลอดภัย</p>
-              <SubmitButton loading={submitting} label="เข้าด้วย PIN" />
-            </form>
-          )}
-
-          {errorMsg && <p className="mt-4 text-sm text-red-600 dark:text-red-400">{errorMsg}</p>}
-
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border-light" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-bg-primary px-2 text-text-tertiary">หรือ</span>
-            </div>
+            </CollapsibleSection>
           </div>
-
-          <div className="space-y-3">
-            <button
-              type="button"
-              onClick={handlePasskeyLogin}
-              disabled={submitting}
-              className={secondaryButtonClass}
-            >
-              {submitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Fingerprint className="w-5 h-5 text-text-secondary" />
-              )}
-              เข้าด้วย PassKey
-            </button>
-
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={submitting}
-              className={secondaryButtonClass}
-            >
-              <GoogleIcon />
-              เข้าสู่ระบบด้วย Google
-            </button>
-          </div>
-
-          <p className="text-xs text-text-tertiary text-center mt-2">
-            PassKey ใช้ได้กับบัญชีที่ลงทะเบียนแล้ว · Google ครั้งแรกต้องยืนยันตัวตน
-          </p>
         </div>
       </main>
     </div>
@@ -269,7 +299,7 @@ function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
     <button
       type="submit"
       disabled={loading}
-      className="w-full py-3.5 bg-line-green text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+      className="w-full py-3 bg-line-green text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
     >
       {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
       {label}

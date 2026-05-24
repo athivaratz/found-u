@@ -7,8 +7,10 @@ import { Radio, Search, Loader2, Ban } from "lucide-react";
 import { getAllNfcTags, updateNfcTag } from "@/lib/firestore";
 import { NFC_TAG_STATUS_CONFIG, CATEGORIES, type NfcTag } from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 
 export default function AdminNfcPage() {
+  const { showConfirm, dialog } = useAppDialog();
   const [tags, setTags] = useState<NfcTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -28,7 +30,13 @@ export default function AdminNfcPage() {
   );
 
   const handleDisable = async (tag: NfcTag) => {
-    if (!confirm(`ปิดใช้งาน Tag ${tag.id}?`)) return;
+    const ok = await showConfirm({
+      title: "ปิดใช้งานแท็ก",
+      message: `ปิดใช้งาน Tag ${tag.id}?`,
+      variant: "warning",
+      confirmLabel: "ปิดใช้งาน",
+    });
+    if (!ok) return;
     await updateNfcTag(tag.id, { status: "disabled" });
     setTags((prev) =>
       prev.map((t) => (t.id === tag.id ? { ...t, status: "disabled" } : t))
@@ -41,8 +49,86 @@ export default function AdminNfcPage() {
     active: tags.filter((t) => t.status === "active").length,
   };
 
+  const renderTagRow = (tag: NfcTag) => {
+    const status = NFC_TAG_STATUS_CONFIG[tag.status];
+    const cat = CATEGORIES.find((c) => c.value === tag.category);
+    return (
+      <tr key={tag.id} className="border-t border-gray-100 dark:border-gray-700">
+        <td className="p-3 font-mono text-xs">{tag.id}</td>
+        <td className="p-3">
+          {cat?.icon} {tag.itemName}
+        </td>
+        <td className="p-3">
+          <span
+            className={cn("text-xs px-2 py-1 rounded-full", status.bgColor, status.color)}
+          >
+            {status.label}
+          </span>
+        </td>
+        <td className="p-3 font-mono text-xs max-w-[140px] truncate" title={tag.ownerId}>
+          {tag.ownerId}
+        </td>
+        <td className="p-3 text-gray-500 whitespace-nowrap">{formatThaiDate(tag.registeredAt)}</td>
+        <td className="p-3">
+          {tag.status !== "disabled" && (
+            <button
+              type="button"
+              onClick={() => void handleDisable(tag)}
+              className="text-red-500 hover:text-red-600 flex items-center gap-1"
+            >
+              <Ban className="w-4 h-4" /> ปิด
+            </button>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  const renderTagCard = (tag: NfcTag) => {
+    const status = NFC_TAG_STATUS_CONFIG[tag.status];
+    const cat = CATEGORIES.find((c) => c.value === tag.category);
+    return (
+      <div
+        key={tag.id}
+        className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 space-y-2"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-mono text-xs text-gray-500">{tag.id}</p>
+            <p className="font-medium text-gray-900 dark:text-white truncate">
+              {cat?.icon} {tag.itemName}
+            </p>
+          </div>
+          <span
+            className={cn(
+              "text-xs px-2 py-1 rounded-full shrink-0",
+              status.bgColor,
+              status.color
+            )}
+          >
+            {status.label}
+          </span>
+        </div>
+        <p className="text-xs text-gray-500 truncate" title={tag.ownerId}>
+          Owner: {tag.ownerId}
+        </p>
+        <p className="text-xs text-gray-400">{formatThaiDate(tag.registeredAt)}</p>
+        {tag.status !== "disabled" && (
+          <button
+            type="button"
+            onClick={() => void handleDisable(tag)}
+            className="text-sm text-red-500 flex items-center gap-1"
+          >
+            <Ban className="w-4 h-4" /> ปิดใช้งาน
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="p-4 lg:p-6 space-y-6">
+      {dialog}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
           <Radio className="w-7 h-7 text-[#06C755]" /> NFC Tags
@@ -80,69 +166,31 @@ export default function AdminNfcPage() {
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
         </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-center text-gray-500 py-8">ไม่พบแท็ก</p>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-900/50">
-                <tr>
-                  <th className="text-left p-3 font-medium">Tag ID</th>
-                  <th className="text-left p-3 font-medium">สิ่งของ</th>
-                  <th className="text-left p-3 font-medium">สถานะ</th>
-                  <th className="text-left p-3 font-medium">Owner</th>
-                  <th className="text-left p-3 font-medium">ลงทะเบียน</th>
-                  <th className="text-left p-3 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((tag) => {
-                  const status = NFC_TAG_STATUS_CONFIG[tag.status];
-                  const cat = CATEGORIES.find((c) => c.value === tag.category);
-                  return (
-                    <tr
-                      key={tag.id}
-                      className="border-t border-gray-100 dark:border-gray-700"
-                    >
-                      <td className="p-3 font-mono text-xs">{tag.id}</td>
-                      <td className="p-3">
-                        {cat?.icon} {tag.itemName}
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={cn(
-                            "text-xs px-2 py-1 rounded-full",
-                            status.bgColor,
-                            status.color
-                          )}
-                        >
-                          {status.label}
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono text-xs truncate max-w-[120px]">
-                        {tag.ownerId}
-                      </td>
-                      <td className="p-3 text-gray-500">{formatThaiDate(tag.registeredAt)}</td>
-                      <td className="p-3">
-                        {tag.status !== "disabled" && (
-                          <button
-                            type="button"
-                            onClick={() => handleDisable(tag)}
-                            className="text-red-500 hover:text-red-600 flex items-center gap-1"
-                          >
-                            <Ban className="w-4 h-4" /> ปิด
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <>
+          <div className="md:hidden space-y-3">
+            {filtered.map(renderTagCard)}
           </div>
-          {filtered.length === 0 && (
-            <p className="text-center text-gray-500 py-8">ไม่พบแท็ก</p>
-          )}
-        </div>
+          <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-900/50">
+                  <tr>
+                    <th className="text-left p-3 font-medium">Tag ID</th>
+                    <th className="text-left p-3 font-medium">สิ่งของ</th>
+                    <th className="text-left p-3 font-medium">สถานะ</th>
+                    <th className="text-left p-3 font-medium">Owner</th>
+                    <th className="text-left p-3 font-medium">ลงทะเบียน</th>
+                    <th className="text-left p-3 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>{filtered.map(renderTagRow)}</tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

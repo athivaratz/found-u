@@ -43,6 +43,7 @@ import {
 } from "@/lib/types";
 import type { CategoryConfig, LocationConfig } from "@/lib/firestore";
 import { cn, formatThaiDate } from "@/lib/utils";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 
 export default function AdminModerationPage() {
@@ -412,27 +413,53 @@ export default function AdminModerationPage() {
         )}
       </div>
 
-      {/* Detail Modal */}
-      {showDetailModal && selectedItem && (
-        <div className="overlay-modal fixed inset-0 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  ตรวจสอบรายการ
-                </h3>
+      <ResponsiveModal
+        open={showDetailModal && !!selectedItem}
+        onClose={() => setShowDetailModal(false)}
+        title="ตรวจสอบรายการ"
+        size="lg"
+        footer={
+          selectedItem ? (
+            <div className="space-y-3 w-full">
+              {selectedItem.status !== "claimed" && (
                 <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                  type="button"
+                  onClick={() => handleMarkClaimed(selectedItem)}
+                  disabled={processing}
+                  className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors flex items-center justify-center gap-2"
                 >
-                  <XCircle className="w-5 h-5" />
+                  {processing ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      ยืนยันรับคืนแล้ว
+                    </>
+                  )}
                 </button>
-              </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDelete(selectedItem)}
+                disabled={processing}
+                className="w-full py-3 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2"
+              >
+                <XCircle className="w-5 h-5" />
+                ลบรายการนี้
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDetailModal(false)}
+                className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                ปิด
+              </button>
             </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4">
+          ) : null
+        }
+      >
+        {selectedItem && (
+            <div className="space-y-4">
               {/* Image */}
               {"photoUrl" in selectedItem && selectedItem.photoUrl && (
                 <div className="relative w-full h-48 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700">
@@ -518,43 +545,8 @@ export default function AdminModerationPage() {
                 </span>
               </div>
             </div>
-
-            {/* Actions */}
-            <div className="p-6 border-t border-gray-100 dark:border-gray-700 space-y-3">
-              {selectedItem.status !== "claimed" && (
-                <button
-                  onClick={() => handleMarkClaimed(selectedItem)}
-                  disabled={processing}
-                  className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors flex items-center justify-center gap-2"
-                >
-                  {processing ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      <CheckCircle className="w-5 h-5" />
-                      ยืนยันรับคืนแล้ว
-                    </>
-                  )}
-                </button>
-              )}
-              <button
-                onClick={() => handleDelete(selectedItem)}
-                disabled={processing}
-                className="w-full py-3 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2"
-              >
-                <XCircle className="w-5 h-5" />
-                ลบรายการนี้
-              </button>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                ปิด
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </ResponsiveModal>
       {dialog}
     </div>
   );

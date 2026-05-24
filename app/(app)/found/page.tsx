@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -16,13 +16,13 @@ import {
   Search,
   X,
 } from "lucide-react";
-import Header from "@/components/layout/header";
-import BottomNav from "@/components/layout/bottom-nav";
-import AppShell from "@/components/layout/app-shell";
 import LoginPrompt from "@/components/auth/login-prompt";
+import { StudentAppShell } from "@/components/layout/student-app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import InfoTooltip from "@/components/ui/info-tooltip";
 import CameraCapture from "@/components/ui/camera-capture";
-import MapCanvas from "@/components/ui/map-canvas";
+import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import {
   type ContactInfo,
   type ContactType,
@@ -56,6 +56,8 @@ import {
 } from "@/lib/geolocation";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
+import { useMapView } from "@/hooks/use-map-view";
+import { resolveMapView } from "@/lib/map-utils";
 import { logItemCreated } from "@/lib/logger";
 
 type ReportMode = "vision" | "manual";
@@ -178,6 +180,35 @@ export default function ReportFoundPage() {
     !authLoading && !configLoading && !!user && !appSettingsReady;
   const showLocationGate = waitingForSettings || (enforcementRequired && locationVerified !== true);
 
+  const mapFallbackCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
+  const mapFallbackZoom = appSettings.mapDefaultZoom ?? 17;
+  const schoolPolygon = appSettings.mapSchoolBoundary || [];
+
+  const {
+    center: formMapCenter,
+    zoom: formMapZoom,
+    fitPoints: formFitPoints,
+  } = useMapView({
+    enabled: appSettings.mapsEnabled,
+    fallbackCenter: mapFallbackCenter,
+    fallbackZoom: mapFallbackZoom,
+    polygon: schoolPolygon,
+    marker: locationCoords,
+    locateUser: true,
+  });
+
+  const gateMapView = useMemo(
+    () =>
+      resolveMapView({
+        fallbackCenter: mapFallbackCenter,
+        fallbackZoom: mapFallbackZoom,
+        polygon: schoolPolygon,
+        marker: userCurrentCoords,
+        userLocation: userCurrentCoords,
+      }),
+    [mapFallbackCenter, mapFallbackZoom, schoolPolygon, userCurrentCoords]
+  );
+
   const verifyLocation = async () => {
     const polygon = appSettings.mapSchoolBoundary || [];
 
@@ -244,7 +275,6 @@ export default function ReportFoundPage() {
         setGpsLoading(false);
       },
       (error) => {
-        console.error("GPS Verification Error:", error);
         if (error.code === error.PERMISSION_DENIED) {
           setLocationErrorType("permission");
         } else if (error.code === error.TIMEOUT) {
@@ -577,15 +607,13 @@ export default function ReportFoundPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-bg-secondary pb-24 transition-colors">
-        <Header title="แจ้งเจอของ" showBack />
+      <StudentAppShell headerTitle="แจ้งเจอของ" headerBackHref="/">
         <LoginPrompt
           title="เข้าสู่ระบบเพื่อแจ้งเจอของ"
           description="คุณต้องเข้าสู่ระบบเพื่อแจ้งเจอของ เพื่อให้เจ้าของติดต่อกลับได้"
           feature="ช่วยให้เจ้าของได้รับของคืนอย่างปลอดภัย!"
         />
-        <BottomNav />
-      </div>
+      </StudentAppShell>
     );
   }
 
@@ -593,18 +621,8 @@ export default function ReportFoundPage() {
 
   if (showSuccess) {
     return (
-      <AppShell>
-        <div className="min-h-screen bg-bg-secondary pb-24 md:pb-8 transition-colors">
-          <div className="md:hidden">
-            <Header title="แจ้งเจอของสำเร็จ" />
-          </div>
-
-          <div className="hidden md:block px-8 py-6 border-b border-border-light bg-bg-secondary sticky top-0 z-10">
-            <h1 className="text-2xl font-bold text-text-primary">แจ้งเจอของสำเร็จ</h1>
-            <p className="text-text-secondary text-sm mt-1">ขอบคุณที่ช่วยคืนของให้เพื่อน</p>
-          </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 md:py-12">
+      <StudentAppShell headerTitle="แจ้งเจอของสำเร็จ" showBottomNav maxWidth="lg">
+          <div className="flex flex-col items-center justify-center py-4 md:py-8">
             <div className="w-full max-w-lg bg-bg-card rounded-2xl shadow-sm border border-border-light p-6 md:p-8 animate-fade-in text-center">
               <div className="w-20 h-20 rounded-full bg-[#e8f8ef] dark:bg-[#06C755]/20 flex items-center justify-center mb-6 mx-auto animate-fade-in">
                 <CheckCircle2 className="w-10 h-10 text-[#06C755]" />
@@ -735,31 +753,20 @@ export default function ReportFoundPage() {
               </div>
             </div>
           </div>
-        </div>
-      </AppShell>
+      </StudentAppShell>
     );
   }
 
   return (
-    <AppShell>
-      <div
-        className={cn(
-          "min-h-screen bg-bg-secondary pb-24 md:pb-8 transition-colors",
-          showLocationGate && "blur-md pointer-events-none select-none"
-        )}
-      >
-        <div className="md:hidden">
-          <Header title="แจ้งเจอของ" showBack />
-        </div>
+    <StudentAppShell headerTitle="แจ้งเจอของ" headerBackHref="/" showBottomNav maxWidth="lg">
+      <div className={cn(showLocationGate && "blur-sm pointer-events-none select-none")}>
+        <PageHeader
+          title="แจ้งเจอของ"
+          subtitle="กรอกข้อมูลให้ละเอียดเพื่อให้เจ้าของตามหาของได้ง่ายขึ้น"
+          className="hidden md:flex mb-6"
+        />
 
-        <div className="hidden md:block px-8 py-6 border-b border-border-light bg-bg-secondary sticky top-0 z-10">
-          <h1 className="text-2xl font-bold text-text-primary">แจ้งเจอของ</h1>
-          <p className="text-text-secondary text-sm mt-1">
-            กรอกข้อมูลให้ละเอียดเพื่อให้เจ้าของตามหาของได้ง่ายขึ้น
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-5 py-6 max-w-2xl mx-auto">
+        <form onSubmit={handleSubmit} className="pb-4">
           <div className="flex gap-2 mb-6">
             <button
               type="button"
@@ -1020,16 +1027,18 @@ export default function ReportFoundPage() {
                     ใช้ตำแหน่งปัจจุบัน
                   </button>
                 </div>
-                <MapCanvas
-                  center={appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 }}
-                  zoom={appSettings.mapDefaultZoom ?? 17}
+                <MapCanvasLazy
+                  center={formMapCenter}
+                  zoom={formMapZoom}
+                  fitPoints={formFitPoints}
                   tileUrl={appSettings.mapTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
                   attribution={appSettings.mapAttribution || ""}
                   mode="marker"
                   marker={locationCoords}
                   onMarkerChange={handleMapSelect}
-                  polygon={appSettings.mapSchoolBoundary || []}
-                  className="h-56"
+                  polygon={schoolPolygon}
+                  showPolygonVertices={false}
+                  className="h-[200px] sm:h-[240px] rounded-xl overflow-hidden"
                 />
                 {errors.locationCoords && (
                   <p className="text-xs text-red-500">{errors.locationCoords}</p>
@@ -1175,10 +1184,14 @@ export default function ReportFoundPage() {
         </form>
       </div>
 
-      {/* Modal overlay */}
-      {showLocationGate && (
-        <div className="overlay-modal fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-bg-card border border-border-light rounded-3xl p-6 md:p-8 flex flex-col items-center text-center shadow-2xl max-w-md w-full animate-scale-up">
+      <ResponsiveModal
+        open={showLocationGate}
+        onClose={() => router.push("/")}
+        size="md"
+        showCloseButton={false}
+        closeOnBackdrop={false}
+      >
+          <div className="flex flex-col items-center text-center">
             {waitingForSettings ? (
               <>
                 <div className="w-20 h-20 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-6 border border-green-100 dark:border-green-900/30">
@@ -1205,9 +1218,15 @@ export default function ReportFoundPage() {
               </>
             ) : (
               <>
-                <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center mb-6 border border-red-100 dark:border-red-900/30">
-                  <X className="w-8 h-8 text-red-500" />
-                </div>
+                {locationErrorType === "outside" || locationErrorType === "low_accuracy" ? (
+                  <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center mb-6 border border-amber-100 dark:border-amber-900/30">
+                    <MapPin className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center mb-6 border border-red-100 dark:border-red-900/30">
+                    <X className="w-8 h-8 text-red-500" />
+                  </div>
+                )}
 
                 {locationErrorType === "boundary_not_configured" ? (
                   <>
@@ -1215,7 +1234,7 @@ export default function ReportFoundPage() {
                       ยังไม่ได้ตั้งค่าขอบเขตพื้นที่
                     </h2>
                     <p className="text-text-secondary text-sm leading-relaxed mb-8">
-                      ผู้ดูแลระบบเปิดบังคับตรวจ GPS แล้ว แต่ยังไม่ได้วาด Polygon ขอบเขตใน Admin Settings
+                      ผู้ดูแลระบบเปิดบังคับตรวจ GPS แล้ว แต่ยังไม่ได้วาด Polygon ขอบเขตใน Admin → แผนที่และ GPS
                       (ต้องมีอย่างน้อย 3 จุด) กรุณาติดต่อผู้ดูแลระบบ
                     </p>
                   </>
@@ -1228,16 +1247,17 @@ export default function ReportFoundPage() {
                     
                     {appSettings.mapsEnabled && appSettings.mapSchoolBoundary && (
                       <div className="w-full mb-6 relative overflow-hidden rounded-2xl border border-border-light shadow-sm">
-                        <MapCanvas
-                          center={appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 }}
-                          zoom={appSettings.mapDefaultZoom ?? 17}
+                        <MapCanvasLazy
+                          center={gateMapView.center}
+                          zoom={gateMapView.zoom}
+                          fitPoints={gateMapView.fitPoints}
                           tileUrl={appSettings.mapTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
                           attribution={appSettings.mapAttribution || ""}
-                          mode="marker"
+                          mode="view"
                           marker={userCurrentCoords}
-                          onMarkerChange={undefined}
-                          polygon={appSettings.mapSchoolBoundary || []}
-                          className="h-44"
+                          polygon={schoolPolygon}
+                          showPolygonVertices={false}
+                          className="h-[200px] sm:h-[240px] rounded-xl overflow-hidden"
                         />
                         <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 rounded">
                           🔵 ตำแหน่งของคุณอยู่นอกขอบเขตสีเขียว
@@ -1302,9 +1322,8 @@ export default function ReportFoundPage() {
               </>
             )}
           </div>
-        </div>
-      )}
+      </ResponsiveModal>
       {dialog}
-    </AppShell>
+    </StudentAppShell>
   );
 }

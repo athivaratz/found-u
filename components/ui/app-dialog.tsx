@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 
 export type AppDialogVariant = "info" | "warning" | "error" | "success";
 
@@ -54,34 +55,20 @@ export function AppDialog({
   onConfirm,
   onCancel,
 }: AppDialogProps) {
-  if (!open) return null;
-
   const { icon: Icon, iconClass, ringClass } = variantStyles[variant];
 
-  return (
-    <div className="overlay-modal fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div
-        className="relative bg-bg-card border border-border-light rounded-2xl p-6 shadow-2xl max-w-md w-full animate-scale-up"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="app-dialog-title"
-      >
-        <div className="flex flex-col items-center text-center">
-          <div
-            className={cn(
-              "w-14 h-14 rounded-full flex items-center justify-center mb-4 border",
-              ringClass
-            )}
-          >
-            <Icon className={cn("w-7 h-7", iconClass)} />
-          </div>
-          <h2 id="app-dialog-title" className="text-lg font-semibold text-text-primary mb-2">
-            {title}
-          </h2>
-          <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{message}</p>
-        </div>
+  const handleClose = () => {
+    (onCancel ?? onConfirm)();
+  };
 
-        <div className={cn("mt-6 flex gap-3", showCancel ? "flex-row" : "flex-col")}>
+  return (
+    <ResponsiveModal
+      open={open}
+      onClose={handleClose}
+      showCloseButton={!showCancel}
+      size="md"
+      footer={
+        <div className={cn("flex gap-3", showCancel ? "flex-row" : "flex-col")}>
           {showCancel && (
             <button
               type="button"
@@ -103,18 +90,22 @@ export function AppDialog({
             {confirmLabel}
           </button>
         </div>
-
-        {!showCancel && (
-          <button
-            type="button"
-            onClick={onCancel ?? onConfirm}
-            className="absolute top-4 right-4 p-1 rounded-lg text-text-tertiary hover:bg-bg-secondary"
-            aria-label="ปิด"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+      }
+    >
+      <div className="flex flex-col items-center text-center py-2">
+        <div
+          className={cn(
+            "w-14 h-14 rounded-full flex items-center justify-center mb-4 border",
+            ringClass
+          )}
+        >
+          <Icon className={cn("w-7 h-7", iconClass)} />
+        </div>
+        <h2 className="text-lg font-semibold text-text-primary mb-2">{title}</h2>
+        <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">
+          {message}
+        </p>
       </div>
-    </div>
+    </ResponsiveModal>
   );
 }

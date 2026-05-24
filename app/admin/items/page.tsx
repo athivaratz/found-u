@@ -9,7 +9,6 @@ import {
   Package,
   Edit,
   Trash2,
-  X,
   Loader2,
   Filter,
   Eye,
@@ -37,6 +36,7 @@ import {
 } from "@/lib/types";
 import type { CategoryConfig, LocationConfig } from "@/lib/firestore";
 import { cn, formatThaiDate } from "@/lib/utils";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { logStatusChanged, logActivity } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
@@ -425,25 +425,35 @@ export default function AdminItemsPage() {
         </div>
       </div>
 
-      {/* Detail Modal */}
-      {showModal && selectedItem && (
-        <div className="overlay-modal fixed inset-0 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                รายละเอียด
-              </h3>
+      <ResponsiveModal
+        open={showModal && !!selectedItem}
+        onClose={() => setShowModal(false)}
+        title="รายละเอียด"
+        size="lg"
+        footer={
+          selectedItem ? (
+            <div className="flex gap-3 w-full">
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
-                <X className="w-5 h-5" />
+                ปิด
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(selectedItem)}
+                className="py-3 px-6 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                ลบ
               </button>
             </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-4">
+          ) : null
+        }
+      >
+        {selectedItem && (
+            <div className="space-y-4">
               {/* Image (for found items) */}
               {"photoUrl" in selectedItem && selectedItem.photoUrl && (
                 <div className="relative w-full h-48 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700">
@@ -538,26 +548,8 @@ export default function AdminItemsPage() {
                 </div>
               </div>
             </div>
-
-            {/* Modal Footer */}
-            <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                ปิด
-              </button>
-              <button
-                onClick={() => handleDelete(selectedItem)}
-                className="py-3 px-6 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                ลบ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </ResponsiveModal>
       {dialog}
     </div>
   );
