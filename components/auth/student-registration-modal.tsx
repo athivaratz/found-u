@@ -31,7 +31,7 @@ export function StudentRegistrationModal({ open }: StudentRegistrationModalProps
       if (result.mustChangePassword) {
         router.push("/login/change-password");
       } else {
-        router.push("/");
+        router.push("/home");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "ลงทะเบียนไม่สำเร็จ");

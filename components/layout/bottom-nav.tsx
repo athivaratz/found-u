@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 // Navigation items
 const navItems = [
-  { href: "/", icon: Home, label: "หน้าแรก" },
+  { href: "/home", icon: Home, label: "หน้าแรก" },
   { href: "/lost", icon: Search, label: "แจ้งของหาย" },
   { href: "/found", icon: Camera, label: "แจ้งเจอของ" },
   { href: "/tracking", icon: Clock, label: "ติดตาม" },

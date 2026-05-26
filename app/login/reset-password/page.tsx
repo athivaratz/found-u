@@ -29,7 +29,7 @@ export default function ResetPasswordPage() {
       const result = await postResetPassword(studentId, schoolPassword, newPassword);
       if (result.customToken) {
         await signInWithCustomToken(result.customToken);
-        router.push("/");
+        router.push("/home");
       } else {
         router.push("/login");
       }

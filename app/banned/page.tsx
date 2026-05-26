@@ -28,7 +28,7 @@ export default function BannedPage() {
         return;
       }
       if (!isBanned) {
-        router.push("/");
+        router.push("/home");
         return;
       }
     }

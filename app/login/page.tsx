@@ -66,7 +66,7 @@ function LoginPageContent() {
   useEffect(() => {
     if (user && !loading) {
       if (mustChangePassword) router.replace("/login/change-password");
-      else if (isStudentVerified || isAdmin) router.replace("/");
+      else if (isStudentVerified || isAdmin) router.replace("/home");
     }
   }, [user, loading, router, mustChangePassword, isStudentVerified, isAdmin]);
 
@@ -76,7 +76,7 @@ function LoginPageContent() {
     setErrorMsg(null);
     try {
       const { mustChangePassword: needChange } = await signInWithStudentId(studentId, password);
-      router.push(needChange ? "/login/change-password" : "/");
+      router.push(needChange ? "/login/change-password" : "/home");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "เข้าสู่ระบบไม่สำเร็จ");
     } finally {
@@ -91,7 +91,7 @@ function LoginPageContent() {
     try {
       const { customToken, mustChangePassword: needChange } = await postPinLogin(studentId, pin);
       await signInWithCustomToken(customToken);
-      router.push(needChange ? "/login/change-password" : "/");
+      router.push(needChange ? "/login/change-password" : "/home");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "PIN ไม่ถูกต้อง");
     } finally {
@@ -110,7 +110,7 @@ function LoginPageContent() {
         authResponse
       );
       await signInWithCustomToken(customToken);
-      router.push(needChange ? "/login/change-password" : "/");
+      router.push(needChange ? "/login/change-password" : "/home");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "PassKey ไม่สำเร็จ");
     } finally {
@@ -152,7 +152,7 @@ function LoginPageContent() {
             <Package className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-text-primary">Found-U</h1>
+            <h1 className="font-bold text-text-primary">foundu.forum</h1>
             <p className="text-xs text-text-tertiary">เข้าสู่ระบบนักเรียน</p>
           </div>
         </div>

@@ -607,7 +607,7 @@ export default function ReportFoundPage() {
 
   if (!user) {
     return (
-      <StudentAppShell headerTitle="แจ้งเจอของ" headerBackHref="/">
+      <StudentAppShell headerTitle="แจ้งเจอของ" headerBackHref="/home">
         <LoginPrompt
           title="เข้าสู่ระบบเพื่อแจ้งเจอของ"
           description="คุณต้องเข้าสู่ระบบเพื่อแจ้งเจอของ เพื่อให้เจ้าของติดต่อกลับได้"
@@ -745,7 +745,7 @@ export default function ReportFoundPage() {
                   แจ้งเจอของอีกชิ้น
                 </button>
                 <button
-                  onClick={() => router.push("/")}
+                  onClick={() => router.push("/home")}
                   className="w-full py-3 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light"
                 >
                   กลับหน้าหลัก
@@ -758,7 +758,7 @@ export default function ReportFoundPage() {
   }
 
   return (
-    <StudentAppShell headerTitle="แจ้งเจอของ" headerBackHref="/" showBottomNav maxWidth="lg">
+    <StudentAppShell headerTitle="แจ้งเจอของ" headerBackHref="/home" showBottomNav maxWidth="lg">
       <div className={cn(showLocationGate && "blur-sm pointer-events-none select-none")}>
         <PageHeader
           title="แจ้งเจอของ"
@@ -1186,7 +1186,7 @@ export default function ReportFoundPage() {
 
       <ResponsiveModal
         open={showLocationGate}
-        onClose={() => router.push("/")}
+        onClose={() => router.push("/home")}
         size="md"
         showCloseButton={false}
         closeOnBackdrop={false}
@@ -1312,7 +1312,7 @@ export default function ReportFoundPage() {
                   )}
 
                   <button
-                    onClick={() => router.push("/")}
+                    onClick={() => router.push("/home")}
                     type="button"
                     className="w-full py-3 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light"
                   >

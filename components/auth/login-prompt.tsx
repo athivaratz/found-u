@@ -56,7 +56,7 @@ export default function LoginPrompt({
 
         {showBackButton && (
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/home")}
             className="w-full py-3.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
           >
             กลับหน้าหลัก

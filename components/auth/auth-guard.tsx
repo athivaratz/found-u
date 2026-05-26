@@ -8,7 +8,17 @@ import { LoadingModal } from "@/components/ui/loading-modal";
 import { TutorialSystem } from "@/components/ui/tutorial-system";
 import { StudentRegistrationModal } from "@/components/auth/student-registration-modal";
 
-const PUBLIC_PATHS = ["/login", "/login/change-password", "/login/reset-password", "/banned"];
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/login/change-password",
+  "/login/reset-password",
+  "/banned",
+];
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/login");
+}
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const {
@@ -32,8 +42,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    if (!user && !pathname.startsWith("/login")) {
+    if (!user && !isPublicPath(pathname)) {
       router.push("/login");
+      return;
+    }
+
+    if (user && pathname === "/") {
+      router.push("/home");
       return;
     }
 
@@ -41,7 +56,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       if (mustChangePassword) {
         router.push("/login/change-password");
       } else if (isStudentVerified || isAdmin) {
-        router.push("/");
+        router.push("/home");
       }
       return;
     }
@@ -57,7 +72,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (user && !isBanned && pathname === "/banned") {
-      router.push("/");
+      router.push("/home");
     }
   }, [
     user,
@@ -93,7 +108,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && !pathname.startsWith("/login")) {
+  if (!user && !isPublicPath(pathname)) {
+    return null;
+  }
+
+  if (user && pathname === "/") {
     return null;
   }
 

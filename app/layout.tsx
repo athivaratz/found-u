@@ -20,7 +20,7 @@ const kanit = Kanit({
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getAppSettings().catch(() => DEFAULT_APP_SETTINGS);
 
-  const title = settings.ogTitle || DEFAULT_APP_SETTINGS.ogTitle || "Found-U";
+  const title = settings.ogTitle || DEFAULT_APP_SETTINGS.ogTitle || "foundu.forum";
   const description = settings.ogDescription || DEFAULT_APP_SETTINGS.ogDescription || "ระบบแจ้งของหาย-ของเจอ";
   const images = settings.ogImage ? [settings.ogImage] : [];
 
@@ -29,13 +29,20 @@ export async function generateMetadata(): Promise<Metadata> {
     description,
     keywords: ["lost and found", "ของหาย", "แจ้งของหาย", "โรงเรียน"],
     authors: [{ name: "scfondue" }],
+    icons: {
+      icon: [
+        { url: "/favicon.ico" },
+        { url: "/favicon.svg", type: "image/svg+xml" },
+      ],
+      apple: "/logo.png",
+    },
     metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://scfondue.vercel.app'),
     openGraph: {
       title,
       description,
       images,
       type: 'website',
-      siteName: 'Found-U',
+      siteName: 'foundu.forum',
       locale: 'th_TH',
     },
     twitter: {
@@ -68,7 +75,7 @@ export default function RootLayout({
             attribute="class"
             defaultTheme="system"
             enableSystem
-            disableTransitionOnChange
+            storageKey="theme"
           >
             <AuthProvider>
               <DataProvider>

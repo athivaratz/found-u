@@ -2,7 +2,7 @@ import { Search, Camera, Clock, Package, Radio } from "lucide-react";
 
 export const menuItems = [
   {
-    href: "/",
+    href: "/home",
     icon: Package,
     title: "หน้าแรก",
     subtitle: "Home",

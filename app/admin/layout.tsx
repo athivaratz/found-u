@@ -41,7 +41,7 @@ export default function AdminLayout({
       if (!user) {
         router.push("/login");
       } else if (!isAdmin) {
-        router.push("/");
+        router.push("/home");
       }
     }
   }, [user, authLoading, isAdmin, router]);
@@ -76,7 +76,7 @@ export default function AdminLayout({
             คุณไม่มีสิทธิ์เข้าถึงหน้า Admin
           </p>
           <Link
-            href="/"
+            href="/home"
             className="inline-flex items-center gap-2 px-6 py-3 bg-[#06C755] text-white rounded-full font-medium hover:bg-[#05b34d] transition-colors"
           >
             <Home className="w-5 h-5" />
@@ -203,7 +203,7 @@ export default function AdminLayout({
 
           <div className="py-4 border-t border-gray-200 dark:border-gray-700 mt-4">
             <Link
-              href="/"
+              href="/home"
               onClick={() => setSidebarOpen(false)}
               className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
             >

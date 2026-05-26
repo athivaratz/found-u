@@ -133,7 +133,7 @@ function NfcFoundContent() {
           <p className="text-gray-500 text-sm mb-8">ข้อความของคุณจะถูกส่งถึงเจ้าของผ่านแอป</p>
           <button
             type="button"
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/home")}
             className="px-8 py-3 rounded-full bg-[#06C755] text-white font-medium"
           >
             กลับหน้าหลัก

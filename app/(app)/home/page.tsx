@@ -166,7 +166,7 @@ export default function Home() {
         <main className="px-5 -mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {menuItems
-              .filter((m) => m.href !== "/")
+              .filter((m) => m.href !== "/home")
               .map((item) => {
                 const Icon = item.icon;
                 return (

@@ -303,7 +303,7 @@ export default function ReportLostPage() {
 
   if (!user) {
     return (
-      <StudentAppShell headerTitle="แจ้งของหาย" headerBackHref="/">
+      <StudentAppShell headerTitle="แจ้งของหาย" headerBackHref="/home">
         <LoginPrompt
           title="เข้าสู่ระบบเพื่อแจ้งของหาย"
           description="คุณต้องเข้าสู่ระบบเพื่อแจ้งของหาย เพื่อให้เราแจ้งเตือนคุณเมื่อมีคนเจอของ"
@@ -405,7 +405,7 @@ export default function ReportLostPage() {
                   ติดตามสถานะ
                 </button>
                 <button
-                  onClick={() => router.push("/")}
+                  onClick={() => router.push("/home")}
                   className="w-full py-3 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light"
                 >
                   กลับหน้าหลัก
@@ -418,7 +418,7 @@ export default function ReportLostPage() {
   }
 
   return (
-    <StudentAppShell headerTitle="แจ้งของหาย" headerBackHref="/" showBottomNav maxWidth="lg">
+    <StudentAppShell headerTitle="แจ้งของหาย" headerBackHref="/home" showBottomNav maxWidth="lg">
         <PageHeader
           title="แจ้งของหาย"
           subtitle="กรอกข้อมูลให้ละเอียดเพื่อให้ง่ายต่อการค้นหา"

@@ -385,7 +385,7 @@ export default function SettingsPage() {
   return (
     <StudentAppShell
       headerTitle="ตั้งค่า"
-      headerBackHref="/"
+      headerBackHref="/home"
       showBottomNav
       maxWidth="md"
     >

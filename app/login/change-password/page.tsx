@@ -32,7 +32,7 @@ export default function ChangePasswordPage() {
     try {
       const token = await user.getIdToken();
       await postChangePassword(token, currentPassword, newPassword);
-      router.replace("/");
+      router.replace("/home");
     } catch (err) {
       setError(err instanceof Error ? err.message : "เปลี่ยนรหัสผ่านไม่สำเร็จ");
     } finally {

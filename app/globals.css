@@ -479,3 +479,18 @@ body {
 .overlay-modal-top {
   z-index: 1100;
 }
+
+/* Magic UI Animated Theme Toggler — View Transitions */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-magicui-theme-vt="active"]::view-transition-old(root) {
+  clip-path: var(--magicui-theme-vt-clip-from, circle(0px at 50% 50%));
+}
+
+html[data-magicui-theme-vt="active"]::view-transition-new(root) {
+  clip-path: var(--magicui-theme-vt-clip-from, circle(0px at 50% 50%));
+}

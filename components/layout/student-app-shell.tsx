@@ -29,7 +29,7 @@ export type StudentAppShellProps = {
 export function StudentAppShell({
   children,
   headerTitle,
-  headerBackHref = "/",
+  headerBackHref = "/home",
   showBottomNav = true,
   maxWidth = "lg",
   className,

@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Package, Settings, Shield, LogOut, Sun, Moon, Loader2, LogIn } from "lucide-react";
+import { Settings, Shield, LogOut, Sun, Moon, Loader2, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { menuItems } from "@/lib/menu";
 import { getUserPublicEmail, getUserShownName } from "@/lib/user-display";
@@ -37,10 +38,14 @@ export default function Sidebar() {
     <aside className="w-72 bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen overflow-y-auto hidden md:flex flex-col z-50">
       {/* Sidebar Header */}
       <div className="p-6 border-b border-border-light">
-        <Link href="/" className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-full bg-line-green/20 flex items-center justify-center">
-            <Package className="w-6 h-6 text-line-green" />
-          </div>
+        <Link href="/home" className="flex items-center gap-3 mb-6">
+          <Image
+            src="/logo.png"
+            alt="Found-U"
+            width={48}
+            height={48}
+            className="h-12 w-12 object-contain"
+          />
           <div>
             <h1 className="text-lg font-bold text-text-primary">Found-U</h1>
             <p className="text-xs text-text-secondary">Lost & Found</p>
