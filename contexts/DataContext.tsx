@@ -43,8 +43,9 @@ const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 const DEFAULT_LOCATIONS: Location[] = [
-    { id: "d-1", value: "admin_office", label: "ห้องธุรการ", order: 1 },
-    { id: "d-2", value: "canteen", label: "โรงอาหาร", order: 2 },
+    { id: "d-0", value: "personnel_office", label: "ห้องบุคคล (ห้องปกครอง)", order: 1 },
+    { id: "d-1", value: "admin_office", label: "ห้องธุรการ", order: 2 },
+    { id: "d-2", value: "canteen", label: "โรงอาหาร", order: 3 },
     { id: "d-3", value: "library", label: "ห้องสมุด", order: 3 },
     { id: "d-4", value: "security", label: "ห้องรปภ.", order: 4 },
     { id: "d-5", value: "building_1", label: "ตึก 1", order: 5 },

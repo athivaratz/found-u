@@ -95,7 +95,11 @@ export default function AdminModerationPage() {
   // Filter items
   const filteredItems = allItems.filter((item) => {
     if (filter === "pending") {
-      return item.status === "searching" || item.status === "found";
+      return (
+        item.status === "searching" ||
+        item.status === "found" ||
+        item.status === "pending_room_confirm"
+      );
     }
     if (filter === "flagged") {
       // Items that might need attention (e.g., old items still searching)
@@ -112,7 +116,12 @@ export default function AdminModerationPage() {
   // Stats
   const stats = {
     total: allItems.length,
-    pending: allItems.filter((i) => i.status === "searching" || i.status === "found").length,
+    pending: allItems.filter(
+      (i) =>
+        i.status === "searching" ||
+        i.status === "found" ||
+        i.status === "pending_room_confirm"
+    ).length,
     flagged: allItems.filter((item) => {
       if (item.createdAt) {
         const createdDate = timestampToDate(item.createdAt as any);

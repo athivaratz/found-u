@@ -10,6 +10,9 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
+    const { expireOverdueFoundItemsAdmin } = await import("@/lib/found-handover-expiry-server");
+    await expireOverdueFoundItemsAdmin();
+
     const body = await request.json();
     const { type, itemId, useAI = false } = body;
 

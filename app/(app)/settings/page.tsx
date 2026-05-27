@@ -51,7 +51,7 @@ type ConnectionAction =
 export default function SettingsPage() {
   const router = useRouter();
   const reduced = useReducedMotion();
-  const { user, appUser, loading, isAdmin, refreshSession } = useAuth();
+  const { user, appUser, loading, isAdmin, refreshSession, refreshUserProfile } = useAuth();
   const [tab, setTab] = useState<SettingsTab>("profile");
 
   const [shownName, setShownName] = useState("");
@@ -121,6 +121,7 @@ export default function SettingsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
       setProfileMessage("บันทึกชื่อที่แสดงแล้ว");
+      await refreshUserProfile();
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
     } finally {
@@ -222,9 +223,9 @@ export default function SettingsPage() {
       );
       if (!linkedGoogle) return;
 
-      const token = await user.getIdToken(true);
+      const token = await (linkedUser ?? user).getIdToken(true);
       const result = await postConnectGoogle(token);
-      await refreshSession();
+      await refreshSession(linkedUser ?? user);
       setGoogleMessage(`เชื่อมบัญชี Google สำเร็จ (${result.email})`);
     } catch (err) {
       setGoogleError(err instanceof Error ? err.message : "เชื่อมบัญชี Google ไม่สำเร็จ");
@@ -239,11 +240,11 @@ export default function SettingsPage() {
     setGoogleError(null);
     setGoogleMessage(null);
     try {
-      const { error } = await unlinkGoogleFromCurrentUser();
+      const { user: unlinkedUser, error } = await unlinkGoogleFromCurrentUser();
       if (error) throw error;
-      const token = await user.getIdToken(true);
+      const token = await (unlinkedUser ?? user).getIdToken(true);
       await postDisconnectGoogle(token);
-      await refreshSession();
+      await refreshSession(unlinkedUser ?? user);
       setGoogleMessage("ยกเลิกการเชื่อม Google สำเร็จ");
     } catch (err) {
       setGoogleError(err instanceof Error ? err.message : "ยกเลิกการเชื่อม Google ไม่สำเร็จ");

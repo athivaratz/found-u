@@ -18,7 +18,13 @@ import {
 import Header from "@/components/layout/header";
 import BottomNav from "@/components/layout/bottom-nav";
 import AppShell from "@/components/layout/app-shell";
-import { STATUS_CONFIG, CATEGORIES, CONTACT_TYPES, type ItemStatus, type LostItem } from "@/lib/types";
+import {
+  CATEGORIES,
+  CONTACT_TYPES,
+  getItemStatusConfig,
+  type ItemStatus,
+  type LostItem,
+} from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { getLostItemByTrackingCode, subscribeToLostItemsByUserId, timestampToDate } from "@/lib/firestore";
 import { useAuth } from "@/contexts/auth-context";
@@ -105,6 +111,8 @@ export default function TrackingPage() {
   const getStatusIcon = (status: ItemStatus) => {
     switch (status) {
       case "searching":
+        return <Clock className="w-5 h-5" />;
+      case "pending_room_confirm":
         return <Clock className="w-5 h-5" />;
       case "found":
         return <CheckCircle2 className="w-5 h-5" />;
@@ -193,19 +201,19 @@ export default function TrackingPage() {
                   <div
                     className={cn(
                       "px-4 py-3 flex items-center gap-2",
-                      STATUS_CONFIG[searchResult.status]?.bgColor || "bg-gray-100"
+                      getItemStatusConfig(searchResult).bgColor || "bg-gray-100"
                     )}
                   >
-                    <span className={STATUS_CONFIG[searchResult.status]?.color || "text-gray-600"}>
+                    <span className={getItemStatusConfig(searchResult).color || "text-gray-600"}>
                       {getStatusIcon(searchResult.status)}
                     </span>
                     <span
                       className={cn(
                         "font-medium",
-                        STATUS_CONFIG[searchResult.status]?.color || "text-gray-600"
+                        getItemStatusConfig(searchResult).color || "text-gray-600"
                       )}
                     >
-                      {STATUS_CONFIG[searchResult.status]?.label || "ไม่ทราบสถานะ"}
+                      {getItemStatusConfig(searchResult).label || "ไม่ทราบสถานะ"}
                     </span>
                   </div>
 
@@ -253,11 +261,20 @@ export default function TrackingPage() {
                       </div>
 
                       {/* Show match location if found */}
+                      {searchResult.status === "pending_room_confirm" && (
+                        <div className="flex items-center gap-2 text-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mt-3">
+                          <Clock className="w-4 h-4" />
+                          <span className="font-medium">
+                            พบของแล้ว กำลังรอส่ง/ยืนยันที่ห้องบุคคล
+                          </span>
+                        </div>
+                      )}
+
                       {searchResult.status === "found" && (
                         <div className="flex items-center gap-2 text-[#06C755] bg-[#e8f8ef] dark:bg-[#06C755]/20 rounded-lg p-3 mt-3">
                           <CheckCircle2 className="w-4 h-4" />
                           <span className="font-medium">
-                            พบของแล้ว! กรุณาติดต่อรับคืน
+                            ของถึงห้องบุคคลแล้ว! กรุณาติดต่อรับคืนที่ห้องบุคคล
                           </span>
                         </div>
                       )}
@@ -343,11 +360,11 @@ export default function TrackingPage() {
                       <span
                         className={cn(
                           "px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0",
-                          STATUS_CONFIG[item.status]?.bgColor || "bg-gray-100",
-                          STATUS_CONFIG[item.status]?.color || "text-gray-600"
+                          getItemStatusConfig(item).bgColor || "bg-gray-100",
+                          getItemStatusConfig(item).color || "text-gray-600"
                         )}
                       >
-                        {STATUS_CONFIG[item.status]?.label || "ไม่ทราบ"}
+                        {getItemStatusConfig(item).label || "ไม่ทราบ"}
                       </span>
                     </div>
                   </div>

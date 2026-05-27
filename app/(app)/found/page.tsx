@@ -22,13 +22,18 @@ import { PageHeader } from "@/components/layout/page-header";
 import InfoTooltip from "@/components/ui/info-tooltip";
 import CameraCapture from "@/components/ui/camera-capture";
 import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
+import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
+import { AnimatePresence, m } from "framer-motion";
+import { slideUp } from "@/lib/motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   type ContactInfo,
   type ContactType,
-  type DropOffLocation,
+  DEFAULT_FOUND_DROP_OFF_LOCATION,
   type ItemCategory,
   type LocationCoords,
+  getDropOffLocationLabel,
 } from "@/lib/types";
 import {
   cn,
@@ -40,10 +45,8 @@ import {
   addFoundItem,
   subscribeToCategories,
   subscribeToContactTypes,
-  subscribeToLocations,
   type CategoryConfig,
   type ContactTypeConfig,
-  type LocationConfig,
 } from "@/lib/firestore";
 import { uploadFoundItemImage } from "@/lib/storage";
 import {
@@ -59,17 +62,34 @@ import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
 import { resolveMapView } from "@/lib/map-utils";
 import { logItemCreated } from "@/lib/logger";
+import {
+  computeHandoverDeadlineFromNow,
+  formatHandoverCountdown,
+  formatHandoverDeadlineThai,
+  getFoundHandoverDeadlineMinutes,
+  isFoundHandoverDeadlineEnabled,
+} from "@/lib/found-handover";
+import { triggerFoundHandoverExpirySweep } from "@/lib/found-handover-client";
 
 type ReportMode = "vision" | "manual";
+
+const FOUND_FORM_STEPS = [
+  { id: "details", label: "รายละเอียด" },
+  { id: "location", label: "สถานที่" },
+  { id: "handover", label: "ส่งห้องบุคคล" },
+] as const;
+
+const PERSONNEL_OFFICE_LABEL = getDropOffLocationLabel(DEFAULT_FOUND_DROP_OFF_LOCATION);
 
 export default function ReportFoundPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, loading: authLoading, appSettings, appSettingsReady, isAdmin } = useAuth();
   const { showAlert, dialog } = useAppDialog();
+  const reduced = useReducedMotion();
+  const [formStep, setFormStep] = useState(0);
 
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
-  const [locations, setLocations] = useState<LocationConfig[]>([]);
   const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
 
@@ -104,8 +124,6 @@ export default function ReportFoundPage() {
     brand: "",
     description: "",
     locationFound: "",
-    dropOffLocation: "" as DropOffLocation | "",
-    dropOffLocationCustom: "",
   });
 
   const [contacts, setContacts] = useState<ContactInfo[]>([]);
@@ -120,21 +138,18 @@ export default function ReportFoundPage() {
   const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [showMatches, setShowMatches] = useState(false);
   const [matches, setMatches] = useState<any[]>([]);
+  const [submittedHandoverDeadline, setSubmittedHandoverDeadline] = useState<Date | null>(null);
+  const [handoverCountdownMs, setHandoverCountdownMs] = useState<number | null>(null);
 
   useEffect(() => {
     let loadedCount = 0;
     const checkLoaded = () => {
       loadedCount++;
-      if (loadedCount >= 3) setConfigLoading(false);
+      if (loadedCount >= 2) setConfigLoading(false);
     };
 
     const unsubCategories = subscribeToCategories((cats) => {
       setCategories(cats);
-      checkLoaded();
-    });
-
-    const unsubLocations = subscribeToLocations((locs) => {
-      setLocations(locs);
       checkLoaded();
     });
 
@@ -145,7 +160,6 @@ export default function ReportFoundPage() {
 
     return () => {
       unsubCategories();
-      unsubLocations();
       unsubContactTypes();
     };
   }, []);
@@ -155,6 +169,25 @@ export default function ReportFoundPage() {
       router.push("/login");
     }
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (user) {
+      void triggerFoundHandoverExpirySweep();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!showSuccess || !submittedHandoverDeadline) {
+      setHandoverCountdownMs(null);
+      return;
+    }
+    const tick = () => {
+      setHandoverCountdownMs(submittedHandoverDeadline.getTime() - Date.now());
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [showSuccess, submittedHandoverDeadline]);
 
   useEffect(() => {
     const fetchQuota = async () => {
@@ -463,49 +496,49 @@ export default function ReportFoundPage() {
     );
   };
 
-  const validateForm = () => {
+  const validateStep = (step: number) => {
     const nextErrors: Record<string, string> = {};
     const nextWarnings: Record<string, string> = {};
 
-    if (!formData.description.trim() && !formData.itemName.trim()) {
-      nextErrors.description = "กรุณากรอกชื่อหรือรายละเอียดของที่เจอ";
-    }
-    if (!formData.locationFound.trim()) {
-      nextErrors.locationFound = "กรุณากรอกสถานที่เจอของ";
-    }
-    if (!formData.dropOffLocation) {
-      nextErrors.dropOffLocation = "กรุณาเลือกจุดส่งมอบ";
-    }
-    if (formData.dropOffLocation === "other" && !formData.dropOffLocationCustom.trim()) {
-      nextErrors.dropOffLocationCustom = "กรุณาระบุจุดส่งมอบ";
-    }
-    if (!imageFile) {
-      nextErrors.image = "กรุณาถ่ายรูปสิ่งของ";
-    }
-
-    const polygon = appSettings.mapSchoolBoundary || [];
-    if (appSettings.mapEnforceFoundInSchool && polygon.length >= 3) {
-      if (!locationCoords) {
-        nextErrors.locationCoords = "กรุณาปักพิกัดภายในโรงเรียน";
-      } else if (!isPointInPolygon(locationCoords, polygon)) {
-        nextErrors.locationCoords = "พิกัดอยู่นอกพื้นที่โรงเรียน";
+    if (step === 0) {
+      if (!imageFile) {
+        nextErrors.image = "กรุณาถ่ายรูปสิ่งของ";
+      }
+      if (!formData.description.trim() && !formData.itemName.trim()) {
+        nextErrors.description = "กรุณากรอกชื่อหรือรายละเอียดของที่เจอ";
+      }
+      if (!formData.itemName.trim()) {
+        nextWarnings.itemName = "ยังไม่ได้กรอกชื่อ (ไม่บังคับ)";
+      }
+      if (!formData.category) {
+        nextWarnings.category = "ยังไม่ได้เลือกหมวดหมู่ (ไม่บังคับ)";
+      }
+      if (!formData.color.trim()) {
+        nextWarnings.color = "ยังไม่ได้กรอกสี (ไม่บังคับ)";
+      }
+      if (!formData.brand.trim()) {
+        nextWarnings.brand = "ยังไม่ได้กรอกยี่ห้อ (ไม่บังคับ)";
       }
     }
 
-    if (!formData.itemName.trim()) {
-      nextWarnings.itemName = "ยังไม่ได้กรอกชื่อ (ไม่บังคับ)";
+    if (step === 1) {
+      if (!formData.locationFound.trim()) {
+        nextErrors.locationFound = "กรุณากรอกสถานที่เจอของ";
+      }
+      const polygon = appSettings.mapSchoolBoundary || [];
+      if (appSettings.mapEnforceFoundInSchool && polygon.length >= 3) {
+        if (!locationCoords) {
+          nextErrors.locationCoords = "กรุณาปักพิกัดภายในโรงเรียน";
+        } else if (!isPointInPolygon(locationCoords, polygon)) {
+          nextErrors.locationCoords = "พิกัดอยู่นอกพื้นที่โรงเรียน";
+        }
+      }
     }
-    if (!formData.category) {
-      nextWarnings.category = "ยังไม่ได้เลือกหมวดหมู่ (ไม่บังคับ)";
-    }
-    if (!formData.color.trim()) {
-      nextWarnings.color = "ยังไม่ได้กรอกสี (ไม่บังคับ)";
-    }
-    if (!formData.brand.trim()) {
-      nextWarnings.brand = "ยังไม่ได้กรอกยี่ห้อ (ไม่บังคับ)";
-    }
-    if (contacts.length === 0) {
-      nextWarnings.contacts = "ยังไม่ได้เพิ่มช่องทางติดต่อ (ไม่บังคับ)";
+
+    if (step === 2) {
+      if (contacts.length === 0) {
+        nextWarnings.contacts = "ยังไม่ได้เพิ่มช่องทางติดต่อ (ไม่บังคับ)";
+      }
     }
 
     setErrors(nextErrors);
@@ -513,9 +546,17 @@ export default function ReportFoundPage() {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  const goNextStep = () => {
+    if (!validateStep(formStep)) return;
+    setFormStep((s) => Math.min(s + 1, FOUND_FORM_STEPS.length - 1));
+  };
+
+  const goPrevStep = () => {
+    setFormStep((s) => Math.max(s - 1, 0));
+  };
+
+  const handleSubmit = async () => {
+    if (!validateStep(FOUND_FORM_STEPS.length - 1)) return;
 
     setIsSubmitting(true);
     try {
@@ -537,19 +578,23 @@ export default function ReportFoundPage() {
         formData.description.trim() ||
         [formData.itemName, formData.color, formData.brand].filter(Boolean).join(" ");
 
-      const finalDropOffLocation =
-        formData.dropOffLocation === "other"
-          ? formData.dropOffLocationCustom
-          : formData.dropOffLocation;
+      const handoverDeadlineAt = computeHandoverDeadlineFromNow(appSettings);
+      if (handoverDeadlineAt) {
+        setSubmittedHandoverDeadline(handoverDeadlineAt);
+      } else {
+        setSubmittedHandoverDeadline(null);
+      }
 
       const itemId = await addFoundItem({
         description,
         locationFound: formData.locationFound,
         locationPlaceName: formData.locationFound,
-        dropOffLocation: finalDropOffLocation as DropOffLocation,
+        dropOffLocation: DEFAULT_FOUND_DROP_OFF_LOCATION,
         trackingCode: newTrackingCode,
-        status: "found",
+        status: "pending_room_confirm",
+        roomHandoverConfirmed: false,
         dateFound: new Date(),
+        ...(handoverDeadlineAt ? { handoverDeadlineAt } : {}),
         ...(photoUrl ? { photoUrl } : {}),
         ...(formData.itemName.trim() ? { itemName: formData.itemName.trim() } : {}),
         ...(formData.category ? { category: formData.category as ItemCategory } : {}),
@@ -645,15 +690,43 @@ export default function ReportFoundPage() {
                 </p>
               </div>
 
+              <div className="w-full bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 mb-4 border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-300 text-center font-medium">
+                  ขั้นตอนถัดไป: นำของไปส่งที่ {PERSONNEL_OFFICE_LABEL}
+                </p>
+                {isFoundHandoverDeadlineEnabled(appSettings) && submittedHandoverDeadline && (
+                  <div className="mt-3 rounded-lg bg-white/70 dark:bg-black/20 px-3 py-2 text-center">
+                    <p className="text-xs text-amber-900 dark:text-amber-200 font-medium">
+                      ภายใน {getFoundHandoverDeadlineMinutes(appSettings)} นาที (
+                      {formatHandoverDeadlineThai(submittedHandoverDeadline)})
+                    </p>
+                    {handoverCountdownMs !== null && (
+                      <p
+                        className={cn(
+                          "text-sm font-semibold mt-1",
+                          handoverCountdownMs <= 0
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-amber-800 dark:text-amber-300"
+                        )}
+                      >
+                        {handoverCountdownMs <= 0
+                          ? "หมดเวลาแล้ว — คำขอจะถูกยกเลิกอัตโนมัติ"
+                          : `เหลือเวลาอีก ${formatHandoverCountdown(handoverCountdownMs)}`}
+                      </p>
+                    )}
+                    <p className="text-xs text-amber-700/90 dark:text-amber-400/80 mt-2">
+                      หากไม่นำของถึงห้องบุคคลภายในเวลาที่กำหนด คำขอแจ้งเจอของจะหมดอายุทันที
+                    </p>
+                  </div>
+                )}
+                <p className="text-xs text-amber-700/90 dark:text-amber-400/90 text-center mt-2 leading-relaxed">
+                  เจ้าหน้าที่ห้องบุคคลจะยืนยันเมื่อรับของแล้ว จากนั้นเจ้าของจึงจะมารับคืนได้อย่างปลอดภัย
+                </p>
+              </div>
+
               <div className="w-full bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-8">
                 <p className="text-sm text-blue-700 dark:text-blue-400 text-center">
-                  📍 อย่าลืมนำของไปส่งที่{" "}
-                  <span className="font-semibold">
-                    {formData.dropOffLocation === "other"
-                      ? formData.dropOffLocationCustom
-                      : locations.find((loc) => loc.value === formData.dropOffLocation)?.label ||
-                        formData.dropOffLocation}
-                  </span>
+                  สถานะปัจจุบัน: <span className="font-semibold">รอส่งห้องบุคคล</span>
                 </p>
               </div>
 
@@ -728,9 +801,9 @@ export default function ReportFoundPage() {
                       brand: "",
                       description: "",
                       locationFound: "",
-                      dropOffLocation: "",
-                      dropOffLocationCustom: "",
                     });
+                    setFormStep(0);
+                    setSubmittedHandoverDeadline(null);
                     setContacts([]);
                     setImagePreview(null);
                     setImageFile(null);
@@ -766,8 +839,28 @@ export default function ReportFoundPage() {
           className="hidden md:flex mb-6"
         />
 
-        <form onSubmit={handleSubmit} className="pb-4">
-          <div className="flex gap-2 mb-6">
+        <FormStepper steps={[...FOUND_FORM_STEPS]} currentStep={formStep} className="mb-6" />
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (formStep < FOUND_FORM_STEPS.length - 1) goNextStep();
+            else void handleSubmit();
+          }}
+          className="pb-4"
+        >
+          <AnimatePresence mode="wait">
+            <m.div
+              key={formStep}
+              initial={reduced ? false : slideUp.initial}
+              animate={slideUp.animate}
+              exit={slideUp.exit}
+              transition={slideUp.transition}
+              className="space-y-5"
+            >
+          {formStep === 0 && (
+          <>
+          <div className="flex gap-2 mb-2">
             <button
               type="button"
               onClick={() => setReportMode("vision")}
@@ -890,7 +983,6 @@ export default function ReportFoundPage() {
             </div>
           )}
 
-          <div className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 ชื่อของที่เจอ
@@ -991,7 +1083,11 @@ export default function ReportFoundPage() {
                 <p className="text-xs text-red-500 mt-1.5">{errors.description}</p>
               )}
             </div>
+          </>
+          )}
 
+          {formStep === 1 && (
+          <>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 สถานที่เจอ <span className="text-red-500">*</span>
@@ -1045,60 +1141,34 @@ export default function ReportFoundPage() {
                 )}
               </div>
             )}
+          </>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                จุดส่งมอบ <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select
-                  name="dropOffLocation"
-                  value={formData.dropOffLocation}
-                  onChange={(e) => {
-                    const newValue = e.target.value;
-                    setFormData((prev) => ({
-                      ...prev,
-                      dropOffLocation: newValue as DropOffLocation | "",
-                      dropOffLocationCustom: newValue === "other" ? prev.dropOffLocationCustom : "",
-                    }));
-                    if (errors.dropOffLocation) {
-                      setErrors((prev) => ({ ...prev, dropOffLocation: "" }));
-                    }
-                  }}
-                  className={cn(
-                    "input-line appearance-none pr-10",
-                    errors.dropOffLocation && "ring-2 ring-red-200 bg-red-50",
-                    !formData.dropOffLocation && "text-gray-400"
-                  )}
-                >
-                  <option value="">เลือกจุดส่งมอบ</option>
-                  {locations.map((loc) => (
-                    <option key={loc.value} value={loc.value}>
-                      {loc.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-              </div>
-              {formData.dropOffLocation === "other" && (
-                <input
-                  type="text"
-                  name="dropOffLocationCustom"
-                  value={formData.dropOffLocationCustom}
-                  onChange={handleFormChange}
-                  placeholder="ระบุจุดส่งมอบเอง..."
-                  className={cn(
-                    "input-line mt-2",
-                    errors.dropOffLocationCustom && "ring-2 ring-red-200 bg-red-50"
-                  )}
-                />
+          {formStep === 2 && (
+          <>
+            <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                ส่งมอบที่ {PERSONNEL_OFFICE_LABEL}
+              </p>
+              <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-2 leading-relaxed">
+                หลังส่งแบบฟอร์ม กรุณานำของไปส่งที่ห้องบุคคลโดยตรง เจ้าหน้าที่จะยืนยันในระบบเมื่อรับของแล้ว
+                เพื่อให้เจ้าของมารับคืนได้อย่างปลอดภัย
+              </p>
+              {isFoundHandoverDeadlineEnabled(appSettings) && (
+                <p className="text-xs font-medium text-amber-900 dark:text-amber-200 mt-3 pt-3 border-t border-amber-200/80 dark:border-amber-700/50">
+                  ต้องนำของถึงห้องบุคคลภายใน {getFoundHandoverDeadlineMinutes(appSettings)} นาที
+                  มิฉะนั้นคำขอแจ้งเจอของจะหมดอายุทันที
+                </p>
               )}
-              {errors.dropOffLocation && (
-                <p className="text-xs text-red-500 mt-1.5">{errors.dropOffLocation}</p>
-              )}
-              {errors.dropOffLocationCustom && (
-                <p className="text-xs text-red-500 mt-1.5">{errors.dropOffLocationCustom}</p>
-              )}
+            </div>
+
+            <div className="rounded-xl border border-border-light bg-bg-secondary p-4 text-sm space-y-2">
+              <p className="font-medium text-text-primary">สรุปก่อนส่ง</p>
+              <p className="text-text-secondary">
+                ของ: {formData.itemName.trim() || formData.description.trim() || "—"}
+              </p>
+              <p className="text-text-secondary">เจอที่: {formData.locationFound || "—"}</p>
+              <p className="text-text-secondary">ส่งมอบ: {PERSONNEL_OFFICE_LABEL}</p>
             </div>
 
             <div className="border-t border-gray-100 dark:border-gray-700 pt-5">
@@ -1165,22 +1235,22 @@ export default function ReportFoundPage() {
                 ))}
               </div>
             )}
-          </div>
+          </>
+          )}
+            </m.div>
+          </AnimatePresence>
 
-          <div className="mt-8">
-            <button
-              type="submit"
-              disabled={isSubmitting || showLocationGate}
-              className={cn(
-                "w-full py-4 rounded-full font-medium text-white transition-all",
-                isSubmitting
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-[#06C755] hover:bg-[#05b34d] active:scale-[0.98]"
-              )}
-            >
-              {isSubmitting ? "กำลังส่ง..." : "ส่งแจ้งเจอของ"}
-            </button>
-          </div>
+          <FormStepperActions
+            currentStep={formStep}
+            totalSteps={FOUND_FORM_STEPS.length}
+            onBack={goPrevStep}
+            onNext={goNextStep}
+            onSubmit={() => void handleSubmit()}
+            submitLabel="ส่งแจ้งเจอของ"
+            isSubmitting={isSubmitting}
+            nextDisabled={showLocationGate}
+            className="mt-6"
+          />
         </form>
       </div>
 

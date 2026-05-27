@@ -909,6 +909,71 @@ export default function AdminSettingsPage() {
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">กำหนดเวลาส่งห้องบุคคล (ของเจอ)</h2>
+            <p className="text-sm text-gray-500">
+              หลังแจ้งเจอของ ผู้พบต้องนำของไปห้องบุคคลภายในเวลาที่กำหนด มิฉะนั้นคำขอจะหมดอายุ
+            </p>
+          </div>
+          <div className="p-5 space-y-4">
+            <label className="flex items-center justify-between">
+              <span className="text-gray-700 dark:text-gray-300">เปิดใช้กำหนดเวลาส่งห้องบุคคล</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setSettings({
+                    ...settings,
+                    foundHandoverDeadlineEnabled: !settings.foundHandoverDeadlineEnabled,
+                  })
+                }
+                className={cn(
+                  "w-12 h-7 rounded-full transition-colors relative",
+                  settings.foundHandoverDeadlineEnabled !== false
+                    ? "bg-[#06C755]"
+                    : "bg-gray-300 dark:bg-gray-600"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                    settings.foundHandoverDeadlineEnabled !== false ? "right-1" : "left-1"
+                  )}
+                />
+              </button>
+            </label>
+
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+                ระยะเวลา (นาที) หลังแจ้งเจอที่ต้องนำของถึงห้องบุคคล
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                disabled={settings.foundHandoverDeadlineEnabled === false}
+                value={settings.foundHandoverDeadlineMinutes ?? 60}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    foundHandoverDeadlineMinutes: Math.min(
+                      1440,
+                      Math.max(1, parseInt(e.target.value, 10) || 60)
+                    ),
+                  })
+                }
+                className={cn(
+                  "w-full max-w-xs px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white",
+                  settings.foundHandoverDeadlineEnabled === false && "opacity-50"
+                )}
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                ค่าเริ่มต้น 60 นาที (1 ชั่วโมง) — สูงสุด 1,440 นาที (24 ชั่วโมง)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700">
             <h2 className="font-semibold text-gray-900 dark:text-white">NFC Tag (v0.1.3beta)</h2>
             <p className="text-sm text-gray-500">เปิด/ปิดระบบลงทะเบียนและแจ้งพบผ่าน NFC</p>
           </div>

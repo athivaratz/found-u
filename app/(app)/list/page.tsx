@@ -20,7 +20,14 @@ import Header from "@/components/layout/header";
 import BottomNav from "@/components/layout/bottom-nav";
 import AppShell from "@/components/layout/app-shell";
 import { useAuth } from "@/contexts/auth-context";
-import { CATEGORIES, STATUS_CONFIG, CONTACT_TYPES, type LostItem, type FoundItem, type ItemStatus } from "@/lib/types";
+import {
+  CATEGORIES,
+  CONTACT_TYPES,
+  getStatusDisplayConfig,
+  type LostItem,
+  type FoundItem,
+  type ItemStatus,
+} from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { subscribeToLostItems, subscribeToFoundItems, timestampToDate } from "@/lib/firestore";
 
@@ -330,11 +337,11 @@ export default function ListPage() {
                     <span
                       className={cn(
                         "px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0",
-                        STATUS_CONFIG[item.status]?.bgColor || "bg-gray-100",
-                        STATUS_CONFIG[item.status]?.color || "text-gray-600"
+                        getStatusDisplayConfig(item.status, item.type).bgColor || "bg-gray-100",
+                        getStatusDisplayConfig(item.status, item.type).color || "text-gray-600"
                       )}
                     >
-                      {STATUS_CONFIG[item.status]?.label || "ไม่ทราบ"}
+                      {getStatusDisplayConfig(item.status, item.type).label || "ไม่ทราบ"}
                     </span>
                   </div>
 

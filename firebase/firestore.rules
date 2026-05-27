@@ -47,10 +47,10 @@ service cloud.firestore {
       // ทุกคนอ่านได้
       allow read: if true;
 
-      // ต้อง login และมีข้อมูลครบถึงจะสร้างได้
+      // ต้อง login และมีข้อมูลครบถึงจะสร้างได้ (เริ่มที่รอส่งห้องบุคคล)
       allow create: if isAuthenticated() &&
                        hasRequiredFoundFields() &&
-                       request.resource.data.status == 'found';
+                       request.resource.data.status == 'pending_room_confirm';
 
       // อัปเดต/ลบได้เฉพาะ Admin
       allow update, delete: if isAdmin();

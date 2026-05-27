@@ -45,12 +45,14 @@ export function isSchoolSyntheticEmail(email: string | null | undefined): boolea
   return /@students\./i.test(email.trim());
 }
 
-/** เชื่อมบัญชี Google แล้ว */
+/** เชื่อมบัญชี Google แล้ว — ใช้ Firestore authMethods เป็นหลักเมื่อมีฟิลด์นี้ */
 export function hasGoogleAccountLinked(
   appUser: AppUser | null | undefined,
   firebaseUser?: User | null
 ): boolean {
-  if (appUser?.authMethods?.includes("google")) return true;
+  if (Array.isArray(appUser?.authMethods)) {
+    return appUser.authMethods.includes("google");
+  }
   return !!firebaseUser?.providerData?.some((p) => p.providerId === "google.com");
 }
 
@@ -84,13 +86,9 @@ export function getProfilePhotoUrl(
   appUser: AppUser | null | undefined,
   firebaseUser?: User | null
 ): string | null {
-  const hasGoogle =
-    appUser?.authMethods?.includes("google") ||
-    firebaseUser?.providerData?.some((p) => p.providerId === "google.com");
+  if (!hasGoogleAccountLinked(appUser, firebaseUser)) return null;
 
-  if (!hasGoogle) return null;
-
-  const url = firebaseUser?.photoURL || appUser?.photoURL;
+  const url = appUser?.photoURL || firebaseUser?.photoURL;
   if (!url || url.trim() === "") return null;
 
   return url;

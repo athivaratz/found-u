@@ -50,6 +50,11 @@ export interface AppSettings {
   notifyOnStatusChange?: boolean;
   requireApproval?: boolean;
 
+  /** กำหนดเวลานำของไปห้องบุคคลหลังแจ้งเจอ (เกินแล้วหมดอายุทันที) */
+  foundHandoverDeadlineEnabled?: boolean;
+  /** นาทีที่อนุญาตให้ส่งห้องบุคคล (ค่าเริ่มต้น 60 = 1 ชม.) */
+  foundHandoverDeadlineMinutes?: number;
+
   // Storage settings
   autoDeleteDays?: number; // 0 = ไม่ลบอัตโนมัติ
   maxImageSize?: number; // MB สูงสุดก่อนอัปโหลด
@@ -98,6 +103,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   notifyOnNewReport: true,
   notifyOnStatusChange: true,
   requireApproval: false,
+  foundHandoverDeadlineEnabled: true,
+  foundHandoverDeadlineMinutes: 60,
   autoDeleteDays: 30,
   maxImageSize: 5,
   compressionQuality: 0.8,
@@ -261,18 +268,23 @@ export type ItemCategory =
 
 // สถานะของรายการ
 export type ItemStatus =
-  | "searching"   // กำลังตามหา
-  | "found"       // เจอแล้ว
-  | "claimed"     // รับคืนแล้ว
-  | "expired";    // หมดอายุ
+  | "searching"              // กำลังตามหา (ของหาย)
+  | "pending_room_confirm"   // แจ้งเจอแล้ว รอนำส่ง/ยืนยันที่ห้องบุคคล
+  | "found"                  // ถึงห้องบุคคลแล้ว พร้อมให้เจ้าของมารับ
+  | "claimed"                // รับคืนแล้ว
+  | "expired";               // หมดอายุ
 
-// สถานที่รับคืน
+// สถานที่รับคืน / ส่งมอบ
 export type DropOffLocation =
-  | "admin_office"  // ห้องธุรการ
-  | "canteen"       // โรงอาหาร
-  | "library"       // ห้องสมุด
-  | "security"      // ห้องรปภ.
-  | "other";        // อื่นๆ
+  | "personnel_office" // ห้องบุคคล (ห้องปกครอง) — จุดส่งมอบหลัก
+  | "admin_office"     // ห้องธุรการ (ข้อมูลเก่า)
+  | "canteen"          // โรงอาหาร
+  | "library"          // ห้องสมุด
+  | "security"         // ห้องรปภ.
+  | "other";           // อื่นๆ
+
+/** จุดส่งมอบเริ่มต้นสำหรับรายการของเจอใหม่ */
+export const DEFAULT_FOUND_DROP_OFF_LOCATION: DropOffLocation = "personnel_office";
 
 // NFC Tag status
 export type NfcTagStatus = "active" | "lost" | "returned" | "disabled";
@@ -371,6 +383,15 @@ export interface FoundItem {
   finderContacts?: ContactInfo[]; // ช่องทางการติดต่อผู้เจอ
   userId?: string; // Firebase Auth UID
   status: ItemStatus;
+  /** ยืนยันโดยแอดมินว่าของถึงห้องบุคคลแล้ว */
+  roomHandoverConfirmed?: boolean;
+  roomHandoverConfirmedAt?: Date;
+  roomHandoverConfirmedBy?: string;
+  roomHandoverConfirmedByName?: string;
+  /** เวลาที่ต้องนำของถึงห้องบุคคล (ถ้าเปิดใช้กำหนดเวลา) */
+  handoverDeadlineAt?: Date;
+  /** เวลาที่ระบบตั้งสถานะหมดอายุ */
+  expiredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   matchedLostId?: string; // ID ของ LostItem ที่ match
@@ -405,12 +426,34 @@ export const CATEGORIES: { value: ItemCategory; label: string; icon: string }[] 
 
 // ข้อมูล Drop-off Location
 export const DROP_OFF_LOCATIONS: { value: DropOffLocation; label: string }[] = [
+  { value: "personnel_office", label: "ห้องบุคคล (ห้องปกครอง)" },
   { value: "admin_office", label: "ห้องธุรการ" },
   { value: "canteen", label: "โรงอาหาร" },
   { value: "library", label: "ห้องสมุด" },
   { value: "security", label: "ห้องรปภ." },
   { value: "other", label: "อื่นๆ" },
 ];
+
+export function getDropOffLocationLabel(
+  value: DropOffLocation | string,
+  customLocations?: { value: string; label: string }[]
+): string {
+  const fromStatic = DROP_OFF_LOCATIONS.find((d) => d.value === value)?.label;
+  if (fromStatic) return fromStatic;
+  const fromConfig = customLocations?.find((l) => l.value === value)?.label;
+  if (fromConfig) return fromConfig;
+  return String(value);
+}
+
+/** ของเจอพร้อมให้เจ้าของมารับ (หลังแอดมินยืนยันที่ห้องบุคคล) */
+export function isFoundReadyForOwnerPickup(status: ItemStatus): boolean {
+  return status === "found";
+}
+
+/** รายการของเจอที่ยังรอนำส่ง/ยืนยันที่ห้องบุคคล */
+export function isFoundPendingRoomConfirm(status: ItemStatus): boolean {
+  return status === "pending_room_confirm";
+}
 
 // สถานะสำหรับแสดงผล
 export const STATUS_CONFIG: Record<ItemStatus, { label: string; color: string; bgColor: string }> = {
@@ -419,8 +462,13 @@ export const STATUS_CONFIG: Record<ItemStatus, { label: string; color: string; b
     color: "text-gray-600 dark:text-gray-300",
     bgColor: "bg-gray-100 dark:bg-gray-800"
   },
+  pending_room_confirm: {
+    label: "รอส่งห้องบุคคล",
+    color: "text-amber-700 dark:text-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-900/30"
+  },
   found: {
-    label: "เจอแล้ว",
+    label: "ถึงห้องบุคคลแล้ว",
     color: "text-[#06C755] dark:text-[#4ade80]",
     bgColor: "bg-[#e8f8ef] dark:bg-[#06C755]/20"
   },
@@ -435,3 +483,30 @@ export const STATUS_CONFIG: Record<ItemStatus, { label: string; color: string; b
     bgColor: "bg-red-50 dark:bg-red-900/30"
   },
 };
+
+/** ข้อความสถานะตามประเภทรายการ (ของหาย vs ของเจอ ใช้คำว่า found คนละความหมาย) */
+export function getStatusDisplayConfig(
+  status: ItemStatus,
+  itemKind?: "lost" | "found"
+): { label: string; color: string; bgColor: string } {
+  const base = STATUS_CONFIG[status];
+  if (itemKind === "lost" && status === "found") {
+    return {
+      label: "พบของแล้ว",
+      color: base.color,
+      bgColor: base.bgColor,
+    };
+  }
+  return base;
+}
+
+export function getItemStatusConfig(item: LostItem | FoundItem): {
+  label: string;
+  color: string;
+  bgColor: string;
+} {
+  return getStatusDisplayConfig(
+    item.status,
+    isLostItem(item) ? "lost" : "found"
+  );
+}

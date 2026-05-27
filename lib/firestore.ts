@@ -59,6 +59,10 @@ function mapAppSettingsFromFirestore(data: DocumentData): AppSettings {
     notifyOnNewReport: data.notifyOnNewReport ?? DEFAULT_APP_SETTINGS.notifyOnNewReport,
     notifyOnStatusChange: data.notifyOnStatusChange ?? DEFAULT_APP_SETTINGS.notifyOnStatusChange,
     requireApproval: data.requireApproval ?? DEFAULT_APP_SETTINGS.requireApproval,
+    foundHandoverDeadlineEnabled:
+      data.foundHandoverDeadlineEnabled ?? DEFAULT_APP_SETTINGS.foundHandoverDeadlineEnabled,
+    foundHandoverDeadlineMinutes:
+      data.foundHandoverDeadlineMinutes ?? DEFAULT_APP_SETTINGS.foundHandoverDeadlineMinutes,
     autoDeleteDays: data.autoDeleteDays ?? DEFAULT_APP_SETTINGS.autoDeleteDays,
     maxImageSize: data.maxImageSize ?? DEFAULT_APP_SETTINGS.maxImageSize,
     compressionQuality: data.compressionQuality ?? DEFAULT_APP_SETTINGS.compressionQuality,
@@ -161,22 +165,7 @@ export async function getUser(uid: string): Promise<AppUser | null> {
   const userRef = doc(db, COLLECTIONS.USERS, uid);
   const userDoc = await getDoc(userRef);
   if (userDoc.exists()) {
-    const data = userDoc.data();
-    return {
-      uid: userDoc.id,
-      email: data.email,
-      displayName: data.displayName,
-      photoURL: data.photoURL,
-      role: data.role,
-      hasSeenTutorial: data.hasSeenTutorial || false,
-      banStatus: data.banStatus || 'none',
-      banReason: data.banReason,
-      bannedAt: timestampToDate(data.bannedAt),
-      bannedBy: data.bannedBy,
-      timeoutUntil: timestampToDate(data.timeoutUntil),
-      createdAt: timestampToDate(data.createdAt),
-      updatedAt: timestampToDate(data.updatedAt),
-    } as AppUser;
+    return mapAppUserFromFirestore(userDoc.id, userDoc.data());
   }
   return null;
 }
@@ -212,39 +201,52 @@ export async function getAllUsers(): Promise<AppUser[]> {
   });
 }
 
-export function subscribeToUser(uid: string, callback: (user: AppUser | null) => void) {
+function mapAppUserFromFirestore(uid: string, data: DocumentData): AppUser {
+  return {
+    uid,
+    email: data.email,
+    displayName: data.displayName,
+    photoURL: data.photoURL,
+    role: data.role,
+    studentId: data.studentId,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    nickname: data.nickname,
+    shownName: data.shownName,
+    isStudentVerified:
+      data.isStudentVerified ?? (data.role === "admin" || !!data.studentId),
+    authMethods: Array.isArray(data.authMethods) ? data.authMethods : undefined,
+    mustChangePassword: data.mustChangePassword,
+    hasSeenTutorial: data.hasSeenTutorial || false,
+    banStatus: data.banStatus || "none",
+    banReason: data.banReason,
+    bannedAt: timestampToDate(data.bannedAt),
+    bannedBy: data.bannedBy,
+    timeoutUntil: timestampToDate(data.timeoutUntil),
+    createdAt: timestampToDate(data.createdAt),
+    updatedAt: timestampToDate(data.updatedAt),
+  } as AppUser;
+}
+
+export function subscribeToUser(
+  uid: string,
+  callback: (user: AppUser | null) => void,
+  onError?: (error: Error) => void
+) {
   const userRef = doc(db, COLLECTIONS.USERS, uid);
-  return onSnapshot(userRef, (doc) => {
-    if (doc.exists()) {
-      const data = doc.data();
-      callback({
-        uid: doc.id,
-        email: data.email,
-        displayName: data.displayName,
-        photoURL: data.photoURL,
-        role: data.role,
-        studentId: data.studentId,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        nickname: data.nickname,
-        shownName: data.shownName,
-        isStudentVerified:
-          data.isStudentVerified ?? (data.role === "admin" || !!data.studentId),
-        authMethods: data.authMethods,
-        mustChangePassword: data.mustChangePassword,
-        hasSeenTutorial: data.hasSeenTutorial || false,
-        banStatus: data.banStatus || 'none',
-        banReason: data.banReason,
-        bannedAt: timestampToDate(data.bannedAt),
-        bannedBy: data.bannedBy,
-        timeoutUntil: timestampToDate(data.timeoutUntil),
-        createdAt: timestampToDate(data.createdAt),
-        updatedAt: timestampToDate(data.updatedAt),
-      } as AppUser);
-    } else {
-      callback(null);
+  return onSnapshot(
+    userRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        callback(mapAppUserFromFirestore(snapshot.id, snapshot.data()));
+      } else {
+        callback(null);
+      }
+    },
+    (error) => {
+      onError?.(error);
     }
-  });
+  );
 }
 
 // ========================================
@@ -605,6 +607,16 @@ function mapFoundItemDoc(docSnap: { id: string; data: () => DocumentData }): Fou
     finderContacts: data.finderContacts,
     userId: data.userId,
     status: data.status,
+    roomHandoverConfirmed: data.roomHandoverConfirmed === true,
+    roomHandoverConfirmedAt: data.roomHandoverConfirmedAt
+      ? timestampToDate(data.roomHandoverConfirmedAt)
+      : undefined,
+    roomHandoverConfirmedBy: data.roomHandoverConfirmedBy,
+    roomHandoverConfirmedByName: data.roomHandoverConfirmedByName,
+    handoverDeadlineAt: data.handoverDeadlineAt
+      ? timestampToDate(data.handoverDeadlineAt)
+      : undefined,
+    expiredAt: data.expiredAt ? timestampToDate(data.expiredAt) : undefined,
     createdAt: timestampToDate(data.createdAt),
     updatedAt: timestampToDate(data.updatedAt),
     matchedLostId: data.matchedLostId,
@@ -689,28 +701,7 @@ export async function getFoundItem(id: string) {
   const docRef = doc(db, COLLECTIONS.FOUND_ITEMS, id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    const data = docSnap.data();
-    return {
-      id: docSnap.id,
-      trackingCode: data.trackingCode,
-      photoUrl: data.photoUrl,
-      itemName: data.itemName,
-      category: data.category,
-      color: data.color ?? null,
-      brand: data.brand ?? null,
-      description: data.description,
-      locationFound: data.locationFound,
-      locationPlaceName: data.locationPlaceName,
-      locationCoords: data.locationCoords,
-      dateFound: timestampToDate(data.dateFound),
-      dropOffLocation: data.dropOffLocation,
-      finderContacts: data.finderContacts,
-      userId: data.userId,
-      status: data.status,
-      createdAt: timestampToDate(data.createdAt),
-      updatedAt: timestampToDate(data.updatedAt),
-      matchedLostId: data.matchedLostId,
-    } as FoundItem;
+    return mapFoundItemDoc(docSnap);
   }
   return null;
 }
@@ -722,30 +713,7 @@ export async function getFoundItems(constraints: QueryConstraint[] = []) {
     ...constraints
   );
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      trackingCode: data.trackingCode,
-      photoUrl: data.photoUrl,
-      itemName: data.itemName,
-      category: data.category,
-      color: data.color ?? null,
-      brand: data.brand ?? null,
-      description: data.description,
-      locationFound: data.locationFound,
-      locationPlaceName: data.locationPlaceName,
-      locationCoords: data.locationCoords,
-      dateFound: timestampToDate(data.dateFound),
-      dropOffLocation: data.dropOffLocation,
-      finderContacts: data.finderContacts,
-      userId: data.userId,
-      status: data.status,
-      createdAt: timestampToDate(data.createdAt),
-      updatedAt: timestampToDate(data.updatedAt),
-      matchedLostId: data.matchedLostId,
-    } as FoundItem;
-  });
+  return querySnapshot.docs.map((doc) => mapFoundItemDoc(doc));
 }
 
 export async function getLatestFoundItems(count: number = 5) {
@@ -756,36 +724,30 @@ export async function getLatestFoundItems(count: number = 5) {
     limit(count)
   );
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      trackingCode: data.trackingCode,
-      photoUrl: data.photoUrl,
-      itemName: data.itemName,
-      category: data.category,
-      color: data.color ?? null,
-      brand: data.brand ?? null,
-      description: data.description,
-      locationFound: data.locationFound,
-      locationPlaceName: data.locationPlaceName,
-      locationCoords: data.locationCoords,
-      dateFound: timestampToDate(data.dateFound),
-      dropOffLocation: data.dropOffLocation,
-      finderContacts: data.finderContacts,
-      userId: data.userId,
-      status: data.status,
-      createdAt: timestampToDate(data.createdAt),
-      updatedAt: timestampToDate(data.updatedAt),
-      matchedLostId: data.matchedLostId,
-    } as FoundItem;
-  });
+  return querySnapshot.docs.map((doc) => mapFoundItemDoc(doc));
 }
 
 export async function updateFoundItem(id: string, data: Partial<FoundItem>) {
   const docRef = doc(db, COLLECTIONS.FOUND_ITEMS, id);
   await updateDoc(docRef, {
     ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** แอดมินยืนยันว่าของถึงห้องบุคคลแล้ว */
+export async function confirmFoundItemRoomHandover(
+  id: string,
+  confirmedBy: { uid: string; displayName?: string; email?: string }
+): Promise<void> {
+  const docRef = doc(db, COLLECTIONS.FOUND_ITEMS, id);
+  await updateDoc(docRef, {
+    status: "found",
+    roomHandoverConfirmed: true,
+    roomHandoverConfirmedAt: serverTimestamp(),
+    roomHandoverConfirmedBy: confirmedBy.uid,
+    roomHandoverConfirmedByName:
+      confirmedBy.displayName?.trim() || confirmedBy.email?.trim() || confirmedBy.uid,
     updatedAt: serverTimestamp(),
   });
 }
@@ -816,13 +778,16 @@ export async function getStats() {
     else if (status === 'claimed') claimed++;
   });
 
+  let pendingRoomConfirm = 0;
+
   foundSnapshot.docs.forEach((doc) => {
     const status = doc.data().status as ItemStatus;
-    if (status === 'found') found++;
+    if (status === 'pending_room_confirm') pendingRoomConfirm++;
+    else if (status === 'found') found++;
     else if (status === 'claimed') claimed++;
   });
 
-  return { searching, found, claimed };
+  return { searching, found, claimed, pendingRoomConfirm };
 }
 
 // ========================================
@@ -865,33 +830,15 @@ export function subscribeToFoundItems(callback: (items: FoundItem[]) => void) {
     collection(db, COLLECTIONS.FOUND_ITEMS),
     orderBy('createdAt', 'desc')
   );
+
+  if (typeof window !== "undefined") {
+    void import("@/lib/found-handover-client").then(({ triggerFoundHandoverExpirySweep }) =>
+      triggerFoundHandoverExpirySweep()
+    );
+  }
   
   return onSnapshot(q, (snapshot) => {
-    const items = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        trackingCode: data.trackingCode,
-        photoUrl: data.photoUrl,
-        itemName: data.itemName,
-        category: data.category,
-        color: data.color ?? null,
-        brand: data.brand ?? null,
-        description: data.description,
-        locationFound: data.locationFound,
-        locationPlaceName: data.locationPlaceName,
-        locationCoords: data.locationCoords,
-        dateFound: timestampToDate(data.dateFound),
-        dropOffLocation: data.dropOffLocation,
-        finderContacts: data.finderContacts,
-        userId: data.userId,
-        status: data.status,
-        createdAt: timestampToDate(data.createdAt),
-        updatedAt: timestampToDate(data.updatedAt),
-        matchedLostId: data.matchedLostId,
-      } as FoundItem;
-    });
-    callback(items);
+    callback(snapshot.docs.map((doc) => mapFoundItemDoc(doc)));
   });
 }
 
@@ -942,11 +889,12 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
 ];
 
 const DEFAULT_LOCATIONS: LocationConfig[] = [
-  { id: "admin_office", value: "admin_office", label: "ห้องธุรการ", order: 1 },
-  { id: "canteen", value: "canteen", label: "โรงอาหาร", order: 2 },
-  { id: "library", value: "library", label: "ห้องสมุด", order: 3 },
-  { id: "security", value: "security", label: "ห้องรปภ.", order: 4 },
-  { id: "other", value: "other", label: "อื่นๆ", order: 5 },
+  { id: "personnel_office", value: "personnel_office", label: "ห้องบุคคล (ห้องปกครอง)", order: 1 },
+  { id: "admin_office", value: "admin_office", label: "ห้องธุรการ", order: 2 },
+  { id: "canteen", value: "canteen", label: "โรงอาหาร", order: 3 },
+  { id: "library", value: "library", label: "ห้องสมุด", order: 4 },
+  { id: "security", value: "security", label: "ห้องรปภ.", order: 5 },
+  { id: "other", value: "other", label: "อื่นๆ", order: 6 },
 ];
 
 const DEFAULT_CONTACT_TYPES: ContactTypeConfig[] = [

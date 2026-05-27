@@ -18,7 +18,7 @@ import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import {
   CATEGORIES,
   NFC_TAG_STATUS_CONFIG,
-  STATUS_CONFIG,
+  getItemStatusConfig,
   getItemDisplayName,
   type FoundItem,
   type LostItem,
@@ -360,11 +360,11 @@ export function HomeDashboardSection({
                     <span
                       className={cn(
                         "px-2.5 py-1 rounded-full text-xs font-medium shrink-0",
-                        STATUS_CONFIG[item.status].bgColor,
-                        STATUS_CONFIG[item.status].color
+                        getItemStatusConfig(item).bgColor,
+                        getItemStatusConfig(item).color
                       )}
                     >
-                      {STATUS_CONFIG[item.status].label}
+                      {getItemStatusConfig(item).label}
                     </span>
                   </div>
                 </Link>

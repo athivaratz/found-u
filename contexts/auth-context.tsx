@@ -2,8 +2,21 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { type User } from "firebase/auth";
-import { onAuthChange, signInWithGoogle, signInWithStudentCustomToken, signOut } from "@/lib/auth";
-import { subscribeToUser, subscribeToAppSettings, isUserBanned, getTimeoutRemaining } from "@/lib/firestore";
+import {
+  auth,
+  onAuthChange,
+  reloadCurrentUser,
+  signInWithGoogle,
+  signInWithStudentCustomToken,
+  signOut,
+} from "@/lib/auth";
+import {
+  getUser,
+  subscribeToUser,
+  subscribeToAppSettings,
+  isUserBanned,
+  getTimeoutRemaining,
+} from "@/lib/firestore";
 import { getAuthSessionStatus, postStudentLogin } from "@/lib/student-auth-api";
 import type { AppUser, BanStatus, AppSettings } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
@@ -27,7 +40,8 @@ interface AuthContextType {
   signInWithStudentId: (studentId: string, password: string) => Promise<{ mustChangePassword: boolean }>;
   signInWithCustomToken: (customToken: string) => Promise<void>;
   logout: () => Promise<void>;
-  refreshSession: () => Promise<void>;
+  refreshSession: (firebaseUser?: User | null) => Promise<void>;
+  refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,15 +55,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
   const [sessionVerified, setSessionVerified] = useState(false);
 
+  const refreshUserProfile = async () => {
+    const uid = auth.currentUser?.uid ?? user?.uid;
+    if (!uid) return;
+    const latest = await getUser(uid);
+    if (latest) setAppUser(latest);
+  };
+
   const refreshSession = async (firebaseUser?: User | null) => {
-    const u = firebaseUser ?? user;
+    const u = firebaseUser ?? auth.currentUser ?? user;
     if (!u) {
       setSessionVerified(false);
       return;
     }
     try {
-      const token = await u.getIdToken();
+      await reloadCurrentUser();
+      const fresh = auth.currentUser;
+      if (fresh) setUser(fresh);
+
+      const token = await (fresh ?? u).getIdToken(true);
       await getAuthSessionStatus(token);
+      await refreshUserProfile();
       setSessionVerified(true);
     } catch {
       setSessionVerified(true);
@@ -86,9 +112,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const unsubscribe = subscribeToUser(user.uid, (userData) => {
-      setAppUser(userData);
-    });
+    const unsubscribe = subscribeToUser(
+      user.uid,
+      (userData) => {
+        setAppUser(userData);
+      },
+      (error) => {
+        console.error("Firestore user listener error:", error);
+      }
+    );
 
     return () => unsubscribe();
   }, [user?.uid]);
@@ -184,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithCustomToken: signInWithCustomTokenHandler,
         logout,
         refreshSession,
+        refreshUserProfile,
       }}
     >
       {children}

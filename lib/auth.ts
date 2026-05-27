@@ -126,6 +126,14 @@ export function getCurrentUser(): User | null {
   return auth.currentUser;
 }
 
+/** โหลดข้อมูล Firebase Auth ล่าสุด (providerData, photoURL ฯลฯ) */
+export async function reloadCurrentUser(): Promise<User | null> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return null;
+  await currentUser.reload();
+  return auth.currentUser;
+}
+
 // Subscribe to auth state changes
 export function onAuthChange(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);

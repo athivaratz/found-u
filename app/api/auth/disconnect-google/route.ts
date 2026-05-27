@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { verifyAuthRequest } from "@/lib/nfc-server";
 import { adminDb } from "@/lib/firebase-admin";
-import { STUDENT_ACCOUNTS_COLLECTION } from "@/lib/student-auth-server";
+import {
+  STUDENT_ACCOUNTS_COLLECTION,
+  studentIdToAuthEmail,
+} from "@/lib/student-auth-server";
 
 export async function POST(request: NextRequest) {
   const authUser = await verifyAuthRequest(request);
@@ -24,13 +27,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await adminDb.collection("users").doc(authUser.uid).set(
-      {
-        authMethods: FieldValue.arrayRemove("google"),
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const userUpdates: Record<string, unknown> = {
+      authMethods: FieldValue.arrayRemove("google"),
+      photoURL: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (studentId) {
+      userUpdates.email = studentIdToAuthEmail(studentId);
+    }
+
+    await adminDb.collection("users").doc(authUser.uid).set(userUpdates, { merge: true });
 
     return NextResponse.json({ success: true });
   } catch (err) {
