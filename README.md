@@ -2,13 +2,24 @@
 
 เว็บแอปสำหรับแจ้งของหาย–ของเจอภายในโรงเรียน
 
-**เวอร์ชันปัจจุบัน:** `0.1.3beta`
+**เวอร์ชันปัจจุบัน:** `0.2b`
+
+**Production:** [foundu.forum](https://foundu.forum)
 
 ---
 
 ## บทนำ
 
 Found-U ช่วยให้ผู้ทำของหายและผู้พบเจอประสานงานผ่านระบบเดียว ลดขั้นตอนกระดาษและการติดตามที่ล่าช้า รองรับมือถือเป็นหลัก (mobile-first) และอัปเดตสถานะแบบ Real-time
+
+### v0.2b — Supabase Auth & Backend
+
+- ย้ายจาก **Firebase** มาใช้ **Supabase** (PostgreSQL + Auth + Realtime + RLS)
+- ระบบล็อกอินนักเรียน/แอดมินด้วย **เลขประจำตัว + รหัสผ่าน** เป็นช่องทางหลัก
+- รองรับ **Google OAuth**, **Passkeys (WebAuthn)** และ **PIN** หลังล็อกอินรหัสผ่านและเชื่อมบัญชีแล้วเท่านั้น
+- Google ที่ยังไม่เคยเชื่อมกับบัญชีในระบบจะ **ไม่สามารถเข้าใช้งานได้**
+- ที่เก็บรูปภาพยังใช้ **Cloudflare R2** (ไม่เปลี่ยน)
+- Validation ด้วย **Zod** ทุก API route หลัก
 
 ### v0.1.3beta — NFC Tag
 
@@ -33,6 +44,18 @@ Found-U ช่วยให้ผู้ทำของหายและผู้
 - **แผงผู้ดูแล** จัดการรายการ ผู้ใช้ การตั้งค่า moderation และทดสอบ AI
 - **NFC Tag** ลงทะเบียนแท็ก สแกน/QR แจ้งพบ และฝากข้อความถึงเจ้าของ
 
+## การยืนยันตัวตน (Auth)
+
+| วิธี | นักเรียน | แอดมิน | หมายเหตุ |
+|------|---------|--------|----------|
+| เลขประจำตัว + รหัสผ่าน | ✓ | — | ช่องทางหลัก ครั้งแรกต้องใช้วิธีนี้ |
+| เลขแอดมิน 5 หลัก + รหัสผ่าน | — | ✓ | ช่องทางหลักสำหรับแอดมิน |
+| Google | ✓ | ✓ | ต้องเชื่อมใน Settings ก่อน |
+| Passkey | ✓ | ✓ | ลงทะเบียนหลังล็อกอินรหัสผ่านแล้ว |
+| PIN | ✓ | ✓ | ตั้งค่าได้หลังล็อกอินรหัสผ่านแล้ว |
+
+**ลำดับที่ถูกต้อง:** ล็อกอินรหัสผ่าน → (ถ้าต้องการ) เชื่อม Google / ลงทะเบียน Passkey / ตั้ง PIN → ใช้วิธีอื่นได้
+
 ## เทคโนโลยี (Tech Stack)
 
 | ชั้น | เทคโนโลยี | หมายเหตุ |
@@ -42,29 +65,34 @@ Found-U ช่วยให้ผู้ทำของหายและผู้
 | ภาษา | [TypeScript](https://www.typescriptlang.org/) **5.9** | Strict typing |
 | สไตล์ | [Tailwind CSS](https://tailwindcss.com/) **4.1** | `@tailwindcss/postcss` |
 | Runtime / Package manager | [Bun](https://bun.sh/) **1.3** | แนะนำสำหรับ dev |
-| Backend / DB | [Firebase](https://firebase.google.com/) **12** | Auth, Firestore, Storage |
-| Server SDK | [Firebase Admin](https://firebase.google.com/docs/admin/setup) **12.7** | API routes, rate limit |
+| Backend / DB | [Supabase](https://supabase.com/) | PostgreSQL, Auth, Realtime, RLS |
+| Auth | Supabase Auth | Google OAuth, Passkeys, synthetic email domain |
+| WebAuthn client | `@simplewebauthn/browser` | พิธีการ Passkey ฝั่งเบราว์เซอร์ |
+| Validation | [Zod](https://zod.dev/) **4** | API request / input schemas |
 | แผนที่ | [Leaflet](https://leafletjs.com/) **1.9** | OpenStreetMap tiles |
 | AI | Google Gemini API | Vision + NER (`GEMMA_API_KEY`) |
-| ที่เก็บไฟล์ (ทางเลือก) | Cloudflare R2 | ผ่าน AWS S3 SDK |
-| อื่นๆ | `browser-image-compression`, `lucide-react`, `next-themes` | บีบอัดรูป, ไอคอน, dark mode |
+| ที่เก็บไฟล์ | Cloudflare R2 | ผ่าน AWS S3 SDK |
+| อื่นๆ | `browser-image-compression`, `lucide-react`, `next-themes`, `framer-motion` | บีบอัดรูป, ไอคอน, dark mode, motion |
 
 ## โครงสร้างโปรเจกต์ (ย่อ)
 
 ```
 app/
-  found/          แจ้งของเจอ (+ GPS, กล้อง, AI Vision)
-  lost/           แจ้งของหาย
+  (app)/          หน้าหลักหลังล็อกอิน (home, found, lost, list, settings, …)
+  admin/          แผงผู้ดูแล (items, users, students, matching, AI, NFC, …)
+  api/            REST API (auth, vision, ner, match, storage, nfc, …)
+  auth/callback/  OAuth / Google link callback
+  login/          ล็อกอิน เปลี่ยนรหัส รีเซ็ตรหัส
   nfc/            ลงทะเบียน/แท็กของฉัน/แจ้งพบ NFC
-  tracking/       ติดตามด้วยรหัส
-  list/           รายการสาธารณะ
-  admin/          แผงผู้ดูแล (items, users, matching, settings, AI, …)
-  api/            vision, ner, match, storage, nfc, ai/models
 components/       UI, layout, map, camera, dialogs
-lib/              firestore, vision, ner, matching, geolocation, …
-contexts/         auth, data
+contexts/         auth, data (Realtime)
+lib/
+  database.ts     CRUD + subscriptions (แทน Firestore เดิม)
+  supabase/       client, server, admin, passkey-auth, auth-session
+  auth-eligibility.ts   กฎ secondary auth (Google / Passkey / PIN)
+  student-auth-server.ts  ล็อกอินรหัสผ่าน, PIN, scrypt
+  validations/    Zod schemas
 ```
-
 
 ## ทีมของเรา
 
@@ -75,7 +103,7 @@ contexts/         auth, data
 ## ที่ปรึกษา
 
 - [ratchanon_roj](https://www.instagram.com/ratchanon_roj)
-- อาจารย์อภิชาติ พูลสวัสดิ์ 
+- อาจารย์อภิชาติ พูลสวัสดิ์
 
 ## ข้อมูลเพิ่มเติม
 
@@ -88,7 +116,18 @@ contexts/         auth, data
 
 Found-U is a smart school lost-and-found web app for finders and reporters with artificial intelligence included.
 
-**Current version:** `0.1.2.2b` (Beta)
+**Current version:** `0.2b` (Beta)
+
+**Production:** [foundu.forum](https://foundu.forum)
+
+## What's New in v0.2b
+
+- Migrated from **Firebase** to **Supabase** (PostgreSQL, Auth, Realtime, RLS)
+- Primary login: **student ID + password** (students) or **5-digit admin ID + password** (admins)
+- **Google OAuth**, **Passkeys**, and **PIN** available only after a successful password login and account linking
+- Unlinked Google accounts are **rejected** at sign-in
+- Image storage remains on **Cloudflare R2**
+- **Zod** validation on API routes
 
 ## Pain Point
 
@@ -103,10 +142,11 @@ Traditional school lost-and-found workflows are slow, fragmented, and hard to tr
 - **AI vision** to suggest item fields from photos
 - **AI NER** to extract fields from free-text lost reports
 - **Admin dashboard** for items, users, settings, moderation, and AI testing
+- **NFC tags** for register, scan/QR found reports, and owner messaging
 
 ## Tech Stack
 
-See the table in the Thai section above. Core: **Next.js 16**, **React 19**, **TypeScript 5.9**, **Tailwind CSS 4**, **Firebase 12**, **Leaflet**, **Gemini API**, **Bun**.
+See the table in the Thai section above. Core: **Next.js 16**, **React 19**, **TypeScript 5.9**, **Tailwind CSS 4**, **Supabase**, **Leaflet**, **Gemini API**, **Cloudflare R2**, **Bun**.
 
 
 ## Our Team

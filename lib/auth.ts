@@ -75,14 +75,25 @@ class AuthCompat {
 
 export const auth = new AuthCompat();
 
-export async function signInWithGoogle() {
+function getOAuthCallbackUrl(next = "/home", link = false): string {
+  const base =
+    (typeof window !== "undefined" ? window.location.origin : null) ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+  const url = new URL("/auth/callback", base);
+  url.searchParams.set("next", next);
+  if (link) url.searchParams.set("link", "1");
+  return url.toString();
+}
+
+export async function signInWithGoogle(next = "/home") {
   const supabase = getClient();
-  const redirectTo =
-    (typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined) ||
-    process.env.NEXT_PUBLIC_APP_URL;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo, queryParams: { prompt: "select_account" } },
+    options: {
+      redirectTo: getOAuthCallbackUrl(next),
+      queryParams: { prompt: "select_account" },
+    },
   });
 
   if (!error && data.url && typeof window !== "undefined") {
@@ -92,17 +103,24 @@ export async function signInWithGoogle() {
   return { user: null, error };
 }
 
-export async function linkGoogleToCurrentUser() {
+export async function linkGoogleToCurrentUser(next = "/settings") {
   const token = await getSessionToken();
   if (!token) return { user: null, error: new Error("กรุณาเข้าสู่ระบบก่อน") };
-  const res = await fetch("/api/auth/connect-google", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+
+  const supabase = getClient();
+  const { data, error } = await supabase.auth.linkIdentity({
+    provider: "google",
+    options: {
+      redirectTo: getOAuthCallbackUrl(next, true),
+      queryParams: { prompt: "select_account" },
+    },
   });
-  const data = await res.json();
-  if (!res.ok) return { user: null, error: new Error(data.error || "เชื่อมบัญชี Google ไม่สำเร็จ") };
-  await auth.refresh();
-  return { user: auth.currentUser, error: null };
+
+  if (error) return { user: null, error };
+  if (data.url && typeof window !== "undefined") {
+    window.location.assign(data.url);
+  }
+  return { user: null, error: null };
 }
 
 export async function unlinkGoogleFromCurrentUser() {

@@ -47,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
       ],
       apple: "/logo.png",
     },
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://scfondue.vercel.app'),
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://foundu.forum"),
     openGraph: {
       title,
       description,

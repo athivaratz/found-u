@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, m } from "framer-motion";
 import {
   Loader2,
@@ -16,7 +16,6 @@ import {
   Link2,
   Unlink2,
 } from "lucide-react";
-import { startRegistration } from "@simplewebauthn/browser";
 import { useAuth } from "@/contexts/auth-context";
 import { UserAvatar } from "@/components/user/user-avatar";
 import {
@@ -29,6 +28,7 @@ import { linkGoogleToCurrentUser, unlinkGoogleFromCurrentUser } from "@/lib/auth
 import {
   deletePasskey,
   getPasskeyStatus,
+  registerPasskey,
   postConnectGoogle,
   postDisconnectGoogle,
   postVerifyPassword,
@@ -51,6 +51,7 @@ type ConnectionAction =
 
 export default function SettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const reduced = useReducedMotion();
   const { user, appUser, loading, isAdmin, refreshSession, refreshUserProfile } = useAuth();
   const [tab, setTab] = useState<SettingsTab>("profile");
@@ -86,6 +87,36 @@ export default function SettingsPage() {
       setShownName(appUser.shownName?.trim() || appUser.nickname?.trim() || "");
     }
   }, [appUser]);
+
+  useEffect(() => {
+    if (!user || searchParams.get("google_linked") !== "1") return;
+
+    let cancelled = false;
+    const finishGoogleLink = async () => {
+      setGoogleLinking(true);
+      setGoogleError(null);
+      setGoogleMessage(null);
+      try {
+        const result = await postConnectGoogle();
+        if (cancelled) return;
+        await refreshSession();
+        setTab("connections");
+        setGoogleMessage(`เชื่อมบัญชี Google สำเร็จ (${result.email})`);
+        router.replace("/settings");
+      } catch (err) {
+        if (!cancelled) {
+          setGoogleError(err instanceof Error ? err.message : "เชื่อมบัญชี Google ไม่สำเร็จ");
+        }
+      } finally {
+        if (!cancelled) setGoogleLinking(false);
+      }
+    };
+
+    void finishGoogleLink();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, searchParams, refreshSession, router]);
 
   useEffect(() => {
     const loadPasskeyStatus = async () => {
@@ -163,35 +194,17 @@ export default function SettingsPage() {
     }
   };
 
-  const registerPasskey = async () => {
+  const handleRegisterPasskey = async () => {
     if (!user) return;
     setSecurityLoading(true);
     setSecurityError(null);
     setSecurityMessage(null);
     try {
-      const token = await getSessionToken();
-      if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-      const res = await fetch("/api/auth/passkey/register", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "ไม่สามารถเริ่ม PassKey ได้");
-
-      const attestation = await startRegistration({ optionsJSON: data.options });
-      const verifyRes = await fetch("/api/auth/passkey/register", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ challengeKey: data.challengeKey, response: attestation }),
-      });
-      const verifyData = await verifyRes.json();
-      if (!verifyRes.ok) throw new Error(verifyData.error || "ลงทะเบียน PassKey ไม่สำเร็จ");
+      await registerPasskey();
+      const status = await getPasskeyStatus();
+      setPasskeyRegistered(status.hasPasskey);
+      setPasskeyCount(status.count);
       setSecurityMessage("ลงทะเบียน PassKey สำเร็จ");
-      setPasskeyRegistered(true);
-      setPasskeyCount((prev) => Math.max(1, prev + 1));
       await refreshSession();
     } catch (err) {
       setSecurityError(err instanceof Error ? err.message : "PassKey ไม่สำเร็จ");
@@ -219,14 +232,11 @@ export default function SettingsPage() {
     setGoogleError(null);
     setGoogleMessage(null);
     try {
-      const { error: linkError } = await linkGoogleToCurrentUser();
+      const { error: linkError } = await linkGoogleToCurrentUser("/settings");
       if (linkError) throw linkError;
-      const result = await postConnectGoogle();
-      await refreshSession();
-      setGoogleMessage(`เชื่อมบัญชี Google สำเร็จ (${result.email})`);
+      // Browser redirects to Google; postConnectGoogle runs after /auth/callback
     } catch (err) {
       setGoogleError(err instanceof Error ? err.message : "เชื่อมบัญชี Google ไม่สำเร็จ");
-    } finally {
       setGoogleLinking(false);
     }
   };
@@ -289,7 +299,7 @@ export default function SettingsPage() {
           await handleDisconnectGoogle();
           break;
         case "addPasskey":
-          await registerPasskey();
+          await handleRegisterPasskey();
           break;
         case "removePasskey":
           await handleRemovePasskey();

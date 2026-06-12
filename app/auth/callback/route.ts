@@ -1,0 +1,58 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import {
+  checkAuthEligibility,
+  getGoogleEmailFromUser,
+  revokeIneligibleOAuthUser,
+} from "@/lib/auth-eligibility";
+
+function safeNextPath(next: string | null): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) {
+    return "/home";
+  }
+  return next;
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get("code");
+  const next = safeNextPath(searchParams.get("next"));
+  const link = searchParams.get("link") === "1";
+
+  if (!code) {
+    const message = searchParams.get("error_description") || searchParams.get("error") || "auth";
+    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+  if (error || !data.user) {
+    console.error("OAuth callback error:", error);
+    return NextResponse.redirect(`${origin}/login?error=auth`);
+  }
+
+  if (!link) {
+    const googleEmail = getGoogleEmailFromUser(data.user);
+    const eligibility = await checkAuthEligibility(
+      data.user.id,
+      "google_sign_in",
+      googleEmail
+    );
+
+    if (!eligibility.eligible) {
+      await revokeIneligibleOAuthUser(data.user.id, data.user.email);
+      await supabase.auth.signOut();
+      return NextResponse.redirect(
+        `${origin}/login?error=${encodeURIComponent(eligibility.message)}`
+      );
+    }
+  }
+
+  const destination = new URL(next, origin);
+  if (link) {
+    destination.searchParams.set("google_linked", "1");
+  }
+
+  return NextResponse.redirect(destination.toString());
+}

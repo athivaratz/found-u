@@ -1,7 +1,8 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import type { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { signInStudentSession } from "@/lib/supabase/auth-session";
+import { mintSessionForStudentId, signInStudentSession } from "@/lib/supabase/auth-session";
+import { checkStudentIdEligibleForSecondaryAuth } from "@/lib/auth-eligibility";
 import type {
   AppUser,
   ParsedStudentCsvRow,
@@ -475,11 +476,20 @@ export async function loginStudentWithPin(
   if (account.status === "disabled") return { ok: false, error: "บัญชีนี้ถูกปิดใช้งาน" };
   if (!account.pinHash) return { ok: false, error: "ยังไม่ได้ตั้ง PIN" };
   if (!verifySecret(pin, account.pinHash)) return { ok: false, error: "PIN ไม่ถูกต้อง" };
-  if (!account.linkedUid) {
-    return { ok: false, error: "กรุณาเข้าสู่ระบบด้วยรหัสผ่านก่อนตั้ง PIN" };
+
+  const eligibility = await checkStudentIdEligibleForSecondaryAuth(id);
+  if (!eligibility.eligible) {
+    return { ok: false, error: eligibility.message };
   }
 
-  return { ok: false, error: "การเข้าสู่ระบบด้วย PIN อยู่ระหว่างปรับปรุงสำหรับ Supabase" };
+  const session = await mintSessionForStudentId(id);
+  return {
+    ok: true,
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    mustChangePassword: account.mustChangePassword,
+    uid: account.linkedUid!,
+  };
 }
 
 export async function importStudentRows(
@@ -572,6 +582,16 @@ function normalizeHost(host: string): string {
 }
 
 export function getRpId(request?: NextRequest): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
+  if (envUrl) {
+    try {
+      const hostFromUrl = envUrl.startsWith("http") ? new URL(envUrl).hostname : envUrl;
+      return normalizeHost(hostFromUrl);
+    } catch {
+      // fall through
+    }
+  }
+
   const forwardedHost = request?.headers.get("x-forwarded-host");
   const host = request?.headers.get("host");
   const requestHost = forwardedHost || host;
@@ -579,15 +599,6 @@ export function getRpId(request?: NextRequest): string {
     return normalizeHost(requestHost);
   }
 
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
-  if (envUrl) {
-    try {
-      const hostFromUrl = envUrl.startsWith("http") ? new URL(envUrl).hostname : envUrl;
-      return normalizeHost(hostFromUrl);
-    } catch {
-      return "localhost";
-    }
-  }
   return "localhost";
 }
 

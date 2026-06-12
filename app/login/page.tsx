@@ -1,18 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { AnimatePresence, m } from "framer-motion";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2, Package, KeyRound, Shield, Fingerprint } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  postPasskeyLoginOptions,
-  postPasskeyLoginVerify,
-  postPinLogin,
-} from "@/lib/student-auth-api";
-import { startAuthentication } from "@simplewebauthn/browser";
+import { postPasskeyLogin, postPinLogin } from "@/lib/student-auth-api";
 import { MotionProvider } from "@/components/motion/motion-provider";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
@@ -37,13 +32,22 @@ const secondaryButtonClass =
 export default function LoginPage() {
   return (
     <MotionProvider>
-      <LoginPageContent />
+      <Suspense
+        fallback={
+          <div className="min-h-screen flex items-center justify-center bg-bg-secondary">
+            <Loader2 className="w-10 h-10 animate-spin text-line-green" />
+          </div>
+        }
+      >
+        <LoginPageContent />
+      </Suspense>
     </MotionProvider>
   );
 }
 
 function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const reduced = useReducedMotion();
   const compactViewport = useMediaQuery("(max-height: 700px)");
   const {
@@ -61,6 +65,15 @@ function LoginPageContent() {
   const [pin, setPin] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const oauthError = searchParams.get("error");
+    if (oauthError && oauthError !== "auth") {
+      setErrorMsg(decodeURIComponent(oauthError));
+    } else if (oauthError === "auth") {
+      setErrorMsg("เข้าสู่ระบบ Google ไม่สำเร็จ");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (user && !loading) {
@@ -101,12 +114,7 @@ function LoginPageContent() {
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      const { options, challengeKey } = await postPasskeyLoginOptions();
-      const authResponse = await startAuthentication({ optionsJSON: options });
-      const { mustChangePassword: needChange } = await postPasskeyLoginVerify(
-        challengeKey,
-        authResponse
-      );
+      const { mustChangePassword: needChange } = await postPasskeyLogin();
       router.push(needChange ? "/login/change-password" : "/home");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "PassKey ไม่สำเร็จ");

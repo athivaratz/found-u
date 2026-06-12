@@ -50,6 +50,12 @@ export async function POST(request: NextRequest) {
     if (!account) {
       return NextResponse.json({ error: "ไม่พบข้อมูลนักเรียน" }, { status: 404 });
     }
+    if (!account.hasLoggedInOnce) {
+      return NextResponse.json(
+        { error: "กรุณาเข้าสู่ระบบด้วยรหัสผ่านอย่างน้อยหนึ่งครั้งก่อนเชื่อม Google" },
+        { status: 403 }
+      );
+    }
     if (
       account.linkedGoogleEmail &&
       account.linkedGoogleEmail !== googleEmail &&

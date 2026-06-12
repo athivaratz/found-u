@@ -167,51 +167,23 @@ export async function getAuthSessionStatus() {
 }
 
 export async function getPasskeyStatus() {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/passkey/register", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "โหลดสถานะ Passkey ไม่สำเร็จ");
-  return data as { hasPasskey: boolean; count: number };
+  const { listSupabasePasskeys } = await import("@/lib/supabase/passkey-auth");
+  const passkeys = await listSupabasePasskeys();
+  return { hasPasskey: passkeys.length > 0, count: passkeys.length };
 }
 
 export async function deletePasskey() {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/passkey/register", {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "ลบ Passkey ไม่สำเร็จ");
-  return data as { success: boolean };
+  const { deleteAllSupabasePasskeys } = await import("@/lib/supabase/passkey-auth");
+  await deleteAllSupabasePasskeys();
+  return { success: true };
 }
 
-export async function postPasskeyLoginOptions(studentId?: string) {
-  const res = await fetch("/api/auth/passkey/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(studentId ? { studentId } : {}),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "PassKey ไม่พร้อมใช้งาน");
-  return data as { options: PublicKeyCredentialRequestOptionsJSON; challengeKey: string };
+export async function postPasskeyLogin() {
+  const { signInWithSupabasePasskey } = await import("@/lib/supabase/passkey-auth");
+  return signInWithSupabasePasskey();
 }
 
-export async function postPasskeyLoginVerify(
-  challengeKey: string,
-  response: AuthenticationResponseJSON,
-  studentId?: string
-) {
-  const res = await fetch("/api/auth/passkey/login", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ challengeKey, response, ...(studentId ? { studentId } : {}) }),
-  });
-  return handleSessionResponse(res, "PassKey login ไม่สำเร็จ");
+export async function registerPasskey() {
+  const { registerSupabasePasskey } = await import("@/lib/supabase/passkey-auth");
+  await registerSupabasePasskey();
 }
-
-export type PublicKeyCredentialRequestOptionsJSON = import("@simplewebauthn/browser").PublicKeyCredentialRequestOptionsJSON;
-export type AuthenticationResponseJSON = import("@simplewebauthn/browser").AuthenticationResponseJSON;
