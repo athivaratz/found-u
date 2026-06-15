@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { getUserPublicEmail, getUserShownName } from "@/lib/user-display";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { useTheme } from "next-themes";
+import { useMounted } from "@/hooks/use-mounted";
 import { cn } from "@/lib/utils";
 import { menuItems } from "@/lib/menu";
 import { DashboardListSkeleton } from "@/components/layout/app-shell-skeleton";
@@ -48,6 +49,8 @@ export default function Home() {
   const { user, appUser, loading: authLoading, isAdmin, signIn, logout, appSettings } = useAuth();
   const welcomeName = getUserShownName(appUser, user);
   const { resolvedTheme, setTheme } = useTheme();
+  const themeMounted = useMounted();
+  const isDarkTheme = themeMounted && resolvedTheme === "dark";
 
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -100,13 +103,18 @@ export default function Home() {
 
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
                 className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                aria-label="สลับโหมดสว่าง/มืด"
               >
-                {resolvedTheme === "dark" ? (
-                  <Sun className="w-5 h-5 text-white" />
+                {themeMounted ? (
+                  isDarkTheme ? (
+                    <Sun className="w-5 h-5 text-white" />
+                  ) : (
+                    <Moon className="w-5 h-5 text-white" />
+                  )
                 ) : (
-                  <Moon className="w-5 h-5 text-white" />
+                  <span className="block w-5 h-5" aria-hidden />
                 )}
               </button>
 

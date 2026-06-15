@@ -129,7 +129,7 @@ export default function AdminSettingsPage() {
       console.error('Error saving settings:', error);
       void showAlert({
         title: "บันทึกไม่สำเร็จ",
-        message: "กรุณาตรวจสอบสิทธิ์ Admin และการเชื่อมต่อ Firebase",
+        message: "กรุณาตรวจสอบสิทธิ์ Admin และการเชื่อมต่อ Supabase",
         variant: "error",
       });
     } finally {

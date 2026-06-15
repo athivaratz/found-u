@@ -529,6 +529,27 @@ export async function loginStudentWithPin(
   }
 
   const session = await mintSessionForStudentId(id);
+
+  const admin = createAdminClient();
+  const uid = account.linkedUid!;
+  const { data: profileData } = await admin
+    .from("profiles")
+    .select("auth_methods")
+    .eq("id", uid)
+    .maybeSingle();
+  const existingMethods = Array.isArray(profileData?.auth_methods)
+    ? (profileData.auth_methods as string[])
+    : [];
+  if (!existingMethods.includes("pin")) {
+    await admin
+      .from("profiles")
+      .update({
+        auth_methods: [...new Set([...existingMethods, "pin"])],
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", uid);
+  }
+
   return {
     ok: true,
     access_token: session.access_token,
@@ -624,6 +645,80 @@ export async function importStudentRows(
 
   void adminUid;
   return summary;
+}
+
+export async function createStudentAccountManual(input: {
+  studentId: string;
+  password: string;
+  firstName: string;
+  role: "user" | "admin";
+  adminUid: string;
+}): Promise<{ studentId: string; uid: string }> {
+  const id = normalizeStudentId(input.studentId);
+  const firstName = input.firstName.trim();
+
+  if (!isValidStudentId(id)) {
+    throw new Error("เลขประจำตัวต้องเป็นตัวเลข 5 หลัก");
+  }
+  if (!isValidSchoolPassword(input.password)) {
+    throw new Error("รหัสผ่านต้องเป็น a-z A-Z 0-9 ความยาว 7-8 ตัว");
+  }
+  if (!firstName) {
+    throw new Error("กรุณากรอกชื่อ");
+  }
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from(STUDENT_ACCOUNTS_COLLECTION)
+    .select("student_id")
+    .eq("student_id", id)
+    .maybeSingle();
+
+  if (existing) {
+    throw new Error(`เลขประจำตัว ${id} มีในระบบแล้ว`);
+  }
+
+  const lastName = "-";
+  const nickname = firstName;
+  const displayName = firstName;
+  const schoolHash = hashSecret(input.password);
+  const importBatchId = `manual_${Date.now()}`;
+
+  const { error: insertError } = await admin.from(STUDENT_ACCOUNTS_COLLECTION).insert({
+    student_id: id,
+    first_name: firstName,
+    last_name: lastName,
+    nickname,
+    school_password_hash: schoolHash,
+    current_password_hash: schoolHash,
+    must_change_password: false,
+    has_logged_in_once: false,
+    status: "active",
+    import_batch_id: importBatchId,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  if (insertError) throw insertError;
+
+  const uid = await ensureAuthUserForStudent(id, displayName, input.password);
+
+  const { error: linkError } = await admin
+    .from(STUDENT_ACCOUNTS_COLLECTION)
+    .update({ linked_uid: uid, updated_at: new Date().toISOString() })
+    .eq("student_id", id);
+  if (linkError) throw linkError;
+
+  const account = await getStudentAccount(id);
+  if (!account) throw new Error("สร้างบัญชีไม่สำเร็จ");
+
+  await syncAppUserFromStudent(uid, { ...account, linkedUid: uid }, { role: input.role });
+
+  if (input.role === "admin") {
+    await promoteAdminUser(uid, studentIdToAuthEmail(id), displayName);
+  }
+
+  void input.adminUid;
+  return { studentId: id, uid };
 }
 
 function normalizeHost(host: string): string {

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { useTheme } from "next-themes";
+import { useMounted } from "@/hooks/use-mounted";
 import {
   Package,
   Home,
@@ -33,6 +34,8 @@ export default function AdminLayout({
   const pathname = usePathname();
   const { user, appUser, loading: authLoading, isAdmin, logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
+  const themeMounted = useMounted();
+  const isDarkTheme = themeMounted && resolvedTheme === "dark";
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Redirect if not admin
@@ -100,13 +103,18 @@ export default function AdminLayout({
           </button>
           <h1 className="font-bold text-gray-900 dark:text-white">Admin Panel</h1>
           <button
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="สลับโหมดสว่าง/มืด"
           >
-            {resolvedTheme === "dark" ? (
-              <Sun className="w-5 h-5 text-yellow-500" />
+            {themeMounted ? (
+              isDarkTheme ? (
+                <Sun className="w-5 h-5 text-yellow-500" />
+              ) : (
+                <Moon className="w-5 h-5 text-gray-600" />
+              )
             ) : (
-              <Moon className="w-5 h-5 text-gray-600" />
+              <span className="block w-5 h-5" aria-hidden />
             )}
           </button>
         </div>
@@ -218,13 +226,18 @@ export default function AdminLayout({
           <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl">
             <span className="text-sm text-gray-600 dark:text-gray-400">โหมดมืด</span>
             <button
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
               className="p-2 rounded-lg bg-white dark:bg-gray-600 shadow-sm hover:shadow transition-shadow"
+              aria-label="สลับโหมดสว่าง/มืด"
             >
-              {resolvedTheme === "dark" ? (
-                <Sun className="w-4 h-4 text-yellow-500" />
+              {themeMounted ? (
+                isDarkTheme ? (
+                  <Sun className="w-4 h-4 text-yellow-500" />
+                ) : (
+                  <Moon className="w-4 h-4 text-gray-600" />
+                )
               ) : (
-                <Moon className="w-4 h-4 text-gray-600" />
+                <span className="block w-4 h-4" aria-hidden />
               )}
             </button>
           </div>

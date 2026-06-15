@@ -30,7 +30,7 @@ export async function checkAndRecordRateLimitAtomic(
     await admin.from("ai_usage").insert({
       user_id: userId,
       endpoint,
-      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     });
     return {
       allowed: true,
@@ -52,20 +52,20 @@ export async function checkAndRecordRateLimitAtomic(
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .gte("timestamp", oneMinuteAgo.toISOString()),
+      .gte("created_at", oneMinuteAgo.toISOString()),
     admin
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .gte("timestamp", oneHourAgo.toISOString()),
+      .gte("created_at", oneHourAgo.toISOString()),
     admin
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
-      .gte("timestamp", oneMinuteAgo.toISOString()),
+      .gte("created_at", oneMinuteAgo.toISOString()),
     admin
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
-      .gte("timestamp", oneHourAgo.toISOString()),
+      .gte("created_at", oneHourAgo.toISOString()),
   ]);
 
   const userUsageInMinute = userMinuteCount.count ?? 0;
@@ -114,7 +114,7 @@ export async function checkAndRecordRateLimitAtomic(
     await admin.from("ai_usage").insert({
       user_id: userId,
       endpoint,
-      timestamp: now.toISOString(),
+      created_at: now.toISOString(),
     });
   }
 
@@ -152,20 +152,20 @@ export async function getRateLimitQuota(userId: string, settings: AppSettings) {
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .gte("timestamp", oneMinuteAgo.toISOString()),
+      .gte("created_at", oneMinuteAgo.toISOString()),
     admin
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .gte("timestamp", oneHourAgo.toISOString()),
+      .gte("created_at", oneHourAgo.toISOString()),
     admin
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
-      .gte("timestamp", oneMinuteAgo.toISOString()),
+      .gte("created_at", oneMinuteAgo.toISOString()),
     admin
       .from("ai_usage")
       .select("*", { count: "exact", head: true })
-      .gte("timestamp", oneHourAgo.toISOString()),
+      .gte("created_at", oneHourAgo.toISOString()),
   ]);
 
   const userLimitPerMinute = settings.aiRateLimitPerMinute || 5;

@@ -60,7 +60,7 @@ function SetupPinContent() {
         });
       }
       await refreshSession();
-      router.replace("/home");
+      // รอ state อัปเดต — useEffect ด้านบนจะพาไป /home เมื่อ mustSetupPin เป็น false
     } catch (err) {
       setError(err instanceof Error ? err.message : "ตั้ง PIN ไม่สำเร็จ");
     } finally {

@@ -27,24 +27,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ไม่พบข้อมูลนักเรียน" }, { status: 400 });
     }
 
-    await admin
+    const { error: pinUpdateError } = await admin
       .from("student_accounts")
       .update({
         pin_hash: hashSecret(parsed.data.pin),
         updated_at: new Date().toISOString(),
       })
       .eq("student_id", studentId);
+    if (pinUpdateError) throw pinUpdateError;
 
     const authMethods = Array.isArray(profile?.auth_methods)
       ? [...new Set([...(profile.auth_methods as string[]), "pin"])]
       : ["pin"];
-    await admin
+    const { error: profileUpdateError } = await admin
       .from("profiles")
       .update({
         auth_methods: authMethods,
         updated_at: new Date().toISOString(),
       })
       .eq("id", authUser.uid);
+    if (profileUpdateError) throw profileUpdateError;
 
     return NextResponse.json({ success: true });
   } catch (err) {

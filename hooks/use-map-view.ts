@@ -37,7 +37,9 @@ export function useMapView({
     let cancelled = false;
     setLocating(true);
 
-    void getCurrentPosition().then((coords) => {
+    void getCurrentPosition((coords) => {
+      if (!cancelled) setUserLocation(coords);
+    }).then((coords) => {
       if (cancelled) return;
       if (coords) setUserLocation(coords);
       setLocating(false);

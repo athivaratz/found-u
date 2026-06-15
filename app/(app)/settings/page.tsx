@@ -32,6 +32,7 @@ import {
   postConnectGoogle,
   postDisconnectGoogle,
   postVerifyPassword,
+  postVerifyPin,
 } from "@/lib/student-auth-api";
 import { StudentAppShell } from "@/components/layout/student-app-shell";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
@@ -72,9 +73,13 @@ export default function SettingsPage() {
   const [passkeyRegistered, setPasskeyRegistered] = useState(false);
   const [passkeyCount, setPasskeyCount] = useState(0);
   const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
-  const [passwordForAction, setPasswordForAction] = useState("");
+  const [verifyInput, setVerifyInput] = useState("");
+  const [verifyMode, setVerifyMode] = useState<"pin" | "password">("pin");
   const [passwordAction, setPasswordAction] = useState<ConnectionAction | null>(null);
   const [passwordChecking, setPasswordChecking] = useState(false);
+
+  const hasPinMethod =
+    Array.isArray(appUser?.authMethods) && appUser.authMethods.includes("pin");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -279,7 +284,8 @@ export default function SettingsPage() {
 
   const openPasswordPrompt = (action: ConnectionAction) => {
     setPasswordAction(action);
-    setPasswordForAction("");
+    setVerifyInput("");
+    setVerifyMode(hasPinMethod ? "pin" : "password");
     setPasswordPromptOpen(true);
   };
 
@@ -287,9 +293,13 @@ export default function SettingsPage() {
     if (!user || !passwordAction) return;
     setPasswordChecking(true);
     try {
-      await postVerifyPassword(passwordForAction);
+      if (verifyMode === "pin") {
+        await postVerifyPin(verifyInput);
+      } else {
+        await postVerifyPassword(verifyInput);
+      }
       setPasswordPromptOpen(false);
-      setPasswordForAction("");
+      setVerifyInput("");
 
       switch (passwordAction) {
         case "connectGoogle":
@@ -306,13 +316,17 @@ export default function SettingsPage() {
           break;
       }
     } catch (err) {
-      setSecurityError(err instanceof Error ? err.message : "ยืนยันรหัสผ่านไม่สำเร็จ");
-      setGoogleError(err instanceof Error ? err.message : "ยืนยันรหัสผ่านไม่สำเร็จ");
+      const message = err instanceof Error ? err.message : "ยืนยันตัวตนไม่สำเร็จ";
+      setSecurityError(message);
+      setGoogleError(message);
     } finally {
       setPasswordChecking(false);
       setPasswordAction(null);
     }
   };
+
+  const canSubmitVerification =
+    verifyMode === "pin" ? /^\d{6}$/.test(verifyInput) : verifyInput.trim().length > 0;
 
   const profilePanel = (
     <section className="bg-bg-card rounded-2xl border border-border-light p-5 shadow-card space-y-5">
@@ -575,23 +589,51 @@ export default function SettingsPage() {
         {passwordPromptOpen && (
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
             <div className="w-full max-w-sm rounded-2xl bg-bg-card border border-border-light p-5 space-y-3">
-              <p className="font-medium text-text-primary">ยืนยันรหัสผ่าน</p>
+              <p className="font-medium text-text-primary">ยืนยันตัวตน</p>
               <p className="text-xs text-text-secondary">
-                เพื่อความปลอดภัย กรุณากรอกรหัสผ่านก่อนทำรายการนี้
+                {verifyMode === "pin"
+                  ? "กรอก PIN 6 หลักเพื่อดำเนินการต่อ"
+                  : "กรอกรหัสผ่านปัจจุบันเพื่อดำเนินการต่อ"}
               </p>
               <input
                 type="password"
-                value={passwordForAction}
-                onChange={(e) => setPasswordForAction(e.target.value)}
-                placeholder="รหัสผ่านปัจจุบัน"
-                className="w-full px-4 py-2.5 rounded-xl border border-border-light bg-bg-primary text-text-primary"
+                inputMode={verifyMode === "pin" ? "numeric" : "text"}
+                maxLength={verifyMode === "pin" ? 6 : undefined}
+                value={verifyInput}
+                onChange={(e) =>
+                  setVerifyInput(
+                    verifyMode === "pin"
+                      ? e.target.value.replace(/\D/g, "").slice(0, 6)
+                      : e.target.value
+                  )
+                }
+                placeholder={verifyMode === "pin" ? "PIN 6 หลัก" : "รหัสผ่านปัจจุบัน"}
+                className="w-full px-4 py-2.5 rounded-xl border border-border-light bg-bg-primary text-text-primary font-mono tracking-widest text-center"
+                autoComplete={verifyMode === "pin" ? "one-time-code" : "current-password"}
               />
-              <div className="flex gap-2">
+              {hasPinMethod ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifyMode(verifyMode === "pin" ? "password" : "pin");
+                    setVerifyInput("");
+                  }}
+                  disabled={passwordChecking}
+                  className="text-xs text-line-green hover:underline disabled:opacity-50"
+                >
+                  {verifyMode === "pin" ? "ใช้รหัสผ่านแทน" : "ใช้ PIN แทน"}
+                </button>
+              ) : (
+                <p className="text-xs text-text-tertiary">
+                  ยังไม่ได้ตั้ง PIN — ใช้รหัสผ่านเพื่อยืนยัน
+                </p>
+              )}
+              <div className="flex gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     setPasswordPromptOpen(false);
-                    setPasswordForAction("");
+                    setVerifyInput("");
                     setPasswordAction(null);
                   }}
                   disabled={passwordChecking}
@@ -602,7 +644,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleConfirmedConnectionAction}
-                  disabled={passwordChecking || !passwordForAction.trim()}
+                  disabled={passwordChecking || !canSubmitVerification}
                   className="flex-1 py-2.5 rounded-xl bg-line-green text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {passwordChecking && <Loader2 className="w-4 h-4 animate-spin" />}

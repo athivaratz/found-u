@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -33,6 +31,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
+import { getMapDisplayPosition } from "@/lib/geolocation";
 import { logItemCreated } from "@/lib/logger";
 
 const LOST_FORM_STEPS = [
@@ -166,24 +165,15 @@ export default function ReportLostPage() {
   };
 
   const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords: LocationCoords = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          source: "gps",
-        };
-        if (!isWithinSchoolBoundary(coords)) return;
+    void getMapDisplayPosition((coords) => {
+      if (isWithinSchoolBoundary(coords)) {
         setLocationCoords(coords);
-        setErrors((prev) => ({ ...prev, locationCoords: "" }));
-      },
-      () => {
-        /* GPS unavailable — no error banner; user can pin manually on the map */
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+      }
+    }).then((coords) => {
+      if (!coords || !isWithinSchoolBoundary(coords)) return;
+      setLocationCoords(coords);
+      setErrors((prev) => ({ ...prev, locationCoords: "" }));
+    });
   };
 
   const validateStep = (step: number) => {

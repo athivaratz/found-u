@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useMounted } from "@/hooks/use-mounted";
 import { Settings, Shield, LogOut, Sun, Moon, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { menuItems } from "@/lib/menu";
@@ -15,6 +16,8 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { user, appUser, loading: authLoading, isAdmin, signIn, logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
+  const themeMounted = useMounted();
+  const isDarkTheme = themeMounted && resolvedTheme === "dark";
 
   const handleSignIn = async () => {
     try {
@@ -154,18 +157,26 @@ export default function Sidebar() {
           </Link>
         )}
         <button
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
           className="w-full px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors"
+          aria-label="สลับโหมดสว่าง/มืด"
         >
-          {resolvedTheme === "dark" ? (
-            <>
-              <Sun className="w-4 h-4" />
-              Light Mode
-            </>
+          {themeMounted ? (
+            isDarkTheme ? (
+              <>
+                <Sun className="w-4 h-4" />
+                Light Mode
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4" />
+                Dark Mode
+              </>
+            )
           ) : (
             <>
-              <Moon className="w-4 h-4" />
-              Dark Mode
+              <span className="w-4 h-4 shrink-0" aria-hidden />
+              โหมดสี
             </>
           )}
         </button>

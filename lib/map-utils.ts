@@ -1,4 +1,5 @@
 import type { GeoPoint, LocationCoords } from "@/lib/types";
+import { getMapDisplayPosition } from "@/lib/geolocation";
 import { normalizeGeoPolygon } from "@/lib/utils";
 
 export type MapViewTarget = {
@@ -137,24 +138,7 @@ export function resolveMapView(options: {
 }
 
 export function getCurrentPosition(
-  options: PositionOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  onProgress?: (coords: LocationCoords) => void
 ): Promise<LocationCoords | null> {
-  if (typeof navigator === "undefined" || !navigator.geolocation) {
-    return Promise.resolve(null);
-  }
-
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          source: "gps",
-        });
-      },
-      () => resolve(null),
-      options
-    );
-  });
+  return getMapDisplayPosition(onProgress);
 }

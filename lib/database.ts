@@ -1106,6 +1106,15 @@ export function subscribeToContactTypes(callback: (contactTypes: ContactTypeConf
   });
 }
 
+function mapAiUsageRow(row: DbRow): AIUsageRecord {
+  return {
+    id: asString(row.id),
+    userId: asString(row.user_id),
+    endpoint: asString(row.endpoint),
+    timestamp: timestampToDate(row.created_at),
+  };
+}
+
 // ========================================
 // AI Rate Limiting
 // ========================================
@@ -1128,20 +1137,12 @@ export function subscribeToAIUsage(callback: (records: AIUsageRecord[]) => void)
     const { data, error } = await supabase
       .from(COLLECTIONS.AI_USAGE)
       .select("*")
-      .gte("timestamp", thirtyDaysAgo.toISOString())
-      .order("timestamp", { ascending: false })
+      .gte("created_at", thirtyDaysAgo.toISOString())
+      .order("created_at", { ascending: false })
       .limit(1000);
     if (error) throw error;
 
-    const records = (data ?? []).map((row) => {
-      const mapped = row as DbRow;
-      return {
-        id: asString(mapped.id),
-        userId: asString(mapped.user_id),
-        endpoint: asString(mapped.endpoint),
-        timestamp: timestampToDate(mapped.timestamp),
-      } as AIUsageRecord;
-    });
+    const records = (data ?? []).map((row) => mapAiUsageRow(row as DbRow));
     callback(records);
   };
 
@@ -1170,16 +1171,11 @@ export async function getAIUsageStats(): Promise<{
   const { data, error } = await supabase
     .from(COLLECTIONS.AI_USAGE)
     .select("*")
-    .gte("timestamp", weekAgo.toISOString())
-    .order("timestamp", { ascending: false });
+    .gte("created_at", weekAgo.toISOString())
+    .order("created_at", { ascending: false });
   if (error) throw error;
 
-  const records = (data ?? []).map((row) => ({
-    id: asString((row as DbRow).id),
-    userId: asString((row as DbRow).user_id),
-    endpoint: asString((row as DbRow).endpoint),
-    timestamp: timestampToDate((row as DbRow).timestamp),
-  }));
+  const records = (data ?? []).map((row) => mapAiUsageRow(row as DbRow));
 
   const byEndpoint: Record<string, number> = {};
   const byUser: Record<string, number> = {};
@@ -1205,7 +1201,7 @@ export async function recordAIUsage(userId: string, endpoint = "ner"): Promise<v
   const { error } = await supabase.from(COLLECTIONS.AI_USAGE).insert({
     user_id: userId,
     endpoint,
-    timestamp: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   });
   if (error) throw error;
 }
@@ -1231,26 +1227,26 @@ export async function checkAIRateLimit(userId: string, settings: AppSettings): P
       .from(COLLECTIONS.AI_USAGE)
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .gte("timestamp", oneMinuteAgo.toISOString()),
+      .gte("created_at", oneMinuteAgo.toISOString()),
     supabase
       .from(COLLECTIONS.AI_USAGE)
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .gte("timestamp", oneHourAgo.toISOString()),
+      .gte("created_at", oneHourAgo.toISOString()),
     supabase
       .from(COLLECTIONS.AI_USAGE)
-      .select("timestamp")
+      .select("created_at")
       .eq("user_id", userId)
-      .gte("timestamp", oneMinuteAgo.toISOString())
-      .order("timestamp", { ascending: true })
+      .gte("created_at", oneMinuteAgo.toISOString())
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
     supabase
       .from(COLLECTIONS.AI_USAGE)
-      .select("timestamp")
+      .select("created_at")
       .eq("user_id", userId)
-      .gte("timestamp", oneHourAgo.toISOString())
-      .order("timestamp", { ascending: true })
+      .gte("created_at", oneHourAgo.toISOString())
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
   ]);
@@ -1272,13 +1268,13 @@ export async function checkAIRateLimit(userId: string, settings: AppSettings): P
   let resetMinute = new Date(now.getTime() + 60 * 1000);
   let resetHour = new Date(now.getTime() + 60 * 60 * 1000);
 
-  if (minuteOldestResult.data?.timestamp) {
-    const oldest = timestampToDate((minuteOldestResult.data as DbRow).timestamp);
+  if (minuteOldestResult.data?.created_at) {
+    const oldest = timestampToDate((minuteOldestResult.data as DbRow).created_at);
     resetMinute = new Date(oldest.getTime() + 60 * 1000);
   }
 
-  if (hourOldestResult.data?.timestamp) {
-    const oldest = timestampToDate((hourOldestResult.data as DbRow).timestamp);
+  if (hourOldestResult.data?.created_at) {
+    const oldest = timestampToDate((hourOldestResult.data as DbRow).created_at);
     resetHour = new Date(oldest.getTime() + 60 * 60 * 1000);
   }
 
@@ -1300,7 +1296,7 @@ export async function cleanupOldAIUsage(): Promise<number> {
   const { data, error } = await supabase
     .from(COLLECTIONS.AI_USAGE)
     .select("id")
-    .lt("timestamp", twoHoursAgo)
+    .lt("created_at", twoHoursAgo)
     .limit(500);
   if (error) throw error;
 

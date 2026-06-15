@@ -54,7 +54,7 @@ export async function checkNfcFoundRateLimit(userId: string): Promise<{ allowed:
     .from("ai_usage")
     .select("endpoint")
     .eq("user_id", userId)
-    .gte("timestamp", oneHourAgo.toISOString());
+    .gte("created_at", oneHourAgo.toISOString());
 
   const nfcCount = (usage || []).filter((entry) => entry.endpoint === "nfc-found").length;
   const limit = 20;
@@ -68,7 +68,7 @@ export async function checkNfcFoundRateLimit(userId: string): Promise<{ allowed:
   await admin.from("ai_usage").insert({
     user_id: userId,
     endpoint: "nfc-found",
-    timestamp: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   });
 
   return { allowed: true };

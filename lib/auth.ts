@@ -57,14 +57,24 @@ class AuthCompat {
     return this._currentSession;
   }
 
-  async refresh() {
+  async refreshLocal() {
     const supabase = getClient();
-    const [{ data: sessionData }, { data: userData }] = await Promise.all([
-      supabase.auth.getSession(),
-      supabase.auth.getUser(),
-    ]);
+    const { data: sessionData } = await supabase.auth.getSession();
+    this._currentSession = sessionData.session;
+    this._currentUser = toCompatUser(sessionData.session?.user ?? null, sessionData.session);
+  }
+
+  async refreshNetwork() {
+    const supabase = getClient();
+    const { data: userData } = await supabase.auth.getUser();
+    const { data: sessionData } = await supabase.auth.getSession();
     this._currentSession = sessionData.session;
     this._currentUser = toCompatUser(userData.user, sessionData.session);
+  }
+
+  async refresh() {
+    await this.refreshLocal();
+    await this.refreshNetwork();
   }
 
   setSession(session: Session | null) {
@@ -162,8 +172,14 @@ export function getCurrentUser(): User | null {
   return auth.currentUser;
 }
 
-export async function reloadCurrentUser(): Promise<User | null> {
-  await auth.refresh();
+export async function reloadCurrentUser(options?: {
+  network?: boolean;
+}): Promise<User | null> {
+  if (options?.network === false) {
+    await auth.refreshLocal();
+  } else {
+    await auth.refresh();
+  }
   return auth.currentUser;
 }
 

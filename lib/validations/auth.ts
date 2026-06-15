@@ -66,6 +66,10 @@ export const verifyPasswordSchema = z.object({
   password: schoolPasswordSchema,
 });
 
+export const verifyPinSchema = z.object({
+  pin: pinSchema,
+});
+
 export const linkGoogleSchema = z.object({
   studentId: studentIdSchema,
   password: schoolPasswordSchema,

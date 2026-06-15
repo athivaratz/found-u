@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -54,6 +52,9 @@ import {
   getMaxUploadBytes,
 } from "@/lib/image-upload-settings";
 import {
+  getAccuratePosition,
+  getMapDisplayPosition,
+  isIOSDevice,
   queryGeolocationPermission,
   watchGeolocationPermission,
 } from "@/lib/geolocation";
@@ -279,47 +280,37 @@ export default function ReportFoundPage() {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const accuracy = pos.coords.accuracy;
-        if (accuracy == null || accuracy > STRICT_GPS_MAX_ACCURACY_METERS) {
-          setLocationVerified(false);
-          setLocationErrorType("low_accuracy");
-          setGpsLoading(false);
-          return;
-        }
+    const result = await getAccuratePosition({
+      onProgress: (coords) => setUserCurrentCoords(coords),
+    });
 
-        const coords: LocationCoords = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy,
-          source: "gps",
-        };
-        setUserCurrentCoords(coords);
+    if (!result.ok) {
+      if (result.error === "permission") {
+        setLocationErrorType("permission");
+      } else if (result.error === "timeout") {
+        setLocationErrorType("timeout");
+      } else if (result.error === "low_accuracy") {
+        setLocationErrorType("low_accuracy");
+      } else {
+        setLocationErrorType("position");
+      }
+      setLocationVerified(false);
+      setGpsLoading(false);
+      return;
+    }
 
-        const inside = isPointInPolygon(coords, polygon);
-        if (inside) {
-          setLocationVerified(true);
-          setLocationCoords(coords);
-        } else {
-          setLocationVerified(false);
-          setLocationErrorType("outside");
-        }
-        setGpsLoading(false);
-      },
-      (error) => {
-        if (error.code === error.PERMISSION_DENIED) {
-          setLocationErrorType("permission");
-        } else if (error.code === error.TIMEOUT) {
-          setLocationErrorType("timeout");
-        } else {
-          setLocationErrorType("position");
-        }
-        setLocationVerified(false);
-        setGpsLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+    const coords = result.coords;
+    setUserCurrentCoords(coords);
+
+    const inside = isPointInPolygon(coords, polygon);
+    if (inside) {
+      setLocationVerified(true);
+      setLocationCoords(coords);
+    } else {
+      setLocationVerified(false);
+      setLocationErrorType("outside");
+    }
+    setGpsLoading(false);
   };
 
   const boundaryString = JSON.stringify(appSettings?.mapSchoolBoundary || []);
@@ -478,22 +469,16 @@ export default function ReportFoundPage() {
   };
 
   const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocationCoords({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          source: "gps",
-        });
-        setErrors((prev) => ({ ...prev, locationCoords: "" }));
-      },
-      () => {
+    void getMapDisplayPosition((coords) => {
+      setLocationCoords(coords);
+    }).then((coords) => {
+      if (!coords) {
         setErrors((prev) => ({ ...prev, locationCoords: "ไม่สามารถระบุตำแหน่งได้" }));
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+        return;
+      }
+      setLocationCoords(coords);
+      setErrors((prev) => ({ ...prev, locationCoords: "" }));
+    });
   };
 
   const validateStep = (step: number) => {
@@ -1283,8 +1268,17 @@ export default function ReportFoundPage() {
                 </p>
                 <div className="flex items-center gap-2 text-xs text-text-tertiary justify-center">
                   <Loader2 className="w-4 h-4 animate-spin text-[#06C755]" />
-                  <span>กำลังเรียกพิกัดจาก GPS...</span>
+                  <span>
+                    {userCurrentCoords?.accuracy != null
+                      ? `กำลังปรับความแม่นยำ GPS… (±${Math.round(userCurrentCoords.accuracy)} ม.)`
+                      : "กำลังเรียกพิกัดจาก GPS…"}
+                  </span>
                 </div>
+                {isIOSDevice() && (
+                  <p className="text-xs text-text-tertiary mt-3 leading-relaxed max-w-sm mx-auto">
+                    บน iPhone/iPad อาจใช้เวลา 10–25 วินาที กรุณาอยู่กลางแจ้ง เปิด Location Services และเปิด Precise Location สำหรับเบราว์เซอร์
+                  </p>
+                )}
               </>
             ) : (
               <>
@@ -1341,8 +1335,10 @@ export default function ReportFoundPage() {
                       ตำแหน่งไม่แม่นยำพอ (ไม่ใช่ GPS จริง)
                     </h2>
                     <p className="text-text-secondary text-sm leading-relaxed mb-8">
-                      อุปกรณ์นี้ใช้ตำแหน่งจาก Wi‑Fi/IP (เช่น คอมพิวเตอร์) ซึ่งไม่แม่นยำพอสำหรับการยืนยันภายในพื้นที่
-                      กรุณาใช้มือถือที่เปิด GPS และอยู่ในบริเวณโรงเรียน (ความแม่นยำต้องไม่เกิน {STRICT_GPS_MAX_ACCURACY_METERS} เมตร)
+                      ระบบยังไม่ได้รับพิกัดที่แม่นยำพอ (ต้องไม่เกิน {STRICT_GPS_MAX_ACCURACY_METERS} เมตร)
+                      {isIOSDevice()
+                        ? " บน iPhone/iPad ให้เปิด Settings → Privacy & Security → Location Services → Safari/Chrome แล้วเปิด Precise Location ยืนยันว่าอยู่กลางแจ้ง แล้วกดลองใหม่ (รอได้ถึง 25 วินาที)"
+                        : " กรุณาใช้มือถือที่เปิด GPS และอยู่ในบริเวณโรงเรียน"}
                     </p>
                   </>
                 ) : locationErrorType === "permission" ? (

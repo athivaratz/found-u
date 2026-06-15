@@ -87,7 +87,7 @@ export function LandingPage() {
   useEffect(() => {
     let cancelled = false;
 
-    void fetch("/api/public-settings", { cache: "no-store" })
+    void fetch("/api/public-settings")
       .then((res) => res.json())
       .then((data: { comingSoonEnabled?: boolean; comingSoonMessage?: string }) => {
         if (cancelled) return;
@@ -111,9 +111,7 @@ export function LandingPage() {
       setImages: (images: HeroImage[]) => void
     ) => {
       try {
-        const res = await fetch(`/api/public-images?folder=${encodeURIComponent(folder)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`/api/public-images?folder=${encodeURIComponent(folder)}`);
         const data = (await res.json()) as { images?: HeroImage[] };
         if (!cancelled) {
           setImages(Array.isArray(data.images) ? data.images : []);

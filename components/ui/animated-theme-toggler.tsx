@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { Moon, Sun } from "lucide-react";
 import { flushSync } from "react-dom";
 import { useTheme } from "next-themes";
+import { useMounted } from "@/hooks/use-mounted";
 
 import { cn } from "@/lib/utils";
 
@@ -130,12 +131,8 @@ export function AnimatedThemeToggler({
 }: AnimatedThemeTogglerProps) {
   const shape = variant ?? "circle";
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const buttonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const isDark = mounted && resolvedTheme === "dark";
 

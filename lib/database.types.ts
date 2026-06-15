@@ -103,7 +103,7 @@ export interface Database {
           id: string;
           user_id: string;
           endpoint: string;
-          timestamp: string;
+          created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["ai_usage"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["ai_usage"]["Row"]>;

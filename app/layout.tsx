@@ -7,7 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import AuthGuard from "@/components/auth/auth-guard";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
-import { createClient } from "@/lib/supabase/server";
+import { BfcacheRestoreHandler } from "@/components/bfcache-restore-handler";
 
 // โหลดฟอนต์ Kanit สำหรับภาษาไทย
 const kanit = Kanit({
@@ -17,53 +17,37 @@ const kanit = Kanit({
   display: "swap",
 });
 
-export async function generateMetadata(): Promise<Metadata> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("app_settings")
-    .select("settings")
-    .eq("id", "default");
-  const settings =
-    ((data?.[0]?.settings as Record<string, unknown> | undefined) || {}) as Record<string, unknown>;
+const defaultTitle = DEFAULT_APP_SETTINGS.ogTitle || "foundu.forum";
+const defaultDescription =
+  DEFAULT_APP_SETTINGS.ogDescription || "ระบบแจ้งของหาย-ของเจอ";
 
-  const title =
-    (settings.ogTitle as string | undefined) || DEFAULT_APP_SETTINGS.ogTitle || "foundu.forum";
-  const description =
-    (settings.ogDescription as string | undefined) ||
-    DEFAULT_APP_SETTINGS.ogDescription ||
-    "ระบบแจ้งของหาย-ของเจอ";
-  const ogImage = settings.ogImage as string | undefined;
-  const images = ogImage ? [ogImage] : [];
-
-  return {
-    title,
-    description,
-    keywords: ["lost and found", "ของหาย", "แจ้งของหาย", "โรงเรียน"],
-    authors: [{ name: "scfondue" }],
-    icons: {
-      icon: [
-        { url: "/favicon.ico" },
-        { url: "/favicon.svg", type: "image/svg+xml" },
-      ],
-      apple: "/logo.png",
-    },
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://foundu.forum"),
-    openGraph: {
-      title,
-      description,
-      images,
-      type: 'website',
-      siteName: 'foundu.forum',
-      locale: 'th_TH',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images,
-    }
-  };
-}
+// Static metadata keeps the document cacheable for bfcache (no cookies()/no-store on HTML).
+export const metadata: Metadata = {
+  title: defaultTitle,
+  description: defaultDescription,
+  keywords: ["lost and found", "ของหาย", "แจ้งของหาย", "โรงเรียน"],
+  authors: [{ name: "scfondue" }],
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/logo.png",
+  },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://foundu.forum"),
+  openGraph: {
+    title: defaultTitle,
+    description: defaultDescription,
+    type: "website",
+    siteName: "foundu.forum",
+    locale: "th_TH",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: defaultTitle,
+    description: defaultDescription,
+  },
+};
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -96,6 +80,7 @@ export default function RootLayout({
             storageKey="theme"
           >
             <AuthProvider>
+              <BfcacheRestoreHandler />
               <DataProvider>
                 <AuthGuard>
                   {/* 

@@ -12,6 +12,7 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
+  UserPlus,
 } from "lucide-react";
 import type { StudentImportSummary } from "@/lib/types";
 
@@ -43,6 +44,13 @@ export default function AdminStudentsPage() {
   const [newAdminNote, setNewAdminNote] = useState("");
   const [whitelistLoading, setWhitelistLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [newStudentId, setNewStudentId] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newRole, setNewRole] = useState<"user" | "admin">("user");
+  const [creating, setCreating] = useState(false);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
   const getToken = useCallback(async () => {
     if (!user) throw new Error("Not authenticated");
@@ -130,6 +138,52 @@ export default function AdminStudentsPage() {
     }
   };
 
+  const isValidNewStudentId = /^\d{5}$/.test(newStudentId.replace(/\D/g, "").padStart(5, "0").slice(-5));
+  const isValidNewPassword = /^[a-zA-Z0-9]{7,8}$/.test(newPassword);
+  const canCreateStudent =
+    newStudentId.replace(/\D/g, "").length >= 1 &&
+    isValidNewStudentId &&
+    isValidNewPassword &&
+    newFirstName.trim().length > 0;
+
+  const handleCreateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !canCreateStudent) return;
+    setCreating(true);
+    setError(null);
+    setCreateSuccess(null);
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/admin/students/create", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentId: newStudentId,
+          password: newPassword,
+          firstName: newFirstName.trim(),
+          role: newRole,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "สร้างผู้ใช้ไม่สำเร็จ");
+      setCreateSuccess(
+        `สร้างบัญชี ${data.studentId} สำเร็จ (${newRole === "admin" ? "Admin" : "User"})`
+      );
+      setNewStudentId("");
+      setNewPassword("");
+      setNewFirstName("");
+      setNewRole("user");
+      await loadStats();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "สร้างผู้ใช้ไม่สำเร็จ");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const addWhitelist = async () => {
     if (!newAdminEmail.trim() || !user) return;
     setWhitelistLoading(true);
@@ -189,7 +243,7 @@ export default function AdminStudentsPage() {
           จัดการนักเรียน
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          อัปโหลด CSV บัญชีนักเรียน และจัดการ whitelist ผู้ดูแลระบบ
+          สร้างบัญชีใหม่ นำเข้า CSV และจัดการ whitelist ผู้ดูแลระบบ
         </p>
       </div>
 
@@ -205,6 +259,96 @@ export default function AdminStudentsPage() {
         <StatCard label="เคยเข้าสู่ระบบแล้ว" value={stats?.loggedInCount ?? 0} />
         <StatCard label="ปิดใช้งาน" value={stats?.disabledCount ?? 0} />
       </div>
+
+      <section className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+          <UserPlus className="w-5 h-5" />
+          สร้างผู้ใช้ใหม่
+        </h2>
+        <p className="text-sm text-gray-500 mb-4">
+          กรอกข้อมูลขั้นต่ำเหมือน CSV — ชื่อเล่นและข้อมูลอื่นๆ ผู้ใช้ตั้งเองหลังเข้าสู่ระบบ
+        </p>
+
+        <form onSubmit={handleCreateStudent} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                เลขประจำตัว (5 หลัก) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={5}
+                value={newStudentId}
+                onChange={(e) => setNewStudentId(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                placeholder="12345"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 font-mono tracking-widest"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                รหัสผ่าน <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8))}
+                placeholder="abc1234"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 font-mono"
+                required
+                autoComplete="off"
+              />
+              <p className="text-xs text-gray-500 mt-1">a-z A-Z 0-9 ความยาว 7-8 ตัว</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                ชื่อ <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newFirstName}
+                onChange={(e) => setNewFirstName(e.target.value)}
+                placeholder="ชื่อที่แสดงเริ่มต้น"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                บทบาท (Role) <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value as "user" | "admin")}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
+              >
+                <option value="user">User (นักเรียน)</option>
+                <option value="admin">Admin (ผู้ดูแลระบบ)</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!canCreateStudent || creating}
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#06C755] text-white rounded-xl font-medium disabled:opacity-50"
+          >
+            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            สร้างผู้ใช้
+          </button>
+
+          {createSuccess && (
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-start gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-green-700 dark:text-green-300">{createSuccess}</p>
+            </div>
+          )}
+        </form>
+      </section>
 
       <section className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-8">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">

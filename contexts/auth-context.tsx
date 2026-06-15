@@ -15,6 +15,7 @@ import { getTimeoutRemaining, isUserBanned } from "@/lib/database";
 import { getAuthSessionStatus, postStudentLogin } from "@/lib/student-auth-api";
 import type { AppSettings, AppUser, BanStatus } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
+import { deferAfterFirstPaint } from "@/lib/bfcache";
 
 interface AuthContextType {
   user: User | null;
@@ -49,7 +50,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appSettingsReady, setAppSettingsReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
-  const [sessionFlags, setSessionFlags] = useState({ mustSetupPin: false });
+  const [sessionFlags, setSessionFlags] = useState({ mustSetupPin: false, hasPin: false });
+
+  const applySessionStatus = (status: { mustSetupPin?: boolean; hasPin?: boolean }) => {
+    const hasPin = Boolean(status.hasPin);
+    setSessionFlags({
+      hasPin,
+      mustSetupPin: Boolean(status.mustSetupPin) && !hasPin,
+    });
+  };
 
   const refreshUserProfile = async () => {
     const uid = auth.currentUser?.id ?? user?.id;
@@ -64,30 +73,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!current) return;
     await reloadCurrentUser();
     await refreshUserProfile();
+    try {
+      const status = await getAuthSessionStatus();
+      applySessionStatus(status);
+    } catch {
+      setSessionFlags({ mustSetupPin: false, hasPin: false });
+    }
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthChange(async (sessionUser) => {
+    const syncSessionFlags = async (sessionUser: User) => {
+      try {
+        const status = await getAuthSessionStatus();
+        applySessionStatus(status);
+      } catch (error) {
+        console.error("Session sync error:", error);
+        setSessionFlags({ mustSetupPin: false, hasPin: false });
+      }
+    };
+
+    const unsubscribe = onAuthChange((sessionUser) => {
       setUser(sessionUser);
       if (!sessionUser) {
         setAppUser(null);
+        setSessionFlags({ mustSetupPin: false, hasPin: false });
         setLoading(false);
         return;
       }
 
-      try {
-        const status = await getAuthSessionStatus();
-        setSessionFlags({ mustSetupPin: Boolean(status.mustSetupPin) });
-      } catch (error) {
-        console.error("Session sync error:", error);
-        setSessionFlags({ mustSetupPin: false });
-      }
+      setLoading(false);
+      deferAfterFirstPaint(() => {
+        void syncSessionFlags(sessionUser);
+      });
+    });
+
+    void reloadCurrentUser({ network: false }).then((existing) => {
+      setUser(existing);
       setLoading(false);
     });
 
-    void reloadCurrentUser().then((existing) => {
-      setUser(existing);
-      setLoading(false);
+    deferAfterFirstPaint(() => {
+      void auth.refreshNetwork();
     });
 
     return () => unsubscribe();
@@ -150,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthActionLoading(true);
     try {
       const result = await postStudentLogin(studentId, password);
-      setSessionFlags({ mustSetupPin: Boolean(result.mustSetupPin) });
+      applySessionStatus({ mustSetupPin: result.mustSetupPin, hasPin: !result.mustSetupPin });
       return {
         mustChangePassword: result.mustChangePassword,
         mustSetupPin: Boolean(result.mustSetupPin),
@@ -180,11 +206,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isBanned = appUser ? isUserBanned(appUser) : false;
   const timeoutRemaining = appUser ? getTimeoutRemaining(appUser) : 0;
   const mustChangePassword = appUser?.mustChangePassword === true;
-  const hasPinMethod = Array.isArray(appUser?.authMethods) && appUser.authMethods.includes("pin");
   const mustSetupPin =
-    !mustChangePassword &&
-    !isAdmin &&
-    (sessionFlags.mustSetupPin || (isStudentVerified && !hasPinMethod));
+    !mustChangePassword && !isAdmin && sessionFlags.mustSetupPin;
 
   return (
     <AuthContext.Provider

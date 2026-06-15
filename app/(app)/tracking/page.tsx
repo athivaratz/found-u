@@ -1,8 +1,5 @@
 "use client";
 
-// Force dynamic rendering for security
-export const dynamic = 'force-dynamic';
-
 import { useState, useEffect } from "react";
 import {
   Search,

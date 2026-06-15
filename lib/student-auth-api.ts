@@ -156,6 +156,22 @@ export async function postVerifyPassword(password: string) {
   return data as { success: boolean };
 }
 
+export async function postVerifyPin(pin: string) {
+  const token = await getSessionToken();
+  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+  const res = await fetch("/api/auth/verify-pin", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ pin }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "ยืนยัน PIN ไม่สำเร็จ");
+  return data as { success: boolean };
+}
+
 export async function postLinkGoogle(studentId: string, password: string) {
   const token = await getSessionToken();
   if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");

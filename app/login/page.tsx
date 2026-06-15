@@ -66,6 +66,7 @@ function LoginPageContent() {
     isAdmin,
     mustChangePassword,
     mustSetupPin,
+    refreshSession,
   } = useAuth();
 
   const [view, setView] = useState<LoginView>("full");
@@ -163,6 +164,7 @@ function LoginPageContent() {
         studentId: result.studentId || studentId,
         nickname: result.nickname,
       });
+      await refreshSession();
       router.push(resolvePostLoginPath(result));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "เข้าสู่ระบบไม่สำเร็จ");
@@ -177,6 +179,7 @@ function LoginPageContent() {
     setErrorMsg(null);
     try {
       const result = await postPinLogin(rememberedId, pin);
+      await refreshSession();
       router.push(resolvePostLoginPath(result));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "PIN ไม่ถูกต้อง");
@@ -190,6 +193,7 @@ function LoginPageContent() {
     setErrorMsg(null);
     try {
       const result = await postPasskeyLogin();
+      await refreshSession();
       router.push(resolvePostLoginPath(result));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "PassKey ไม่สำเร็จ");
