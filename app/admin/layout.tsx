@@ -120,45 +120,66 @@ export default function AdminLayout({
         </div>
       </header>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Sidebar Overlay — ต้องอยู่ใต้ sidebar (z-40 < z-[60]) */}
       {sidebarOpen && (
         <div
-          className="overlay-modal lg:hidden fixed inset-0 bg-black/50"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden
         />
       )}
 
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 h-full w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 transform transition-transform duration-300",
+          "fixed left-0 top-0 z-[60] h-full w-72 transform border-r border-gray-200 bg-white transition-transform duration-300 dark:border-gray-700 dark:bg-gray-800",
           "lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Logo */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#06C755] flex items-center justify-center">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#06C755] flex items-center justify-center shrink-0">
                 <Package className="w-5 h-5 text-white" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h1 className="font-bold text-gray-900 dark:text-white">Admin Panel</h1>
                 <p className="text-xs text-gray-500">Found-U</p>
               </div>
             </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
+                className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                aria-label="สลับโหมดสว่าง/มืด"
+              >
+                {themeMounted ? (
+                  isDarkTheme ? (
+                    <Sun className="h-5 w-5 text-yellow-500" />
+                  ) : (
+                    <Moon className="h-5 w-5" />
+                  )
+                ) : (
+                  <span className="block h-5 w-5" aria-hidden />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-700 lg:hidden"
+                aria-label="ปิดเมนู"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 pb-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 240px)" }}>
+        <nav className="p-4 pb-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
           {adminNavGroups.map((group) => {
             const groupActive = group.items.some((item) =>
               isAdminNavActive(pathname, item.href)
@@ -220,28 +241,6 @@ export default function AdminLayout({
             </Link>
           </div>
         </nav>
-
-        {/* Theme Toggle */}
-        <div className="absolute bottom-24 left-0 right-0 px-4">
-          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl">
-            <span className="text-sm text-gray-600 dark:text-gray-400">โหมดมืด</span>
-            <button
-              onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
-              className="p-2 rounded-lg bg-white dark:bg-gray-600 shadow-sm hover:shadow transition-shadow"
-              aria-label="สลับโหมดสว่าง/มืด"
-            >
-              {themeMounted ? (
-                isDarkTheme ? (
-                  <Sun className="w-4 h-4 text-yellow-500" />
-                ) : (
-                  <Moon className="w-4 h-4 text-gray-600" />
-                )
-              ) : (
-                <span className="block w-4 h-4" aria-hidden />
-              )}
-            </button>
-          </div>
-        </div>
 
         {/* User Info */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-2">

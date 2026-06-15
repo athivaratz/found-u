@@ -23,6 +23,7 @@ interface AuthContextType {
   appSettings: AppSettings;
   appSettingsReady: boolean;
   loading: boolean;
+  sessionReady: boolean;
   isAuthActionLoading: boolean;
   isAdmin: boolean;
   isStudentVerified: boolean;
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [appSettingsReady, setAppSettingsReady] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
   const [sessionFlags, setSessionFlags] = useState({ mustSetupPin: false, hasPin: false });
 
@@ -71,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = async () => {
     const current = auth.currentUser ?? user;
     if (!current) return;
+    setSessionReady(false);
     await reloadCurrentUser();
     await refreshUserProfile();
     try {
@@ -78,45 +81,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       applySessionStatus(status);
     } catch {
       setSessionFlags({ mustSetupPin: false, hasPin: false });
+    } finally {
+      setSessionReady(true);
     }
   };
 
   useEffect(() => {
-    const syncSessionFlags = async (sessionUser: User) => {
-      try {
-        const status = await getAuthSessionStatus();
-        applySessionStatus(status);
-      } catch (error) {
-        console.error("Session sync error:", error);
-        setSessionFlags({ mustSetupPin: false, hasPin: false });
-      }
-    };
+    let cancelled = false;
 
-    const unsubscribe = onAuthChange((sessionUser) => {
+    const syncSessionForUser = async (sessionUser: User | null) => {
+      if (cancelled) return;
       setUser(sessionUser);
+
       if (!sessionUser) {
         setAppUser(null);
         setSessionFlags({ mustSetupPin: false, hasPin: false });
+        setSessionReady(true);
         setLoading(false);
         return;
       }
 
-      setLoading(false);
-      deferAfterFirstPaint(() => {
-        void syncSessionFlags(sessionUser);
-      });
+      setSessionReady(false);
+      try {
+        const status = await getAuthSessionStatus();
+        if (!cancelled) applySessionStatus(status);
+      } catch (error) {
+        console.error("Session sync error:", error);
+        if (!cancelled) setSessionFlags({ mustSetupPin: false, hasPin: false });
+      } finally {
+        if (!cancelled) {
+          setSessionReady(true);
+          setLoading(false);
+        }
+      }
+    };
+
+    const unsubscribe = onAuthChange((sessionUser) => {
+      void syncSessionForUser(sessionUser);
     });
 
     void reloadCurrentUser({ network: false }).then((existing) => {
-      setUser(existing);
-      setLoading(false);
+      if (cancelled || existing) return;
+      void syncSessionForUser(null);
     });
 
     deferAfterFirstPaint(() => {
       void auth.refreshNetwork();
     });
 
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -177,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const result = await postStudentLogin(studentId, password);
       applySessionStatus({ mustSetupPin: result.mustSetupPin, hasPin: !result.mustSetupPin });
+      setSessionReady(true);
       return {
         mustChangePassword: result.mustChangePassword,
         mustSetupPin: Boolean(result.mustSetupPin),
@@ -207,7 +224,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const timeoutRemaining = appUser ? getTimeoutRemaining(appUser) : 0;
   const mustChangePassword = appUser?.mustChangePassword === true;
   const mustSetupPin =
-    !mustChangePassword && !isAdmin && sessionFlags.mustSetupPin;
+    sessionReady &&
+    !mustChangePassword &&
+    !isAdmin &&
+    sessionFlags.mustSetupPin;
+  const authLoading = loading || (!!user && !sessionReady);
 
   return (
     <AuthContext.Provider
@@ -216,7 +237,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         appUser,
         appSettings,
         appSettingsReady,
-        loading,
+        loading: authLoading,
+        sessionReady,
         isAuthActionLoading,
         isAdmin,
         isStudentVerified,

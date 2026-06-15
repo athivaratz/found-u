@@ -25,7 +25,7 @@ function SetupPinContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isReset = searchParams.get("reset") === "1";
-  const { user, loading, mustSetupPin, isAdmin, appUser, refreshSession } = useAuth();
+  const { user, loading, sessionReady, mustSetupPin, isAdmin, appUser, refreshSession } = useAuth();
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +34,12 @@ function SetupPinContent() {
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
     if (!loading && user && isAdmin) router.replace("/home");
-    if (!loading && user && !mustSetupPin && !isReset) router.replace("/home");
-  }, [user, loading, router, mustSetupPin, isAdmin, isReset]);
+    if (!loading && sessionReady && user && !mustSetupPin && !isReset) {
+      router.replace("/home");
+    }
+  }, [user, loading, sessionReady, router, mustSetupPin, isAdmin, isReset]);
+
+  const showSetupForm = (mustSetupPin || isReset) && sessionReady;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +72,7 @@ function SetupPinContent() {
     }
   };
 
-  if (loading || !user) {
+  if (loading || !user || !showSetupForm) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-line-green" />

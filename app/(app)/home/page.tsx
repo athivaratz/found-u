@@ -150,7 +150,7 @@ export default function Home() {
                             </p>
                           ) : (
                             <p className="text-xs text-text-tertiary">
-                              เชื่อม Google ใน Settings เพื่อใช้อีเมล
+                              เชื่อม Google ในตั้งค่าของคุณ
                             </p>
                           )}
                         </div>

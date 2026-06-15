@@ -373,7 +373,7 @@ export default function SettingsPage() {
             className="w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary text-text-primary"
           />
           <p className="text-xs text-text-tertiary mt-1">
-            ใช้แทนคำว่า Found-U บนหน้าหลัก
+            ใช้แทนชื่อจริงบนหน้าหลัก
           </p>
         </div>
         <button

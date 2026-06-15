@@ -26,6 +26,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     user,
     appUser,
     loading,
+    sessionReady,
     isAuthActionLoading,
     isStudentVerified,
     isAdmin,
@@ -39,7 +40,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [showTutorial, setShowTutorial] = useState(false);
 
   const needsStudentVerification =
-    !!user && !isBanned && !mustChangePassword && !mustSetupPin && !isStudentVerified && !isAdmin;
+    !!user &&
+    !!appUser &&
+    sessionReady &&
+    !isBanned &&
+    !mustChangePassword &&
+    !mustSetupPin &&
+    !isStudentVerified &&
+    !isAdmin;
 
   useEffect(() => {
     if (loading) return;
