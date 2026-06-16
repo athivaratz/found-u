@@ -6,6 +6,7 @@ import { DataProvider } from "@/contexts/DataContext";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import AuthGuard from "@/components/auth/auth-guard";
+import { getDefaultAppUrl } from "@/lib/app-domains";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 import { BfcacheRestoreHandler } from "@/components/bfcache-restore-handler";
 
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
     ],
     apple: "/logo.png",
   },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://foundu.forum"),
+  metadataBase: new URL(getDefaultAppUrl()),
   openGraph: {
     title: defaultTitle,
     description: defaultDescription,

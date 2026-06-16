@@ -4,7 +4,7 @@
 
 **เวอร์ชันปัจจุบัน:** `0.2b`
 
-**Production:** [foundu.forum](https://foundu.forum)
+**Production:** [foundu.forum](https://foundu.forum) · [foundu.bodin2.ac.th](https://foundu.bodin2.ac.th)
 
 ---
 
@@ -118,7 +118,7 @@ Found-U is a smart school lost-and-found web app for finders and reporters with 
 
 **Current version:** `0.2b` (Beta)
 
-**Production:** [foundu.forum](https://foundu.forum)
+**Production:** [foundu.forum](https://foundu.forum) · [foundu.bodin2.ac.th](https://foundu.bodin2.ac.th)
 
 ## What's New in v0.2b
 

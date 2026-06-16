@@ -1,5 +1,6 @@
 import type { Session, SupabaseClient, User as SupabaseUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { getAppOrigin } from "@/lib/app-domains";
 import { setClientSession } from "@/lib/supabase/auth-session";
 
 export type User = SupabaseUser & {
@@ -87,9 +88,7 @@ export const auth = new AuthCompat();
 
 function getOAuthCallbackUrl(next = "/home", link = false): string {
   const base =
-    (typeof window !== "undefined" ? window.location.origin : null) ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "http://localhost:3000";
+    (typeof window !== "undefined" ? window.location.origin : null) || getAppOrigin();
   const url = new URL("/auth/callback", base);
   url.searchParams.set("next", next);
   if (link) url.searchParams.set("link", "1");

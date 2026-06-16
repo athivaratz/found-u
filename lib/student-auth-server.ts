@@ -10,6 +10,7 @@ import type {
   StudentImportSummary,
 } from "@/lib/types";
 import type { Database } from "@/lib/database.types";
+import { getAppOrigin, getAppRpId } from "@/lib/app-domains";
 
 export const STUDENT_ACCOUNTS_COLLECTION = "student_accounts";
 export const ADMIN_WHITELIST_COLLECTION = "admin_whitelist";
@@ -721,44 +722,12 @@ export async function createStudentAccountManual(input: {
   return { studentId: id, uid };
 }
 
-function normalizeHost(host: string): string {
-  return host.trim().toLowerCase().replace(/:\d+$/, "").replace(/^www\./, "");
-}
-
 export function getRpId(request?: NextRequest): string {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
-  if (envUrl) {
-    try {
-      const hostFromUrl = envUrl.startsWith("http") ? new URL(envUrl).hostname : envUrl;
-      return normalizeHost(hostFromUrl);
-    } catch {
-      // fall through
-    }
-  }
-
-  const forwardedHost = request?.headers.get("x-forwarded-host");
-  const host = request?.headers.get("host");
-  const requestHost = forwardedHost || host;
-  if (requestHost) {
-    return normalizeHost(requestHost);
-  }
-
-  return "localhost";
+  return getAppRpId(request);
 }
 
 export function getOrigin(request?: NextRequest): string {
-  const forwardedHost = request?.headers.get("x-forwarded-host");
-  const host = request?.headers.get("host");
-  const requestHost = forwardedHost || host;
-  if (requestHost) {
-    const proto = request?.headers.get("x-forwarded-proto") || "https";
-    return `${proto}://${normalizeHost(requestHost)}`;
-  }
-
-  const url = process.env.NEXT_PUBLIC_APP_URL;
-  if (url) return url.replace(/\/$/, "");
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
+  return getAppOrigin(request);
 }
 
 export type BootstrapAdminInput = {
