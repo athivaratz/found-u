@@ -6,9 +6,8 @@ import { DataProvider } from "@/contexts/DataContext";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import AuthGuard from "@/components/auth/auth-guard";
-import { getDefaultAppUrl } from "@/lib/app-domains";
-import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 import { BfcacheRestoreHandler } from "@/components/bfcache-restore-handler";
+import { buildSiteMetadata } from "@/lib/seo-metadata";
 
 // โหลดฟอนต์ Kanit สำหรับภาษาไทย
 const kanit = Kanit({
@@ -18,37 +17,12 @@ const kanit = Kanit({
   display: "swap",
 });
 
-const defaultTitle = DEFAULT_APP_SETTINGS.ogTitle || "foundu.forum";
-const defaultDescription =
-  DEFAULT_APP_SETTINGS.ogDescription || "ระบบแจ้งของหาย-ของเจอ";
+// Load OG/SEO metadata from admin settings (cached; no cookies() in layout).
+export async function generateMetadata(): Promise<Metadata> {
+  return buildSiteMetadata();
+}
 
-// Static metadata keeps the document cacheable for bfcache (no cookies()/no-store on HTML).
-export const metadata: Metadata = {
-  title: defaultTitle,
-  description: defaultDescription,
-  keywords: ["lost and found", "ของหาย", "แจ้งของหาย", "โรงเรียน"],
-  authors: [{ name: "scfondue" }],
-  icons: {
-    icon: [
-      { url: "/favicon.ico" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
-    ],
-    apple: "/logo.png",
-  },
-  metadataBase: new URL(getDefaultAppUrl()),
-  openGraph: {
-    title: defaultTitle,
-    description: defaultDescription,
-    type: "website",
-    siteName: "foundu.forum",
-    locale: "th_TH",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: defaultTitle,
-    description: defaultDescription,
-  },
-};
+export const revalidate = 60;
 
 export const viewport: Viewport = {
   width: "device-width",

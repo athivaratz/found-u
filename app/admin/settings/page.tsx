@@ -123,6 +123,7 @@ export default function AdminSettingsPage() {
     setSaving(true);
     try {
       await updateAppSettings(settings, user.uid);
+      await fetch("/api/revalidate-og", { method: "POST" }).catch(() => undefined);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
