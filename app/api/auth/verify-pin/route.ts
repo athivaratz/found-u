@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
     const { data: profileData } = await admin
-      .from("profiles")
+      .from("accounts")
       .select("student_id")
       .eq("id", authUser.uid)
       .maybeSingle();

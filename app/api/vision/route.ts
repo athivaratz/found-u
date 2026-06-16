@@ -11,7 +11,7 @@ import { parseJsonBody } from "@/lib/parse-request";
 
 async function isAdminUser(userId: string): Promise<boolean> {
   const admin = createAdminClient();
-  const { data } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+  const { data } = await admin.from("accounts").select("role").eq("id", userId).maybeSingle();
   return data?.role === "admin";
 }
 

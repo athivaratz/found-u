@@ -1,10 +1,14 @@
 import type { User } from "@/lib/auth";
 import type { AppUser } from "@/lib/types";
 
-type UserIdentity = {
-  provider?: string;
-  identity_data?: Record<string, unknown>;
-};
+function isBlockedLegacyGoogleAvatar(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "lh3.googleusercontent.com" || host.endsWith(".googleusercontent.com");
+  } catch {
+    return false;
+  }
+}
 
 /** ชื่อที่แสดงใน UI: ชื่อที่ตั้งเอง → ชื่อเล่น → ชื่อจริง → ชื่อจาก Supabase */
 export function getUserShownName(
@@ -52,29 +56,24 @@ export function isSchoolSyntheticEmail(email: string | null | undefined): boolea
   return /@students\./i.test(email.trim());
 }
 
-/** เชื่อมบัญชี Google แล้ว — ใช้ profiles.auth_methods เป็นหลักเมื่อมีฟิลด์นี้ */
-export function hasGoogleAccountLinked(
+/** ตั้ง PIN แล้ว — ใช้ auth_methods เมื่อมีรายการจริง มิฉะนั้นใช้ hasPin จาก session */
+export function hasPinAuthMethod(
   appUser: AppUser | null | undefined,
-  supabaseUser?: User | null
+  hasPinFromSession?: boolean
 ): boolean {
-  if (Array.isArray(appUser?.authMethods)) {
-    return appUser.authMethods.includes("google");
+  const methods = appUser?.authMethods;
+  if (Array.isArray(methods) && methods.length > 0) {
+    return methods.includes("pin");
   }
-  return !!supabaseUser?.identities?.some((identity: UserIdentity) => identity.provider === "google");
+  return Boolean(hasPinFromSession);
 }
 
-/** อีเมลที่แสดงต่อผู้ใช้ — มีเมื่อเชื่อม Google เท่านั้น */
+/** อีเมลที่แสดงต่อผู้ใช้ — แสดงเฉพาะอีเมลที่ไม่ใช่ synthetic */
 export function getUserPublicEmail(
   appUser: AppUser | null | undefined,
   supabaseUser?: User | null
 ): string | null {
-  if (!hasGoogleAccountLinked(appUser, supabaseUser)) return null;
-
-  const googleIdentity = supabaseUser?.identities?.find(
-    (identity: UserIdentity) => identity.provider === "google"
-  );
   const candidates = [
-    googleIdentity?.identity_data?.email as string | undefined,
     appUser?.email,
     supabaseUser?.email,
   ];
@@ -88,19 +87,16 @@ export function getUserPublicEmail(
   return null;
 }
 
-/** รูปโปรไฟล์มีได้เมื่อเชื่อม Google และมี photoURL จริง */
+/** รูปโปรไฟล์จากระบบ */
 export function getProfilePhotoUrl(
   appUser: AppUser | null | undefined,
   supabaseUser?: User | null
 ): string | null {
-  if (!hasGoogleAccountLinked(appUser, supabaseUser)) return null;
-
   const url =
     appUser?.photoURL ||
-    (supabaseUser?.user_metadata?.avatar_url as string | undefined) ||
-    (supabaseUser?.identities?.find((identity: UserIdentity) => identity.provider === "google")
-      ?.identity_data?.avatar_url as string | undefined);
+    (supabaseUser?.user_metadata?.avatar_url as string | undefined);
   if (!url || url.trim() === "") return null;
+  if (isBlockedLegacyGoogleAvatar(url)) return null;
 
   return url;
 }

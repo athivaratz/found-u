@@ -24,7 +24,7 @@ const passkeyRegisterVerifyBodySchema = z.object({
 
 async function getStudentIdFromProfile(uid: string): Promise<string | null> {
   const admin = createAdminClient();
-  const { data } = await admin.from("profiles").select("student_id").eq("id", uid).maybeSingle();
+  const { data } = await admin.from("accounts").select("student_id").eq("id", uid).maybeSingle();
   return (data?.student_id as string | null | undefined) ?? null;
 }
 
@@ -124,7 +124,7 @@ export async function PUT(request: NextRequest) {
       .eq("student_id", studentId);
 
     const { data: profileData } = await admin
-      .from("profiles")
+      .from("accounts")
       .select("auth_methods")
       .eq("id", authUser.uid)
       .maybeSingle();
@@ -132,7 +132,7 @@ export async function PUT(request: NextRequest) {
       ? (profileData.auth_methods as string[])
       : [];
     await admin
-      .from("profiles")
+      .from("accounts")
       .update({
         auth_methods: Array.from(new Set([...existingMethods, "passkey"])),
         updated_at: new Date().toISOString(),
@@ -185,7 +185,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   const { data: profileData } = await admin
-    .from("profiles")
+    .from("accounts")
     .select("auth_methods")
     .eq("id", authUser.uid)
     .maybeSingle();
@@ -193,7 +193,7 @@ export async function DELETE(request: NextRequest) {
     ? (profileData.auth_methods as string[]).filter((method) => method !== "passkey")
     : [];
   await admin
-    .from("profiles")
+    .from("accounts")
     .update({
       auth_methods: nextMethods,
       updated_at: new Date().toISOString(),

@@ -4,11 +4,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import {
   auth,
   type User,
-  getSessionToken,
   onAuthChange,
   reloadCurrentUser,
-  signInWithGoogle,
-  signInWithStudentSession,
   signOut,
 } from "@/lib/auth";
 import { getTimeoutRemaining, isUserBanned } from "@/lib/database";
@@ -30,11 +27,11 @@ interface AuthContextType {
   hasSeenTutorial: boolean;
   mustChangePassword: boolean;
   mustSetupPin: boolean;
+  hasPin: boolean;
   isBanned: boolean;
   banStatus: BanStatus;
   banReason: string | undefined;
   timeoutRemaining: number;
-  signIn: () => Promise<void>;
   signInWithStudentId: (studentId: string, password: string) => Promise<{ mustChangePassword: boolean; mustSetupPin: boolean }>;
   signInWithCustomToken: (_customToken: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -177,17 +174,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = async () => {
-    setIsAuthActionLoading(true);
-    try {
-      const { error } = await signInWithGoogle();
-      if (error) throw error;
-      await refreshSession();
-    } finally {
-      setIsAuthActionLoading(false);
-    }
-  };
-
   const signInWithStudentId = async (studentId: string, password: string) => {
     setIsAuthActionLoading(true);
     try {
@@ -245,11 +231,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasSeenTutorial: appUser?.hasSeenTutorial || false,
         mustChangePassword,
         mustSetupPin,
+        hasPin: sessionFlags.hasPin,
         isBanned,
         banStatus: appUser?.banStatus || "none",
         banReason: appUser?.banReason,
         timeoutRemaining,
-        signIn,
         signInWithStudentId,
         signInWithCustomToken: signInWithCustomTokenHandler,
         logout,

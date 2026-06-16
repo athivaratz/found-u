@@ -93,7 +93,7 @@ export async function signInWithSupabasePasskey(): Promise<{
     throw new Error(body.error || "กรุณาเข้าสู่ระบบด้วยรหัสผ่านก่อนใช้ Passkey");
   }
 
-  const statusRes = await fetch("/api/auth/link-google", {
+  const statusRes = await fetch("/api/auth/session-status", {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
   const status = (await statusRes.json()) as {
@@ -106,6 +106,9 @@ export async function signInWithSupabasePasskey(): Promise<{
     const { setRememberedDevice } = await import("@/lib/auth-device-memory");
     setRememberedDevice({ studentId: status.studentId });
   }
+
+  const { createClient } = await import("@/lib/supabase/client");
+  await createClient().auth.refreshSession();
 
   return {
     mustChangePassword: Boolean(status.mustChangePassword),

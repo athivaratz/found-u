@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient();
     const { error: updateError } = await admin
-      .from("student_accounts")
+      .from("accounts")
       .update({
         linked_uid: uid,
         current_password_hash: hashSecret(newPassword),

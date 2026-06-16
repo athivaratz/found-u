@@ -435,10 +435,10 @@ export default function AdminStudentsPage() {
       <section className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
           <Shield className="w-5 h-5" />
-          Whitelist ผู้ดูแลระบบ (Google)
+          Whitelist ผู้ดูแลระบบ
         </h2>
         <p className="text-sm text-gray-500 mb-4">
-          อีเมลที่ลงทะเบียนล่วงหน้าจะเข้าสู่ระบบด้วย Google โดยไม่ต้องกรอกเลขประจำตัว
+          อีเมลในรายการนี้จะถูกให้สิทธิ์แอดมินเมื่อเข้าสู่ระบบ
         </p>
 
         <div className="flex flex-col sm:flex-row gap-2 mb-4">

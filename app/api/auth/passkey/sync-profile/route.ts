@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const { data: profile } = await admin
-    .from("profiles")
+    .from("accounts")
     .select("auth_methods")
     .eq("id", authUser.uid)
     .maybeSingle();
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   const authMethods = Array.from(new Set([...existing, "passkey"]));
 
   await admin
-    .from("profiles")
+    .from("accounts")
     .update({ auth_methods: authMethods, updated_at: new Date().toISOString() })
     .eq("id", authUser.uid);
 
@@ -30,7 +30,7 @@ export async function DELETE(request: NextRequest) {
 
   const admin = createAdminClient();
   const { data: profile } = await admin
-    .from("profiles")
+    .from("accounts")
     .select("auth_methods")
     .eq("id", authUser.uid)
     .maybeSingle();
@@ -39,7 +39,7 @@ export async function DELETE(request: NextRequest) {
   const authMethods = existing.filter((method) => method !== "passkey");
 
   await admin
-    .from("profiles")
+    .from("accounts")
     .update({ auth_methods: authMethods, updated_at: new Date().toISOString() })
     .eq("id", authUser.uid);
 

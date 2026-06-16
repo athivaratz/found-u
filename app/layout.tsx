@@ -69,7 +69,6 @@ export default function RootLayout({
         {process.env.NEXT_PUBLIC_SUPABASE_URL ? (
           <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
         ) : null}
-        <link rel="preconnect" href="https://lh3.googleusercontent.com" />
         <link rel="dns-prefetch" href="https://api.supabase.com" />
       </head>
       <body className={`${kanit.variable} antialiased font-sans`} suppressHydrationWarning>

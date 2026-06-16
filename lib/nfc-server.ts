@@ -33,7 +33,7 @@ export async function getAppSettingsAdmin(): Promise<AppSettings> {
 
 export async function isAdminUser(uid: string): Promise<boolean> {
   const admin = createAdminClient();
-  const { data } = await admin.from("profiles").select("role").eq("id", uid).maybeSingle();
+  const { data } = await admin.from("accounts").select("role").eq("id", uid).maybeSingle();
   return data?.role === "admin";
 }
 

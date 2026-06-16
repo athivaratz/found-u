@@ -14,14 +14,14 @@ import { cn } from "@/lib/utils";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, appUser, loading: authLoading, isAdmin, signIn, logout } = useAuth();
+  const { user, appUser, loading: authLoading, isAdmin, logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const themeMounted = useMounted();
   const isDarkTheme = themeMounted && resolvedTheme === "dark";
 
   const handleSignIn = async () => {
     try {
-      await signIn();
+      window.location.assign("/login");
     } catch (error) {
       console.error("Error signing in:", error);
     }

@@ -46,7 +46,7 @@ function UserNameSlot({
 }
 
 export default function Home() {
-  const { user, appUser, loading: authLoading, isAdmin, signIn, logout, appSettings } = useAuth();
+  const { user, appUser, loading: authLoading, isAdmin, logout, appSettings } = useAuth();
   const welcomeName = getUserShownName(appUser, user);
   const { resolvedTheme, setTheme } = useTheme();
   const themeMounted = useMounted();
@@ -60,7 +60,7 @@ export default function Home() {
 
   const handleSignIn = async () => {
     try {
-      await signIn();
+      window.location.assign("/login");
     } catch (error) {
       console.error("Error signing in:", error);
     }
@@ -150,7 +150,7 @@ export default function Home() {
                             </p>
                           ) : (
                             <p className="text-xs text-text-tertiary">
-                              เชื่อม Google ในตั้งค่าของคุณ
+                              ยังไม่มีอีเมล
                             </p>
                           )}
                         </div>

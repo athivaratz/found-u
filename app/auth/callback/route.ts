@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   checkAuthEligibility,
-  getGoogleEmailFromUser,
   revokeIneligibleOAuthUser,
 } from "@/lib/auth-eligibility";
 
@@ -33,11 +32,9 @@ export async function GET(request: NextRequest) {
   }
 
   if (!link) {
-    const googleEmail = getGoogleEmailFromUser(data.user);
     const eligibility = await checkAuthEligibility(
       data.user.id,
-      "google_sign_in",
-      googleEmail
+      "secondary"
     );
 
     if (!eligibility.eligible) {
@@ -50,9 +47,7 @@ export async function GET(request: NextRequest) {
   }
 
   const destination = new URL(next, origin);
-  if (link) {
-    destination.searchParams.set("google_linked", "1");
-  }
+  if (link) destination.searchParams.set("linked", "1");
 
   return NextResponse.redirect(destination.toString());
 }

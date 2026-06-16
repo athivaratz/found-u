@@ -129,7 +129,7 @@ export interface AIUsageRecord {
 // User Ban Status
 export type BanStatus = 'none' | 'banned' | 'timeout';
 
-export type StudentAuthMethod = 'password' | 'google' | 'pin' | 'passkey';
+export type StudentAuthMethod = 'password' | 'pin' | 'passkey';
 
 export type StudentAccountStatus = 'active' | 'disabled';
 
@@ -152,7 +152,6 @@ export interface StudentAccount {
   mustChangePassword: boolean;
   hasLoggedInOnce: boolean;
   linkedUid?: string;
-  linkedGoogleEmail?: string;
   pinHash?: string;
   passkeyCredentials?: PasskeyCredentialRecord[];
   status: StudentAccountStatus;

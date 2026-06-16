@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
     const { data: profileData } = await admin
-      .from("profiles")
+      .from("accounts")
       .select("student_id")
       .eq("id", authUser.uid)
       .maybeSingle();
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { error: updateAccountError } = await admin
-      .from("student_accounts")
+      .from("accounts")
       .update({
         current_password_hash: hashSecret(newPassword),
         must_change_password: false,
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     await admin.auth.admin.updateUserById(authUser.uid, { password: newPassword });
     await admin
-      .from("profiles")
+      .from("accounts")
       .update({
         must_change_password: false,
         updated_at: new Date().toISOString(),

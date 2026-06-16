@@ -12,7 +12,7 @@ import type {
 import type { Database } from "@/lib/database.types";
 import { getAppOrigin, getAppRpId } from "@/lib/app-domains";
 
-export const STUDENT_ACCOUNTS_COLLECTION = "student_accounts";
+export const STUDENT_ACCOUNTS_COLLECTION = "accounts";
 export const ADMIN_WHITELIST_COLLECTION = "admin_whitelist";
 export const PASSKEY_LOOKUP_COLLECTION = "passkey_lookup";
 
@@ -153,7 +153,7 @@ export async function getStudentIdByPasskeyCredential(credentialId: string): Pro
 
   for (const account of accounts || []) {
     const credentials = account.passkey_credentials as StudentAccount["passkeyCredentials"];
-    if (credentials?.some((c) => c.credentialId === credentialId)) {
+    if (credentials?.some((c) => c.credentialId === credentialId) && account.student_id) {
       const studentId = normalizeStudentId(account.student_id);
       await savePasskeyLookup(credentialId, studentId);
       return studentId;
@@ -189,11 +189,15 @@ export function studentIdFromPasskeyUserHandle(userHandle?: string): string | nu
 export async function getStudentAccount(studentId: string): Promise<StudentAccount | null> {
   const admin = createAdminClient();
   const normalizedId = normalizeStudentId(studentId);
-  const { data } = await admin
+  const { data, error } = await admin
     .from(STUDENT_ACCOUNTS_COLLECTION)
     .select("*")
     .eq("student_id", normalizedId)
     .maybeSingle();
+  if (error) {
+    console.error("getStudentAccount query failed:", error);
+    throw error;
+  }
   if (!data) return null;
   const row = data as Record<string, any>;
 
@@ -210,7 +214,6 @@ export async function getStudentAccount(studentId: string): Promise<StudentAccou
     mustChangePassword: (row.must_change_password ?? row.mustChangePassword) ?? false,
     hasLoggedInOnce: (row.has_logged_in_once ?? row.hasLoggedInOnce) ?? false,
     linkedUid: row.linked_uid ?? row.linkedUid ?? undefined,
-    linkedGoogleEmail: row.linked_google_email ?? row.linkedGoogleEmail ?? undefined,
     pinHash: row.pin_hash ?? row.pinHash ?? undefined,
     passkeyCredentials: (row.passkey_credentials ?? row.passkeyCredentials) ?? undefined,
     status: (row.status ?? "active") as StudentAccount["status"],
@@ -307,6 +310,38 @@ export async function issueStudentCustomToken(uid: string): Promise<string> {
   throw new Error("Custom token flow removed. Use session tokens instead.");
 }
 
+/** ซิงก์ auth_methods จากแหล่งข้อมูลจริง */
+export async function reconcileStudentAuthState(
+  uid: string,
+  account: StudentAccount
+): Promise<StudentAccount> {
+  const admin = createAdminClient();
+
+  const { data: profileData } = await admin
+    .from("accounts")
+    .select("auth_methods")
+    .eq("id", uid)
+    .maybeSingle();
+  const existing = Array.isArray(profileData?.auth_methods)
+    ? (profileData.auth_methods as string[])
+    : [];
+
+  const methods = new Set(existing);
+  methods.add("password");
+  if (account.pinHash) methods.add("pin");
+  if (account.passkeyCredentials?.length) methods.add("passkey");
+
+  await admin
+    .from("accounts")
+    .update({
+      auth_methods: Array.from(methods),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", uid);
+
+  return account;
+}
+
 export async function syncAppUserFromStudent(
   uid: string,
   account: StudentAccount,
@@ -314,10 +349,10 @@ export async function syncAppUserFromStudent(
 ): Promise<void> {
   const admin = createAdminClient();
   const displayName = `${account.firstName} ${account.lastName}`.trim();
-  const { data: existing } = await admin.from("profiles").select("id").eq("id", uid).maybeSingle();
+  const { data: existing } = await admin.from("accounts").select("id").eq("id", uid).maybeSingle();
 
   const now = new Date().toISOString();
-  const normalized: Database["public"]["Tables"]["profiles"]["Update"] = {
+  const normalized: Database["public"]["Tables"]["accounts"]["Update"] = {
     email: extras?.email ? normalizeEmail(extras.email) : studentIdToAuthEmail(account.studentId),
     display_name: extras?.displayName || displayName,
     student_id: account.studentId,
@@ -325,7 +360,6 @@ export async function syncAppUserFromStudent(
     last_name: account.lastName,
     nickname: account.nickname,
     photo_url: (extras as { photoURL?: string })?.photoURL || null,
-    auth_methods: extras?.authMethods ?? null,
     shown_name: extras?.shownName ?? null,
     ban_status: extras?.banStatus ?? "none",
     is_student_verified: true,
@@ -333,12 +367,16 @@ export async function syncAppUserFromStudent(
     updated_at: now,
   };
 
+  if (extras?.authMethods) {
+    normalized.auth_methods = extras.authMethods;
+  }
+
   if (existing) {
-    const { error } = await admin.from("profiles").update(normalized).eq("id", uid);
+    const { error } = await admin.from("accounts").update(normalized).eq("id", uid);
     if (error) throw error;
   } else {
-    const { error } = await admin.from("profiles").insert({
-      ...(normalized as Database["public"]["Tables"]["profiles"]["Insert"]),
+    const { error } = await admin.from("accounts").insert({
+      ...(normalized as Database["public"]["Tables"]["accounts"]["Insert"]),
       id: uid,
       role: extras?.role ?? "user",
       has_seen_tutorial: extras?.hasSeenTutorial ?? false,
@@ -356,9 +394,9 @@ export async function promoteAdminUser(
   photoURL?: string
 ): Promise<void> {
   const admin = createAdminClient();
-  const { data: existing } = await admin.from("profiles").select("id").eq("id", uid).maybeSingle();
+  const { data: existing } = await admin.from("accounts").select("id").eq("id", uid).maybeSingle();
   const now = new Date().toISOString();
-  const payload: Database["public"]["Tables"]["profiles"]["Update"] = {
+  const payload: Database["public"]["Tables"]["accounts"]["Update"] = {
     email: normalizeEmail(email),
     display_name: displayName || email,
     photo_url: photoURL || null,
@@ -367,18 +405,18 @@ export async function promoteAdminUser(
     updated_at: now,
   };
   if (!existing) {
-    const insertPayload: Database["public"]["Tables"]["profiles"]["Insert"] = {
-      ...(payload as Database["public"]["Tables"]["profiles"]["Insert"]),
+    const insertPayload: Database["public"]["Tables"]["accounts"]["Insert"] = {
+      ...(payload as Database["public"]["Tables"]["accounts"]["Insert"]),
       id: uid,
       ban_status: "none",
       has_seen_tutorial: false,
       created_at: now,
     };
-    const { error } = await admin.from("profiles").insert(insertPayload);
+    const { error } = await admin.from("accounts").insert(insertPayload);
     if (error) throw error;
     return;
   }
-  const { error } = await admin.from("profiles").update(payload).eq("id", uid);
+  const { error } = await admin.from("accounts").update(payload).eq("id", uid);
   if (error) throw error;
 }
 
@@ -468,11 +506,12 @@ export async function loginStudentWithPassword(
   if (accountUpdateError) throw accountUpdateError;
 
   await syncAppUserFromStudent(uid, { ...account, linkedUid: uid, hasLoggedInOnce: true });
+  await reconcileStudentAuthState(uid, { ...account, linkedUid: uid, hasLoggedInOnce: true });
 
   if (BOOTSTRAP_ADMIN_STUDENT_IDS.has(id)) {
     await promoteAdminUser(uid, studentIdToAuthEmail(id), displayName);
     await admin
-      .from("profiles")
+      .from("accounts")
       .update({
         student_id: id,
         is_student_verified: true,
@@ -534,7 +573,7 @@ export async function loginStudentWithPin(
   const admin = createAdminClient();
   const uid = account.linkedUid!;
   const { data: profileData } = await admin
-    .from("profiles")
+    .from("accounts")
     .select("auth_methods")
     .eq("id", uid)
     .maybeSingle();
@@ -543,7 +582,7 @@ export async function loginStudentWithPin(
     : [];
   if (!existingMethods.includes("pin")) {
     await admin
-      .from("profiles")
+      .from("accounts")
       .update({
         auth_methods: [...new Set([...existingMethods, "pin"])],
         updated_at: new Date().toISOString(),
@@ -582,8 +621,13 @@ export async function importStudentRows(
 
       if (!existing) {
         const schoolHash = hashSecret(row.password);
+        const uid = await ensureAuthUserForStudent(row.studentId, displayName, row.password);
         const { error } = await admin.from(STUDENT_ACCOUNTS_COLLECTION).insert({
+          id: uid,
           student_id: row.studentId,
+          linked_uid: uid,
+          email: studentIdToAuthEmail(row.studentId),
+          display_name: displayName,
           first_name: row.firstName,
           last_name: row.lastName,
           nickname: row.nickname,
@@ -597,7 +641,6 @@ export async function importStudentRows(
           updated_at: new Date().toISOString(),
         });
         if (error) throw error;
-        await ensureAuthUserForStudent(row.studentId, displayName, row.password);
         summary.created += 1;
         continue;
       }
@@ -685,8 +728,14 @@ export async function createStudentAccountManual(input: {
   const schoolHash = hashSecret(input.password);
   const importBatchId = `manual_${Date.now()}`;
 
+  const uid = await ensureAuthUserForStudent(id, displayName, input.password);
+
   const { error: insertError } = await admin.from(STUDENT_ACCOUNTS_COLLECTION).insert({
+    id: uid,
     student_id: id,
+    linked_uid: uid,
+    email: studentIdToAuthEmail(id),
+    display_name: displayName,
     first_name: firstName,
     last_name: lastName,
     nickname,
@@ -700,14 +749,6 @@ export async function createStudentAccountManual(input: {
     updated_at: new Date().toISOString(),
   });
   if (insertError) throw insertError;
-
-  const uid = await ensureAuthUserForStudent(id, displayName, input.password);
-
-  const { error: linkError } = await admin
-    .from(STUDENT_ACCOUNTS_COLLECTION)
-    .update({ linked_uid: uid, updated_at: new Date().toISOString() })
-    .eq("student_id", id);
-  if (linkError) throw linkError;
 
   const account = await getStudentAccount(id);
   if (!account) throw new Error("สร้างบัญชีไม่สำเร็จ");
@@ -761,9 +802,17 @@ export async function createBootstrapAdminAccount(input: BootstrapAdminInput): P
   const admin = createAdminClient();
   const now = new Date().toISOString();
 
+  const uid = await ensureAuthUserForStudent(id, displayName, input.password, {
+    verifyPasswordLogin: false,
+  });
+
   const { error: upsertError } = await admin.from(STUDENT_ACCOUNTS_COLLECTION).upsert(
     {
+      id: uid,
       student_id: id,
+      linked_uid: uid,
+      email: studentIdToAuthEmail(id),
+      display_name: displayName,
       first_name: firstName,
       last_name: lastName,
       nickname,
@@ -779,21 +828,13 @@ export async function createBootstrapAdminAccount(input: BootstrapAdminInput): P
   );
   if (upsertError) throw upsertError;
 
-  const uid = await ensureAuthUserForStudent(id, displayName, input.password, {
-    verifyPasswordLogin: false,
-  });
-  await admin
-    .from(STUDENT_ACCOUNTS_COLLECTION)
-    .update({ linked_uid: uid, updated_at: now })
-    .eq("student_id", id);
-
   const account = await getStudentAccount(id);
   if (!account) throw new Error("สร้างบัญชีแอดมินไม่สำเร็จ");
 
   await syncAppUserFromStudent(uid, { ...account, linkedUid: uid });
   await promoteAdminUser(uid, studentIdToAuthEmail(id), displayName);
   await admin
-    .from("profiles")
+    .from("accounts")
     .update({
       student_id: id,
       first_name: firstName,

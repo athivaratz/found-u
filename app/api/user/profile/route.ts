@@ -22,7 +22,7 @@ export async function PATCH(request: NextRequest) {
 
     const admin = createAdminClient();
     const { error } = await admin
-      .from("profiles")
+      .from("accounts")
       .update({
         shown_name: shownName || null,
         updated_at: new Date().toISOString(),

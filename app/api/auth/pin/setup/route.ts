@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
     const { data: profileData } = await admin
-      .from("profiles")
+      .from("accounts")
       .select("student_id, auth_methods")
       .eq("id", authUser.uid)
       .maybeSingle();
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { error: pinUpdateError } = await admin
-      .from("student_accounts")
+      .from("accounts")
       .update({
         pin_hash: hashSecret(parsed.data.pin),
         updated_at: new Date().toISOString(),
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       ? [...new Set([...(profile.auth_methods as string[]), "pin"])]
       : ["pin"];
     const { error: profileUpdateError } = await admin
-      .from("profiles")
+      .from("accounts")
       .update({
         auth_methods: authMethods,
         updated_at: new Date().toISOString(),

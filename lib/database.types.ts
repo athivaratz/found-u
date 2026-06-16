@@ -3,14 +3,14 @@ export type Json = any;
 export interface Database {
   public: {
     Tables: {
-      profiles: {
+      accounts: {
         Row: {
           id: string;
+          student_id: string | null;
           email: string;
           display_name: string;
           photo_url: string | null;
           role: "user" | "admin";
-          student_id: string | null;
           first_name: string | null;
           last_name: string | null;
           nickname: string | null;
@@ -24,25 +24,10 @@ export interface Database {
           banned_at: string | null;
           banned_by: string | null;
           timeout_until: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string };
-        Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
-        Relationships: [];
-      };
-      student_accounts: {
-        Row: {
-          student_id: string;
-          first_name: string;
-          last_name: string;
-          nickname: string;
-          school_password_hash: string;
-          current_password_hash: string;
-          must_change_password: boolean;
+          school_password_hash: string | null;
+          current_password_hash: string | null;
           has_logged_in_once: boolean;
           linked_uid: string | null;
-          linked_google_email: string | null;
           pin_hash: string | null;
           passkey_credentials: Json | null;
           status: "active" | "disabled";
@@ -50,8 +35,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Partial<Database["public"]["Tables"]["student_accounts"]["Row"]> & { student_id: string };
-        Update: Partial<Database["public"]["Tables"]["student_accounts"]["Row"]>;
+        Insert: Partial<Database["public"]["Tables"]["accounts"]["Row"]> & { id: string };
+        Update: Partial<Database["public"]["Tables"]["accounts"]["Row"]>;
         Relationships: [];
       };
       passkey_lookup: {

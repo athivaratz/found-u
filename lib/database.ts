@@ -30,7 +30,7 @@ type DbRow = Record<string, unknown>;
 export const COLLECTIONS = {
   LOST_ITEMS: "lost_items",
   FOUND_ITEMS: "found_items",
-  USERS: "profiles",
+  USERS: "accounts",
   SETTINGS: "app_settings",
   AI_USAGE: "ai_usage",
   ERROR_LOGS: "error_logs",
@@ -52,6 +52,19 @@ function asNullableString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function sanitizeAvatarUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    if (host === "lh3.googleusercontent.com" || host.endsWith(".googleusercontent.com")) {
+      return undefined;
+    }
+  } catch {
+    // keep non-URL values as-is
+  }
+  return value;
+}
+
 function asNullableBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
@@ -65,7 +78,7 @@ function mapAppUserRow(row: DbRow): AppUser {
     uid: asString(row.id),
     email: asString(row.email),
     displayName: asString(row.display_name),
-    photoURL: asNullableString(row.photo_url),
+    photoURL: sanitizeAvatarUrl(row.photo_url),
     role: (asString(row.role) || "user") as UserRole,
     studentId: asNullableString(row.student_id),
     firstName: asNullableString(row.first_name),

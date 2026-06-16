@@ -16,8 +16,8 @@ Found-U ช่วยให้ผู้ทำของหายและผู้
 
 - ย้ายจาก **Firebase** มาใช้ **Supabase** (PostgreSQL + Auth + Realtime + RLS)
 - ระบบล็อกอินนักเรียน/แอดมินด้วย **เลขประจำตัว + รหัสผ่าน** เป็นช่องทางหลัก
-- รองรับ **Google OAuth**, **Passkeys (WebAuthn)** และ **PIN** หลังล็อกอินรหัสผ่านและเชื่อมบัญชีแล้วเท่านั้น
-- Google ที่ยังไม่เคยเชื่อมกับบัญชีในระบบจะ **ไม่สามารถเข้าใช้งานได้**
+- รองรับ **Passkeys (WebAuthn)** และ **PIN** หลังล็อกอินรหัสผ่านครั้งแรก
+- ยกเลิก Google OAuth แล้ว
 - ที่เก็บรูปภาพยังใช้ **Cloudflare R2** (ไม่เปลี่ยน)
 - Validation ด้วย **Zod** ทุก API route หลัก
 
@@ -50,11 +50,10 @@ Found-U ช่วยให้ผู้ทำของหายและผู้
 |------|---------|--------|----------|
 | เลขประจำตัว + รหัสผ่าน | ✓ | — | ช่องทางหลัก ครั้งแรกต้องใช้วิธีนี้ |
 | เลขแอดมิน 5 หลัก + รหัสผ่าน | — | ✓ | ช่องทางหลักสำหรับแอดมิน |
-| Google | ✓ | ✓ | ต้องเชื่อมใน Settings ก่อน |
 | Passkey | ✓ | ✓ | ลงทะเบียนหลังล็อกอินรหัสผ่านแล้ว |
 | PIN | ✓ | ✓ | ตั้งค่าได้หลังล็อกอินรหัสผ่านแล้ว |
 
-**ลำดับที่ถูกต้อง:** ล็อกอินรหัสผ่าน → (ถ้าต้องการ) เชื่อม Google / ลงทะเบียน Passkey / ตั้ง PIN → ใช้วิธีอื่นได้
+**ลำดับที่ถูกต้อง:** ล็อกอินรหัสผ่าน → (ถ้าต้องการ) ลงทะเบียน Passkey / ตั้ง PIN → ใช้วิธีอื่นได้
 
 ## เทคโนโลยี (Tech Stack)
 
@@ -66,7 +65,7 @@ Found-U ช่วยให้ผู้ทำของหายและผู้
 | สไตล์ | [Tailwind CSS](https://tailwindcss.com/) **4.1** | `@tailwindcss/postcss` |
 | Runtime / Package manager | [Bun](https://bun.sh/) **1.3** | แนะนำสำหรับ dev |
 | Backend / DB | [Supabase](https://supabase.com/) | PostgreSQL, Auth, Realtime, RLS |
-| Auth | Supabase Auth | Google OAuth, Passkeys, synthetic email domain |
+| Auth | Supabase Auth | Password, Passkeys, PIN, synthetic email domain |
 | WebAuthn client | `@simplewebauthn/browser` | พิธีการ Passkey ฝั่งเบราว์เซอร์ |
 | Validation | [Zod](https://zod.dev/) **4** | API request / input schemas |
 | แผนที่ | [Leaflet](https://leafletjs.com/) **1.9** | OpenStreetMap tiles |
@@ -81,7 +80,7 @@ app/
   (app)/          หน้าหลักหลังล็อกอิน (home, found, lost, list, settings, …)
   admin/          แผงผู้ดูแล (items, users, students, matching, AI, NFC, …)
   api/            REST API (auth, vision, ner, match, storage, nfc, …)
-  auth/callback/  OAuth / Google link callback
+  auth/callback/  Auth callback
   login/          ล็อกอิน เปลี่ยนรหัส รีเซ็ตรหัส
   nfc/            ลงทะเบียน/แท็กของฉัน/แจ้งพบ NFC
 components/       UI, layout, map, camera, dialogs
@@ -89,7 +88,7 @@ contexts/         auth, data (Realtime)
 lib/
   database.ts     CRUD + subscriptions (แทน Firestore เดิม)
   supabase/       client, server, admin, passkey-auth, auth-session
-  auth-eligibility.ts   กฎ secondary auth (Google / Passkey / PIN)
+  auth-eligibility.ts   กฎ secondary auth (Passkey / PIN)
   student-auth-server.ts  ล็อกอินรหัสผ่าน, PIN, scrypt
   validations/    Zod schemas
 ```
@@ -124,8 +123,8 @@ Found-U is a smart school lost-and-found web app for finders and reporters with 
 
 - Migrated from **Firebase** to **Supabase** (PostgreSQL, Auth, Realtime, RLS)
 - Primary login: **student ID + password** (students) or **5-digit admin ID + password** (admins)
-- **Google OAuth**, **Passkeys**, and **PIN** available only after a successful password login and account linking
-- Unlinked Google accounts are **rejected** at sign-in
+- **Passkeys** and **PIN** available only after a successful password login
+- Google OAuth has been removed
 - Image storage remains on **Cloudflare R2**
 - **Zod** validation on API routes
 

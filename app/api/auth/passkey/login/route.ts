@@ -130,7 +130,7 @@ export async function PUT(request: NextRequest) {
     );
 
     await admin
-      .from("student_accounts")
+      .from("accounts")
       .update({
         passkey_credentials: updatedCredentials as unknown as Json,
         updated_at: new Date().toISOString(),

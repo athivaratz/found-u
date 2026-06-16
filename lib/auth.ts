@@ -1,6 +1,5 @@
 import type { Session, SupabaseClient, User as SupabaseUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import { getAppOrigin } from "@/lib/app-domains";
 import { setClientSession } from "@/lib/supabase/auth-session";
 
 export type User = SupabaseUser & {
@@ -24,17 +23,17 @@ function getClient() {
 
 function toCompatUser(user: SupabaseUser | null, session: Session | null): User | null {
   if (!user) return null;
+  const avatar =
+    (user.user_metadata?.avatar_url as string | undefined) || "";
+  const blockedGoogleAvatar =
+    avatar.includes("lh3.googleusercontent.com") || avatar.includes(".googleusercontent.com");
   return Object.assign(user, {
     uid: user.id,
     displayName:
       (user.user_metadata?.display_name as string | undefined) ||
       (user.user_metadata?.full_name as string | undefined) ||
       "",
-    photoURL:
-      (user.user_metadata?.avatar_url as string | undefined) ||
-      (user.identities?.find((identity) => identity.provider === "google")?.identity_data
-        ?.avatar_url as string | undefined) ||
-      "",
+    photoURL: blockedGoogleAvatar ? "" : avatar,
     async getIdToken(forceRefresh = false) {
       const supabase = getClient();
       if (forceRefresh) {
@@ -85,65 +84,6 @@ class AuthCompat {
 }
 
 export const auth = new AuthCompat();
-
-function getOAuthCallbackUrl(next = "/home", link = false): string {
-  const base =
-    (typeof window !== "undefined" ? window.location.origin : null) || getAppOrigin();
-  const url = new URL("/auth/callback", base);
-  url.searchParams.set("next", next);
-  if (link) url.searchParams.set("link", "1");
-  return url.toString();
-}
-
-export async function signInWithGoogle(next = "/home") {
-  const supabase = getClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: getOAuthCallbackUrl(next),
-      queryParams: { prompt: "select_account" },
-    },
-  });
-
-  if (!error && data.url && typeof window !== "undefined") {
-    window.location.assign(data.url);
-  }
-
-  return { user: null, error };
-}
-
-export async function linkGoogleToCurrentUser(next = "/settings") {
-  const token = await getSessionToken();
-  if (!token) return { user: null, error: new Error("กรุณาเข้าสู่ระบบก่อน") };
-
-  const supabase = getClient();
-  const { data, error } = await supabase.auth.linkIdentity({
-    provider: "google",
-    options: {
-      redirectTo: getOAuthCallbackUrl(next, true),
-      queryParams: { prompt: "select_account" },
-    },
-  });
-
-  if (error) return { user: null, error };
-  if (data.url && typeof window !== "undefined") {
-    window.location.assign(data.url);
-  }
-  return { user: null, error: null };
-}
-
-export async function unlinkGoogleFromCurrentUser() {
-  const token = await getSessionToken();
-  if (!token) return { user: null, error: new Error("กรุณาเข้าสู่ระบบก่อน") };
-  const res = await fetch("/api/auth/disconnect-google", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) return { user: null, error: new Error(data.error || "ยกเลิกการเชื่อม Google ไม่สำเร็จ") };
-  await auth.refresh();
-  return { user: auth.currentUser, error: null };
-}
 
 export async function signInWithStudentSession(tokens: { access_token: string; refresh_token: string }) {
   try {

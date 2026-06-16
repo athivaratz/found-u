@@ -116,30 +116,6 @@ export async function postChangePassword(currentPassword: string, newPassword: s
   return data;
 }
 
-export async function postConnectGoogle() {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/connect-google", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "เชื่อมบัญชี Google ไม่สำเร็จ");
-  return data as { success: boolean; email: string };
-}
-
-export async function postDisconnectGoogle() {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/disconnect-google", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "ยกเลิกการเชื่อม Google ไม่สำเร็จ");
-  return data as { success: boolean };
-}
-
 export async function postVerifyPassword(password: string) {
   const token = await getSessionToken();
   if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
@@ -172,26 +148,10 @@ export async function postVerifyPin(pin: string) {
   return data as { success: boolean };
 }
 
-export async function postLinkGoogle(studentId: string, password: string) {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/link-google", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ studentId, password }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "ลงทะเบียนไม่สำเร็จ");
-  return data as { success: boolean; mustChangePassword: boolean; studentId: string };
-}
-
 export async function getAuthSessionStatus() {
   const token = await getSessionToken();
   if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/link-google", {
+  const res = await fetch("/api/auth/session-status", {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();
@@ -241,7 +201,12 @@ export async function postSetupPin(pin: string) {
 export async function getPasskeyStatus() {
   const { listSupabasePasskeys } = await import("@/lib/supabase/passkey-auth");
   const passkeys = await listSupabasePasskeys();
-  return { hasPasskey: passkeys.length > 0, count: passkeys.length };
+  const latest = passkeys[passkeys.length - 1];
+  return {
+    hasPasskey: passkeys.length > 0,
+    count: passkeys.length,
+    latestDeviceLabel: latest?.friendly_name?.trim() || (latest ? "อุปกรณ์นี้" : undefined),
+  };
 }
 
 export async function deletePasskey() {

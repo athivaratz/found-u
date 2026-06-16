@@ -8,8 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const mode = request.nextUrl.searchParams.get("mode") === "google" ? "google_sign_in" : "secondary";
-  const result = await checkAuthEligibility(authUser.uid, mode, authUser.email);
+  const result = await checkAuthEligibility(authUser.uid, "secondary", authUser.email);
 
   if (!result.eligible) {
     return NextResponse.json({ error: result.message }, { status: 403 });

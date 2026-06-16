@@ -67,7 +67,7 @@ export default function LoginPrompt({
 
       {/* Security note */}
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-6 max-w-xs">
-        🔒 ใช้เลขประจำตัวและรหัสผ่านจากโรงเรียน หรือ Google (ต้องยืนยันตัวตนครั้งแรก)
+        🔒 ใช้เลขประจำตัวและรหัสผ่านจากโรงเรียน หรือ Passkey
       </p>
     </div>
   );
