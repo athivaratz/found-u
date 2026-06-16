@@ -234,6 +234,39 @@ export async function isAdminWhitelisted(email: string): Promise<boolean> {
   return !!data;
 }
 
+type AccountRow = Database["public"]["Tables"]["accounts"]["Row"];
+
+/** Resolve accounts row when auth uid may differ from accounts.id (legacy duplicate auth users). */
+export async function resolveAccountForAuthUser(
+  uid: string,
+  metadata?: { student_id?: string | null }
+): Promise<AccountRow | null> {
+  const admin = createAdminClient();
+
+  const { data: byId } = await admin.from("accounts").select("*").eq("id", uid).maybeSingle();
+  if (byId) return byId as AccountRow;
+
+  const { data: byLinked } = await admin
+    .from("accounts")
+    .select("*")
+    .eq("linked_uid", uid)
+    .maybeSingle();
+  if (byLinked) return byLinked as AccountRow;
+
+  const rawStudentId = metadata?.student_id;
+  if (rawStudentId && isValidStudentId(normalizeStudentId(rawStudentId))) {
+    const studentId = normalizeStudentId(rawStudentId);
+    const { data: byStudent } = await admin
+      .from("accounts")
+      .select("*")
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (byStudent) return byStudent as AccountRow;
+  }
+
+  return null;
+}
+
 async function findAuthUserByEmail(email: string) {
   const admin = createAdminClient();
   let page = 1;
@@ -262,7 +295,20 @@ export async function ensureAuthUserForStudent(
   const admin = createAdminClient();
   const id = normalizeStudentId(studentId);
   const email = studentIdToAuthEmail(id);
-  let userRecord = await findAuthUserByEmail(email);
+  let userRecord: Awaited<ReturnType<typeof admin.auth.admin.getUserById>>["data"]["user"] | null =
+    null;
+
+  const account = await getStudentAccount(id);
+  if (account?.linkedUid) {
+    const { data: linkedUser } = await admin.auth.admin.getUserById(account.linkedUid);
+    if (linkedUser?.user) {
+      userRecord = linkedUser.user;
+    }
+  }
+
+  if (!userRecord) {
+    userRecord = await findAuthUserByEmail(email);
+  }
 
   if (!userRecord) {
     const { data, error } = await admin.auth.admin.createUser({
@@ -293,7 +339,7 @@ export async function ensureAuthUserForStudent(
 
   if (password && options?.verifyPasswordLogin !== false) {
     try {
-      await signInStudentSession(id, password);
+      await signInStudentSession(id, password, userRecord.id);
     } catch (err) {
       console.warn("ensureAuthUserForStudent: password login verify skipped:", err);
     }
@@ -320,7 +366,7 @@ export async function reconcileStudentAuthState(
   const { data: profileData } = await admin
     .from("accounts")
     .select("auth_methods")
-    .eq("id", uid)
+    .eq("student_id", account.studentId)
     .maybeSingle();
   const existing = Array.isArray(profileData?.auth_methods)
     ? (profileData.auth_methods as string[])
@@ -335,9 +381,10 @@ export async function reconcileStudentAuthState(
     .from("accounts")
     .update({
       auth_methods: Array.from(methods),
+      linked_uid: uid,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", uid);
+    .eq("student_id", account.studentId);
 
   return account;
 }
@@ -349,7 +396,12 @@ export async function syncAppUserFromStudent(
 ): Promise<void> {
   const admin = createAdminClient();
   const displayName = `${account.firstName} ${account.lastName}`.trim();
-  const { data: existing } = await admin.from("accounts").select("id").eq("id", uid).maybeSingle();
+  const { data: existing } = await admin
+    .from("accounts")
+    .select("id")
+    .or(`id.eq.${uid},student_id.eq.${account.studentId}`)
+    .maybeSingle();
+  const accountId = existing?.id ?? uid;
 
   const now = new Date().toISOString();
   const normalized: Database["public"]["Tables"]["accounts"]["Update"] = {
@@ -364,6 +416,7 @@ export async function syncAppUserFromStudent(
     ban_status: extras?.banStatus ?? "none",
     is_student_verified: true,
     must_change_password: account.mustChangePassword,
+    linked_uid: uid,
     updated_at: now,
   };
 
@@ -372,7 +425,7 @@ export async function syncAppUserFromStudent(
   }
 
   if (existing) {
-    const { error } = await admin.from("accounts").update(normalized).eq("id", uid);
+    const { error } = await admin.from("accounts").update(normalized).eq("id", accountId);
     if (error) throw error;
   } else {
     const { error } = await admin.from("accounts").insert({
@@ -520,7 +573,7 @@ export async function loginStudentWithPassword(
       .eq("id", uid);
   }
 
-  const session = await signInStudentSession(id, password);
+  const session = await signInStudentSession(id, password, uid);
   const refreshed = await getStudentAccount(id);
   const finalAccount = refreshed ?? { ...account, linkedUid: uid, hasLoggedInOnce: true };
   return {

@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Session } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { studentIdToAuthEmail } from "@/lib/student-auth-server";
 
 function createServerAnonClient() {
@@ -19,9 +20,22 @@ function createServerAnonClient() {
   });
 }
 
-export async function signInStudentSession(studentId: string, password: string) {
+export async function signInStudentSession(
+  studentId: string,
+  password: string,
+  preferredUid?: string
+) {
   const supabase = createServerAnonClient();
-  const email = studentIdToAuthEmail(studentId);
+  let email = studentIdToAuthEmail(studentId);
+
+  if (preferredUid) {
+    const admin = createAdminClient();
+    const { data: preferredUser } = await admin.auth.admin.getUserById(preferredUid);
+    if (preferredUser?.user?.email) {
+      email = preferredUser.user.email;
+    }
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.session) {
     throw new Error(error?.message || "ไม่สามารถสร้าง session ได้");

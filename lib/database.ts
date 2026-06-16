@@ -19,7 +19,7 @@ import {
   type NfcTagStatus,
   type UserRole,
 } from "@/lib/types";
-import type { Json } from "@/lib/database.types";
+import type { Json, Database } from "@/lib/database.types";
 import { createFoundItemSchema, createLostItemSchema } from "@/lib/validations/items";
 
 type SupabaseConstraint<T> = (query: T) => T;
@@ -101,6 +101,12 @@ function mapAppUserRow(row: DbRow): AppUser {
     createdAt: timestampToDate(row.created_at),
     updatedAt: timestampToDate(row.updated_at),
   };
+}
+
+type AccountRow = Database["public"]["Tables"]["accounts"]["Row"];
+
+export function mapAccountRowToAppUser(row: AccountRow): AppUser {
+  return mapAppUserRow(row as DbRow);
 }
 
 function mapLostItemRow(row: DbRow): LostItem {
@@ -380,7 +386,7 @@ export async function getUser(uid: string): Promise<AppUser | null> {
   const { data, error } = await supabase
     .from(COLLECTIONS.USERS)
     .select("*")
-    .eq("id", uid)
+    .or(`id.eq.${uid},linked_uid.eq.${uid}`)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;

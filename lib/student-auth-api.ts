@@ -1,4 +1,5 @@
 import { getSessionToken, signInWithStudentSession } from "@/lib/auth";
+import type { AppUser } from "@/lib/types";
 
 type SessionPayload = {
   access_token: string;
@@ -164,6 +165,8 @@ export async function getAuthSessionStatus() {
     mustSetupPin?: boolean;
     hasPin?: boolean;
     studentId?: string | null;
+    role?: string | null;
+    profile?: AppUser | null;
   };
 }
 

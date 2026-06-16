@@ -49,14 +49,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [sessionReady, setSessionReady] = useState(false);
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
-  const [sessionFlags, setSessionFlags] = useState({ mustSetupPin: false, hasPin: false });
+  const [sessionFlags, setSessionFlags] = useState({
+    mustSetupPin: false,
+    hasPin: false,
+    isAdmin: false,
+    isStudentVerified: false,
+  });
 
-  const applySessionStatus = (status: { mustSetupPin?: boolean; hasPin?: boolean }) => {
+  const applySessionStatus = (status: {
+    mustSetupPin?: boolean;
+    hasPin?: boolean;
+    isAdmin?: boolean;
+    isStudentVerified?: boolean;
+    profile?: AppUser | null;
+  }) => {
     const hasPin = Boolean(status.hasPin);
     setSessionFlags({
       hasPin,
       mustSetupPin: Boolean(status.mustSetupPin) && !hasPin,
+      isAdmin: Boolean(status.isAdmin),
+      isStudentVerified: Boolean(status.isStudentVerified),
     });
+    if (status.profile) {
+      setAppUser(status.profile);
+    }
   };
 
   const refreshUserProfile = async () => {
@@ -77,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const status = await getAuthSessionStatus();
       applySessionStatus(status);
     } catch {
-      setSessionFlags({ mustSetupPin: false, hasPin: false });
+      setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
     } finally {
       setSessionReady(true);
     }
@@ -92,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!sessionUser) {
         setAppUser(null);
-        setSessionFlags({ mustSetupPin: false, hasPin: false });
+        setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
         setSessionReady(true);
         setLoading(false);
         return;
@@ -104,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!cancelled) applySessionStatus(status);
       } catch (error) {
         console.error("Session sync error:", error);
-        if (!cancelled) setSessionFlags({ mustSetupPin: false, hasPin: false });
+        if (!cancelled) setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
       } finally {
         if (!cancelled) {
           setSessionReady(true);
@@ -178,7 +194,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthActionLoading(true);
     try {
       const result = await postStudentLogin(studentId, password);
-      applySessionStatus({ mustSetupPin: result.mustSetupPin, hasPin: !result.mustSetupPin });
+      try {
+        const status = await getAuthSessionStatus();
+        applySessionStatus(status);
+      } catch {
+        applySessionStatus({ mustSetupPin: result.mustSetupPin, hasPin: !result.mustSetupPin });
+      }
       setSessionReady(true);
       return {
         mustChangePassword: result.mustChangePassword,
@@ -204,8 +225,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const isAdmin = appUser?.role === "admin";
-  const isStudentVerified = isAdmin || appUser?.isStudentVerified === true || !!appUser?.studentId;
+  const isAdmin = appUser?.role === "admin" || sessionFlags.isAdmin;
+  const isStudentVerified =
+    isAdmin ||
+    appUser?.isStudentVerified === true ||
+    !!appUser?.studentId ||
+    sessionFlags.isStudentVerified;
   const isBanned = appUser ? isUserBanned(appUser) : false;
   const timeoutRemaining = appUser ? getTimeoutRemaining(appUser) : 0;
   const mustChangePassword = appUser?.mustChangePassword === true;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { mapAccountRowToAppUser } from "@/lib/database";
 import { verifyAuthRequest } from "@/lib/nfc-server";
 import {
   accountNeedsPinSetup,
@@ -8,8 +9,8 @@ import {
   normalizeEmail,
   promoteAdminUser,
   reconcileStudentAuthState,
+  resolveAccountForAuthUser,
 } from "@/lib/student-auth-server";
-
 export async function GET(request: NextRequest) {
   const authUser = await verifyAuthRequest(request);
   if (!authUser || !authUser.email) {
@@ -31,14 +32,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ isAdmin: true, isStudentVerified: true, whitelisted: true });
   }
 
-  const { data: profileData } = await admin
-    .from("accounts")
-    .select("role, is_student_verified, must_change_password, student_id")
-    .eq("id", authUser.uid)
-    .maybeSingle();
-  const profile = profileData as
-    | { role?: string | null; is_student_verified?: boolean | null; must_change_password?: boolean | null; student_id?: string | null }
-    | null;
+  const { data: authData } = await admin.auth.admin.getUserById(authUser.uid);
+  const profile = await resolveAccountForAuthUser(authUser.uid, {
+    student_id: authData.user?.user_metadata?.student_id as string | undefined,
+  });
 
   let hasPin = false;
   let mustSetupPin = false;
@@ -46,7 +43,7 @@ export async function GET(request: NextRequest) {
   if (studentId) {
     const account = await getStudentAccount(studentId);
     if (account) {
-      await reconcileStudentAuthState(authUser.uid, account);
+      await reconcileStudentAuthState(profile!.id, account);
       const refreshed = await getStudentAccount(studentId);
       const finalAccount = refreshed ?? account;
       hasPin = !!finalAccount.pinHash;
@@ -62,5 +59,7 @@ export async function GET(request: NextRequest) {
     mustSetupPin,
     hasPin,
     studentId: studentId || null,
+    role: profile?.role ?? null,
+    profile: profile ? mapAccountRowToAppUser(profile) : null,
   });
 }

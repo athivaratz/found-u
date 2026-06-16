@@ -50,15 +50,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     !isAdmin;
 
   useEffect(() => {
+    if (user && pathname === "/") {
+      router.replace("/home");
+      return;
+    }
+
     if (loading) return;
 
     if (!user && !isPublicPath(pathname)) {
       router.push("/login");
-      return;
-    }
-
-    if (user && pathname === "/") {
-      router.push("/home");
       return;
     }
 
@@ -115,11 +115,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, isStudentVerified, hasSeenTutorial, pathname]);
 
-  if (!loading && !user && !isPublicPath(pathname)) {
+  if (user && pathname === "/") {
     return null;
   }
 
-  if (!loading && user && pathname === "/") {
+  if (!loading && !user && !isPublicPath(pathname)) {
     return null;
   }
 
