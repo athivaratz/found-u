@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+students-test.csv
 
 # next.js
 /.next/
@@ -49,3 +50,14 @@ next-env.d.ts
 
 docs/
 .vscode/
+.cursor/
+ืtools/
+*.csv
+tools/tools.txt
+tools/info.txt
+screencapture/
+.playwright-mcp/
+Mermaid_Flowchart/
+.audit/
+.VSCodeCounter/
+tests/

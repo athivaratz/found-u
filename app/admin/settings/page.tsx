@@ -19,35 +19,46 @@ import {
   User,
   Mail,
   Save,
-  Beaker,
-  Lock,
-  MessageSquare,
-  ToggleLeft,
-  ToggleRight,
   Share2,
+  MapPin,
   Image as ImageIcon,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
-import { getAllUsers, getAppSettings, updateAppSettings, timestampToDate } from "@/lib/firestore";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, writeBatch, doc, serverTimestamp } from "firebase/firestore";
+import { getAllUsers, getAppSettings, updateAppSettings, timestampToDate } from "@/lib/database";
+import { createClient } from "@/lib/supabase/client";
 import { uploadImage, compressImage } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import type { AppUser, AppSettings } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
+import { useAppDialog } from "@/hooks/use-app-dialog";
+import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+
+const SETTINGS_TABS = [
+  { id: "seo", label: "SEO" },
+  { id: "notifications", label: "การแจ้งเตือน" },
+  { id: "storage", label: "Storage" },
+  { id: "ai", label: "AI" },
+  { id: "data", label: "เครื่องมือข้อมูล" },
+] as const;
+
+type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
 
 export default function AdminSettingsPage() {
+  const supabase = createClient();
   const { user, appSettings: contextAppSettings } = useAuth();
+  const { showAlert, showConfirm, dialog } = useAppDialog();
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AppUser[]>([]);
   const [loadingAdmins, setLoadingAdmins] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [uploadingOg, setUploadingOg] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTabId>("seo");
 
-  // Beta settings state
-  const [betaSettings, setBetaSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  // App settings state
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
 
   const handleOgImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,14 +67,21 @@ export default function AdminSettingsPage() {
     setUploadingOg(true);
     try {
       // Compress
-      const compressed = await compressImage(file, { maxWidthOrHeight: 1200 });
+      const compressed = await compressImage(file, {
+        maxWidthOrHeight: 1200,
+        initialQuality: settings.compressionQuality ?? DEFAULT_APP_SETTINGS.compressionQuality,
+      });
       // Upload
       const url = await uploadImage(compressed, `settings/og-image-${Date.now()}.jpg`);
 
-      setBetaSettings(prev => ({ ...prev, ogImage: url }));
+      setSettings(prev => ({ ...prev, ogImage: url }));
     } catch (error) {
       console.error('Error uploading OG image:', error);
-      alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ');
+      void showAlert({
+        title: "อัปโหลดไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ",
+        variant: "error",
+      });
     } finally {
       setUploadingOg(false);
     }
@@ -88,8 +106,8 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const settings = await getAppSettings();
-        setBetaSettings(settings);
+        const loadedSettings = await getAppSettings();
+        setSettings(loadedSettings);
       } catch (error) {
         console.error('Error loading settings:', error);
       } finally {
@@ -99,26 +117,22 @@ export default function AdminSettingsPage() {
     loadSettings();
   }, []);
 
-  // Settings state
-  const [settings, setSettings] = useState({
-    autoDeleteDays: 30,
-    notifyOnNewReport: true,
-    notifyOnStatusChange: true,
-    requireApproval: false,
-    maxImageSize: 5, // MB
-    compressionQuality: 0.8,
-  });
-
-  const handleSaveBetaSettings = async () => {
+  const handleSaveSettings = async () => {
     if (!user?.uid) return;
 
     setSaving(true);
     try {
-      await updateAppSettings(betaSettings, user.uid);
+      await updateAppSettings(settings, user.uid);
+      await fetch("/api/revalidate-og", { method: "POST" }).catch(() => undefined);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
-      console.error('Error saving beta settings:', error);
+      console.error('Error saving settings:', error);
+      void showAlert({
+        title: "บันทึกไม่สำเร็จ",
+        message: "กรุณาตรวจสอบสิทธิ์ Admin และการเชื่อมต่อ Supabase",
+        variant: "error",
+      });
     } finally {
       setSaving(false);
     }
@@ -126,28 +140,30 @@ export default function AdminSettingsPage() {
 
   const [processingData, setProcessingData] = useState(false);
 
-  const handleSave = async () => {
-    setSaving(true);
-    // Simulate save for other settings
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSaving(false);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
-  };
-
   // Export Data as CSV
   const handleExport = async () => {
     if (processingData) return;
     setProcessingData(true);
     try {
       // 1. Fetch all data
-      const [lostSnapshot, foundSnapshot] = await Promise.all([
-        getDocs(collection(db, "lostItems")),
-        getDocs(collection(db, "foundItems"))
+      const [{ data: lostRows, error: lostError }, { data: foundRows, error: foundError }] = await Promise.all([
+        supabase.from("lost_items").select("*"),
+        supabase.from("found_items").select("*"),
       ]);
 
-      const lostItems = lostSnapshot.docs.map(doc => ({ id: doc.id, type: "lost" as const, ...doc.data() as Record<string, unknown> }));
-      const foundItems = foundSnapshot.docs.map(doc => ({ id: doc.id, type: "found" as const, ...doc.data() as Record<string, unknown> }));
+      if (lostError) throw lostError;
+      if (foundError) throw foundError;
+
+      const lostItems = (lostRows ?? []).map((row) => ({
+        id: String(row.id),
+        type: "lost" as const,
+        ...row as Record<string, unknown>,
+      }));
+      const foundItems = (foundRows ?? []).map((row) => ({
+        id: String(row.id),
+        type: "found" as const,
+        ...row as Record<string, unknown>,
+      }));
 
       const allItems = [...lostItems, ...foundItems];
 
@@ -166,19 +182,17 @@ export default function AdminSettingsPage() {
         ...allItems.map(item => {
           // Normalize fields - use type assertion for accessing properties
           const itemData = item as Record<string, unknown>;
-          const name = item.type === "lost" ? (itemData.itemName as string) : (itemData.description as string);
-          const location = item.type === "lost" ? (itemData.locationLost as string) : (itemData.locationFound as string);
-          const date = item.type === "lost" ? itemData.dateLost : itemData.dateFound;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const dateStr = date ? timestampToDate(date as any).toISOString() : "";
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const createdStr = itemData.createdAt ? timestampToDate(itemData.createdAt as any).toISOString() : "";
+          const name = item.type === "lost" ? (itemData.item_name as string) : (itemData.description as string);
+          const location = item.type === "lost" ? (itemData.location_lost as string) : (itemData.location_found as string);
+          const date = item.type === "lost" ? itemData.date_lost : itemData.date_found;
+          const dateStr = date ? timestampToDate(date).toISOString() : "";
+          const createdStr = itemData.created_at ? timestampToDate(itemData.created_at).toISOString() : "";
 
           // Flatten first contact if exists
           let contactName = "";
           let contactDetail = "";
           const contacts = itemData.contacts as Array<{ type: string; value: string }> | undefined;
-          const finderContacts = itemData.finderContacts as Array<{ type: string; value: string }> | undefined;
+          const finderContacts = itemData.finder_contacts as Array<{ type: string; value: string }> | undefined;
           if (item.type === "lost" && contacts?.[0]) {
             contactName = contacts[0].type;
             contactDetail = contacts[0].value;
@@ -190,7 +204,7 @@ export default function AdminSettingsPage() {
           return [
             item.type,
             item.id,
-            (itemData.trackingCode as string) || "",
+            (itemData.tracking_code as string) || "",
             (itemData.status as string),
             (itemData.category as string) || "",
             `"${(name || "").replace(/"/g, '""')}"`, // Escape quotes
@@ -216,7 +230,11 @@ export default function AdminSettingsPage() {
 
     } catch (error) {
       console.error("Export error:", error);
-      alert("เกิดข้อผิดพลาดในการส่งออกข้อมูล");
+      void showAlert({
+        title: "ส่งออกไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาดในการส่งออกข้อมูล",
+        variant: "error",
+      });
     } finally {
       setProcessingData(false);
     }
@@ -227,8 +245,13 @@ export default function AdminSettingsPage() {
     const file = event.target.files?.[0];
     if (!file || processingData) return;
 
-    if (!confirm("การนำเข้าข้อมูลอาจทำให้สับสนไดหากข้อมูลซ้ำซ้อน ต้องการทำต่อหรือไม่?")) {
-      event.target.value = ""; // Reset input
+    const proceedImport = await showConfirm({
+      title: "ยืนยันการนำเข้าข้อมูล",
+      message: "การนำเข้าข้อมูลอาจทำให้สับสนได้หากข้อมูลซ้ำซ้อน ต้องการทำต่อหรือไม่?",
+      variant: "warning",
+    });
+    if (!proceedImport) {
+      event.target.value = "";
       return;
     }
 
@@ -240,9 +263,10 @@ export default function AdminSettingsPage() {
         const text = e.target?.result as string;
         const rows = text.split("\n").slice(1); // Skip header
 
-        const batch = writeBatch(db);
-        let batchCount = 0;
-        const BATCH_LIMIT = 400; // Commit every 400 ops (limit is 500)
+        const lostInserts: Record<string, unknown>[] = [];
+        const foundInserts: Record<string, unknown>[] = [];
+        const BATCH_LIMIT = 500;
+        const nowIso = new Date().toISOString();
 
         for (const row of rows) {
           if (!row.trim()) continue;
@@ -253,8 +277,6 @@ export default function AdminSettingsPage() {
           // Here we assume standard format or basic split if simple.
           // BUT, our export logic added quotes. So basic split starts efficiently:
           // Let's us a smarter regex split for quotes
-          const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-          // Fallback to simple split if regex fails or complicates
           const simpleCols = row.split(",");
 
           if (simpleCols.length < 4) continue; // Invalid row
@@ -264,53 +286,62 @@ export default function AdminSettingsPage() {
           // Map index based on header: 
           // 0:type, 1:id, 2:trackingCode, 3:status, 4:category, 5:itemName, 6:desc...
 
-          const newItemRef = doc(collection(db, type === "lost" ? "lostItems" : "foundItems"));
-
-          // Basic fields
           const baseData = {
             status: simpleCols[3] || "searching",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            trackingCode: simpleCols[2] || `IMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            itemName: (simpleCols[5] || "").replace(/^"|"$/g, '').replace(/""/g, '"'),
+            created_at: nowIso,
+            updated_at: nowIso,
+            tracking_code: simpleCols[2] || `IMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            item_name: (simpleCols[5] || "").replace(/^"|"$/g, '').replace(/""/g, '"'),
             description: (simpleCols[6] || "").replace(/^"|"$/g, '').replace(/""/g, '"'),
             category: simpleCols[4] || "other",
           };
 
           if (type === "lost") {
-            batch.set(newItemRef, {
+            lostInserts.push({
               ...baseData,
-              locationLost: (simpleCols[7] || "").replace(/^"|"$/g, ''),
-              dateLost: serverTimestamp(), // Default to now if parsing failed
-              // contacts: ... (Simplified import)
+              location_lost: (simpleCols[7] || "").replace(/^"|"$/g, ''),
+              date_lost: nowIso,
             });
           } else if (type === "found") {
-            batch.set(newItemRef, {
+            foundInserts.push({
               ...baseData,
-              locationFound: (simpleCols[7] || "").replace(/^"|"$/g, ''),
-              dateFound: serverTimestamp(),
-              // finderContacts: ...
+              location_found: (simpleCols[7] || "").replace(/^"|"$/g, ''),
+              date_found: nowIso,
             });
           }
+        }
 
-          batchCount++;
-          if (batchCount >= BATCH_LIMIT) {
-            await batch.commit();
-            batchCount = 0;
+        for (let i = 0; i < lostInserts.length; i += BATCH_LIMIT) {
+          const chunk = lostInserts.slice(i, i + BATCH_LIMIT);
+          if (chunk.length > 0) {
+            const { error } = await supabase.from("lost_items").insert(chunk);
+            if (error) throw error;
           }
         }
 
-        if (batchCount > 0) {
-          await batch.commit();
+        for (let i = 0; i < foundInserts.length; i += BATCH_LIMIT) {
+          const chunk = foundInserts.slice(i, i + BATCH_LIMIT);
+          if (chunk.length > 0) {
+            const { error } = await supabase.from("found_items").insert(chunk);
+            if (error) throw error;
+          }
         }
 
-        alert("นำเข้าข้อมูลสำเร็จ!");
+        await showAlert({
+          title: "นำเข้าสำเร็จ",
+          message: "นำเข้าข้อมูลสำเร็จ",
+          variant: "success",
+        });
         // Refresh page or state?
         window.location.reload();
 
       } catch (error) {
         console.error("Import error:", error);
-        alert("เกิดข้อผิดพลาดในการนำเข้า");
+        void showAlert({
+          title: "นำเข้าไม่สำเร็จ",
+          message: "เกิดข้อผิดพลาดในการนำเข้า",
+          variant: "error",
+        });
       } finally {
         setProcessingData(false);
         event.target.value = "";
@@ -322,45 +353,67 @@ export default function AdminSettingsPage() {
 
   // Delete All Data
   const handleDeleteAll = async () => {
-    if (!confirm("คุณแน่ใจหรือไม่ที่จะลบข้อมูลรายการทั้งหมด (ของหายและของเจอ)?")) return;
-    if (!confirm("ยืนยันครั้งสุดท้าย: การกระทำนี้ไม่สามารถกู้คืนได้")) return;
+    const confirmDelete = await showConfirm({
+      title: "ลบข้อมูลทั้งหมด",
+      message: "คุณแน่ใจหรือไม่ที่จะลบข้อมูลรายการทั้งหมด (ของหายและของเจอ)?",
+      variant: "warning",
+    });
+    if (!confirmDelete) return;
+
+    const confirmFinal = await showConfirm({
+      title: "ยืนยันครั้งสุดท้าย",
+      message: "การกระทำนี้ไม่สามารถกู้คืนได้",
+      variant: "error",
+      confirmLabel: "ลบทั้งหมด",
+    });
+    if (!confirmFinal) return;
 
     if (processingData) return;
     setProcessingData(true);
 
     try {
-      const batch = writeBatch(db);
-      const lostSnapshot = await getDocs(collection(db, "lostItems"));
-      const foundSnapshot = await getDocs(collection(db, "foundItems"));
+      const [{ data: lostRows, error: lostFetchError }, { data: foundRows, error: foundFetchError }] = await Promise.all([
+        supabase.from("lost_items").select("id"),
+        supabase.from("found_items").select("id"),
+      ]);
 
-      let count = 0;
-      const BATCH_LIMIT = 400;
+      if (lostFetchError) throw lostFetchError;
+      if (foundFetchError) throw foundFetchError;
 
-      // Function to process deletions in chunks
-      const deleteChunks = async (docs: any[]) => {
-        for (const doc of docs) {
-          batch.delete(doc.ref);
-          count++;
-          if (count >= BATCH_LIMIT) {
-            await batch.commit();
-            count = 0;
-          }
+      const BATCH_LIMIT = 500;
+      const lostIds = (lostRows ?? []).map((row) => String(row.id));
+      const foundIds = (foundRows ?? []).map((row) => String(row.id));
+
+      for (let i = 0; i < lostIds.length; i += BATCH_LIMIT) {
+        const chunk = lostIds.slice(i, i + BATCH_LIMIT);
+        if (chunk.length > 0) {
+          const { error } = await supabase.from("lost_items").delete().in("id", chunk);
+          if (error) throw error;
         }
-      };
-
-      await deleteChunks(lostSnapshot.docs);
-      await deleteChunks(foundSnapshot.docs);
-
-      if (count > 0) {
-        await batch.commit();
       }
 
-      alert("ลบข้อมูลสำเร็จ");
+      for (let i = 0; i < foundIds.length; i += BATCH_LIMIT) {
+        const chunk = foundIds.slice(i, i + BATCH_LIMIT);
+        if (chunk.length > 0) {
+          const { error } = await supabase.from("found_items").delete().in("id", chunk);
+          if (error) throw error;
+        }
+      }
+
+      await showAlert({
+        title: "ลบสำเร็จ",
+        message: "ลบข้อมูลสำเร็จ",
+        variant: "success",
+      });
       window.location.reload();
 
     } catch (error) {
       console.error("Delete error:", error);
-      alert("ลบข้อมูลล้มเหลว");
+      void showAlert({
+        title: "ลบไม่สำเร็จ",
+        message: "ลบข้อมูลล้มเหลว",
+        variant: "error",
+      });
     } finally {
       setProcessingData(false);
     }
@@ -372,7 +425,7 @@ export default function AdminSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ตั้งค่า</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          จัดการการตั้งค่าระบบ BD2Fondue
+          จัดการการตั้งค่าระบบ Found-U
         </p>
       </div>
 
@@ -384,35 +437,49 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
+      <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-200/80 dark:border-gray-800">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <SegmentedTabs<SettingsTabId>
+            items={[...SETTINGS_TABS]}
+            value={settingsTab}
+            onChange={setSettingsTab}
+            className="flex-1 min-w-0"
+            size="sm"
+          />
+          <button
+            onClick={handleSaveSettings}
+            disabled={saving || loadingSettings}
+            className={cn(
+              "flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors shrink-0",
+              "bg-line-green text-white hover:bg-line-green-hover",
+              (saving || loadingSettings) && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            บันทึกการตั้งค่า
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Beta Testing Settings - Full Width */}
+        {(settingsTab === "seo" || settingsTab === "ai") && (
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-line-green-light flex items-center justify-center">
-                <Beaker className="w-5 h-5 text-line-green" />
+                <Settings className="w-5 h-5 text-line-green" />
               </div>
               <div>
                 <h2 className="font-semibold text-gray-900 dark:text-white">การตั้งค่าระบบ (System Settings)</h2>
-                <p className="text-sm text-gray-500">จัดการระบบ Restrict Mode, การขอสิทธิ์ และ SEO</p>
+                <p className="text-sm text-gray-500">
+                  แผนที่/GPS, การแจ้งเตือน, การจัดเก็บ และ SEO
+                </p>
               </div>
             </div>
-            <button
-              onClick={handleSaveBetaSettings}
-              disabled={saving || loadingSettings}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors",
-                "bg-line-green text-white hover:bg-line-green-hover",
-                (saving || loadingSettings) && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              {saving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              บันทึก
-            </button>
           </div>
 
           {loadingSettings ? (
@@ -421,92 +488,8 @@ export default function AdminSettingsPage() {
             </div>
           ) : (
             <div className="p-5 space-y-6">
-              {/* Restrict Mode Toggle */}
-              <div className="flex items-start justify-between gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                    <Lock className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white">Restrict Mode (Testing)</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {betaSettings.restrictModeEnabled
-                        ? "เปิดอยู่ - เฉพาะผู้ที่ได้รับอนุมัติเท่านั้นที่เข้าใช้ได้"
-                        : "ปิดอยู่ - ทุกคนเข้าใช้งานได้"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setBetaSettings({ ...betaSettings, restrictModeEnabled: !betaSettings.restrictModeEnabled })}
-                  className={cn(
-                    "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                    betaSettings.restrictModeEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                      betaSettings.restrictModeEnabled ? "right-1" : "left-1"
-                    )}
-                  />
-                </button>
-              </div>
-
-              {/* Beta Requests Toggle - Only show when Restrict Mode is enabled */}
-              {betaSettings.restrictModeEnabled && (
-                <>
-                  <div className="flex items-start justify-between gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                        <User className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900 dark:text-white">เปิดรับสมัคร Beta Tester</h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {betaSettings.betaRequestsEnabled
-                            ? "เปิดอยู่ - ผู้ใช้สามารถขอสิทธิ์เข้าใช้ได้"
-                            : "ปิดอยู่ - ไม่สามารถขอสิทธิ์ได้ในขณะนี้"}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setBetaSettings({ ...betaSettings, betaRequestsEnabled: !betaSettings.betaRequestsEnabled })}
-                      className={cn(
-                        "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                        betaSettings.betaRequestsEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                          betaSettings.betaRequestsEnabled ? "right-1" : "left-1"
-                        )}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Closed Message - Only show when requests are disabled */}
-                  {!betaSettings.betaRequestsEnabled && (
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                      <div className="flex items-center gap-3 mb-3">
-                        <MessageSquare className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        <h3 className="font-medium text-gray-900 dark:text-white">ข้อความเมื่อปิดรับสมัคร</h3>
-                      </div>
-                      <textarea
-                        value={betaSettings.betaClosedMessage}
-                        onChange={(e) => setBetaSettings({ ...betaSettings, betaClosedMessage: e.target.value })}
-                        placeholder="กรอกข้อความที่จะแสดงเมื่อปิดรับสมัคร..."
-                        rows={3}
-                        className="w-full px-4 py-3 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-line-green text-gray-900 dark:text-white resize-none"
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        ข้อความนี้จะแสดงให้ผู้ใช้เห็นเมื่อไม่สามารถขอสิทธิ์ได้
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
+              {settingsTab === "seo" && (
+              <>
               {/* OG Settings */}
               <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
                 <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
@@ -527,9 +510,9 @@ export default function AdminSettingsPage() {
                     </label>
                     <input
                       type="text"
-                      value={betaSettings.ogTitle || ''}
-                      onChange={(e) => setBetaSettings({ ...betaSettings, ogTitle: e.target.value })}
-                      placeholder="Ex. BD2Fondue | ระบบแจ้งของหาย"
+                      value={settings.ogTitle || ''}
+                      onChange={(e) => setSettings({ ...settings, ogTitle: e.target.value })}
+                      placeholder="Ex. Found-U | ระบบแจ้งของหาย"
                       className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                     />
                   </div>
@@ -540,8 +523,8 @@ export default function AdminSettingsPage() {
                       รายละเอียด (Description)
                     </label>
                     <textarea
-                      value={betaSettings.ogDescription || ''}
-                      onChange={(e) => setBetaSettings({ ...betaSettings, ogDescription: e.target.value })}
+                      value={settings.ogDescription || ''}
+                      onChange={(e) => setSettings({ ...settings, ogDescription: e.target.value })}
                       placeholder="Ex. ระบบแจ้งของหายและของเจอสำหรับโรงเรียน..."
                       rows={2}
                       className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green resize-none"
@@ -555,9 +538,9 @@ export default function AdminSettingsPage() {
                     </label>
                     <div className="flex gap-4 items-start">
                       <div className="relative w-32 h-20 bg-gray-100 dark:bg-gray-600 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-gray-500">
-                        {betaSettings.ogImage ? (
+                        {settings.ogImage ? (
                           <Image
-                            src={betaSettings.ogImage}
+                            src={settings.ogImage}
                             alt="OG Preview"
                             fill
                             className="object-cover"
@@ -599,7 +582,39 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
-              {/* AI Rate Limit Settings */}
+              {/* Map & GPS — managed on dedicated page */}
+              <Link
+                href="/admin/maps"
+                className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600/80 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-[#06C755] transition-colors">
+                      แผนที่และ GPS
+                    </h3>
+                    <span
+                      className={cn(
+                        "text-xs px-2 py-0.5 rounded-full shrink-0",
+                        settings.mapsEnabled
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                          : "bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300"
+                      )}
+                    >
+                      {settings.mapsEnabled ? "เปิดใช้งาน" : "ปิด"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    ตั้งค่าแผนที่ ขอบเขตโรงเรียน และการบังคับ GPS — จัดการที่หน้าแยก
+                  </p>
+                </div>
+              </Link>
+              </>
+              )}
+
+              {settingsTab === "ai" && (
               <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
                 <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
                   <RefreshCw className="w-5 h-5 text-purple-600" />
@@ -613,22 +628,22 @@ export default function AdminSettingsPage() {
                       </p>
                     </div>
                     <button
-                      onClick={() => setBetaSettings({ ...betaSettings, aiRateLimitEnabled: !betaSettings.aiRateLimitEnabled })}
+                      onClick={() => setSettings({ ...settings, aiRateLimitEnabled: !settings.aiRateLimitEnabled })}
                       className={cn(
                         "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                        betaSettings.aiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
+                        settings.aiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
                       )}
                     >
                       <span
                         className={cn(
                           "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                          betaSettings.aiRateLimitEnabled ? "right-1" : "left-1"
+                          settings.aiRateLimitEnabled ? "right-1" : "left-1"
                         )}
                       />
                     </button>
                   </div>
 
-                  {betaSettings.aiRateLimitEnabled && (
+                  {settings.aiRateLimitEnabled && (
                     <>
                       {/* Limit per Minute */}
                       <div>
@@ -640,8 +655,8 @@ export default function AdminSettingsPage() {
                             type="number"
                             min={1}
                             max={100}
-                            value={betaSettings.aiRateLimitPerMinute || 5}
-                            onChange={(e) => setBetaSettings({ ...betaSettings, aiRateLimitPerMinute: parseInt(e.target.value) || 5 })}
+                            value={settings.aiRateLimitPerMinute || 5}
+                            onChange={(e) => setSettings({ ...settings, aiRateLimitPerMinute: parseInt(e.target.value) || 5 })}
                             className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                           />
                           <span className="text-sm text-gray-500">ครั้ง / นาที / ผู้ใช้</span>
@@ -658,8 +673,8 @@ export default function AdminSettingsPage() {
                             type="number"
                             min={1}
                             max={1000}
-                            value={betaSettings.aiRateLimitPerHour || 30}
-                            onChange={(e) => setBetaSettings({ ...betaSettings, aiRateLimitPerHour: parseInt(e.target.value) || 30 })}
+                            value={settings.aiRateLimitPerHour || 30}
+                            onChange={(e) => setSettings({ ...settings, aiRateLimitPerHour: parseInt(e.target.value) || 30 })}
                             className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                           />
                           <span className="text-sm text-gray-500">ครั้ง / ชั่วโมง / ผู้ใช้</span>
@@ -673,8 +688,8 @@ export default function AdminSettingsPage() {
                         </label>
                         <input
                           type="text"
-                          value={betaSettings.aiRateLimitMessage || ''}
-                          onChange={(e) => setBetaSettings({ ...betaSettings, aiRateLimitMessage: e.target.value })}
+                          value={settings.aiRateLimitMessage || ''}
+                          onChange={(e) => setSettings({ ...settings, aiRateLimitMessage: e.target.value })}
                           placeholder="คุณใช้งาน AI บ่อยเกินไป กรุณารอสักครู่"
                           className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                         />
@@ -690,22 +705,22 @@ export default function AdminSettingsPage() {
                             </p>
                           </div>
                           <button
-                            onClick={() => setBetaSettings({ ...betaSettings, systemAiRateLimitEnabled: !betaSettings.systemAiRateLimitEnabled })}
+                            onClick={() => setSettings({ ...settings, systemAiRateLimitEnabled: !settings.systemAiRateLimitEnabled })}
                             className={cn(
                               "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                              betaSettings.systemAiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
+                              settings.systemAiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
                             )}
                           >
                             <span
                               className={cn(
                                 "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                                betaSettings.systemAiRateLimitEnabled ? "right-1" : "left-1"
+                                settings.systemAiRateLimitEnabled ? "right-1" : "left-1"
                               )}
                             />
                           </button>
                         </div>
 
-                        {betaSettings.systemAiRateLimitEnabled && (
+                        {settings.systemAiRateLimitEnabled && (
                           <div className="space-y-3 pl-4 border-l-2 border-purple-200 dark:border-purple-800">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -716,8 +731,8 @@ export default function AdminSettingsPage() {
                                   type="number"
                                   min={1}
                                   max={1000}
-                                  value={betaSettings.systemAiRateLimitPerMinute || 20}
-                                  onChange={(e) => setBetaSettings({ ...betaSettings, systemAiRateLimitPerMinute: parseInt(e.target.value) || 20 })}
+                                  value={settings.systemAiRateLimitPerMinute || 20}
+                                  onChange={(e) => setSettings({ ...settings, systemAiRateLimitPerMinute: parseInt(e.target.value) || 20 })}
                                   className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                                 />
                                 <span className="text-sm text-gray-500">ครั้ง / นาที (ทุก user รวมกัน)</span>
@@ -733,8 +748,8 @@ export default function AdminSettingsPage() {
                                   type="number"
                                   min={1}
                                   max={10000}
-                                  value={betaSettings.systemAiRateLimitPerHour || 100}
-                                  onChange={(e) => setBetaSettings({ ...betaSettings, systemAiRateLimitPerHour: parseInt(e.target.value) || 100 })}
+                                  value={settings.systemAiRateLimitPerHour || 100}
+                                  onChange={(e) => setSettings({ ...settings, systemAiRateLimitPerHour: parseInt(e.target.value) || 100 })}
                                   className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
                                 />
                                 <span className="text-sm text-gray-500">ครั้ง / ชั่วโมง (ทุก user รวมกัน)</span>
@@ -747,45 +762,14 @@ export default function AdminSettingsPage() {
                   )}
                 </div>
               </div>
+              )}
 
-              {/* Status Indicator */}
-              <div className={cn(
-                "p-4 rounded-xl flex items-center gap-3",
-                betaSettings.restrictModeEnabled
-                  ? "bg-amber-50 dark:bg-amber-900/20"
-                  : "bg-green-50 dark:bg-green-900/20"
-              )}>
-                {betaSettings.restrictModeEnabled ? (
-                  <>
-                    <Lock className="w-5 h-5 text-amber-600" />
-                    <div>
-                      <p className="font-medium text-amber-700 dark:text-amber-400">
-                        ระบบอยู่ในโหมด Restrict (Testing)
-                      </p>
-                      <p className="text-sm text-amber-600 dark:text-amber-500">
-                        เฉพาะ Admin และผู้ที่ได้รับอนุมัติเท่านั้นที่เข้าถึงได้
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <div>
-                      <p className="font-medium text-green-700 dark:text-green-400">
-                        ระบบเปิดให้ใช้งานทั่วไป
-                      </p>
-                      <p className="text-sm text-green-600 dark:text-green-500">
-                        ทุกคนสามารถเข้าใช้งานได้โดยไม่ต้องขอสิทธิ์
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
           )}
         </div>
+        )}
 
-        {/* Admin Users */}
+        {settingsTab === "seo" && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
@@ -839,8 +823,10 @@ export default function AdminSettingsPage() {
             </p>
           </div>
         </div>
+        )}
 
-        {/* Notification Settings */}
+        {settingsTab === "notifications" && (
+        <>
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
@@ -856,7 +842,10 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">แจ้งเมื่อมีรายการใหม่</span>
               <button
                 onClick={() =>
-                  setSettings({ ...settings, notifyOnNewReport: !settings.notifyOnNewReport })
+                  setSettings({
+                    ...settings,
+                    notifyOnNewReport: !settings.notifyOnNewReport,
+                  })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
@@ -876,7 +865,10 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">แจ้งเมื่อสถานะเปลี่ยน</span>
               <button
                 onClick={() =>
-                  setSettings({ ...settings, notifyOnStatusChange: !settings.notifyOnStatusChange })
+                  setSettings({
+                    ...settings,
+                    notifyOnStatusChange: !settings.notifyOnStatusChange,
+                  })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
@@ -896,7 +888,10 @@ export default function AdminSettingsPage() {
               <span className="text-gray-700 dark:text-gray-300">ต้องอนุมัติก่อนแสดง</span>
               <button
                 onClick={() =>
-                  setSettings({ ...settings, requireApproval: !settings.requireApproval })
+                  setSettings({
+                    ...settings,
+                    requireApproval: !settings.requireApproval,
+                  })
                 }
                 className={cn(
                   "w-12 h-7 rounded-full transition-colors relative",
@@ -914,8 +909,125 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
-        {/* Storage Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">กำหนดเวลาส่งห้องบุคคล (ของเจอ)</h2>
+            <p className="text-sm text-gray-500">
+              หลังแจ้งเจอของ ผู้พบต้องนำของไปห้องบุคคลภายในเวลาที่กำหนด มิฉะนั้นคำขอจะหมดอายุ
+            </p>
+          </div>
+          <div className="p-5 space-y-4">
+            <label className="flex items-center justify-between">
+              <span className="text-gray-700 dark:text-gray-300">เปิดใช้กำหนดเวลาส่งห้องบุคคล</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setSettings({
+                    ...settings,
+                    foundHandoverDeadlineEnabled: !settings.foundHandoverDeadlineEnabled,
+                  })
+                }
+                className={cn(
+                  "w-12 h-7 rounded-full transition-colors relative",
+                  settings.foundHandoverDeadlineEnabled !== false
+                    ? "bg-[#06C755]"
+                    : "bg-gray-300 dark:bg-gray-600"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                    settings.foundHandoverDeadlineEnabled !== false ? "right-1" : "left-1"
+                  )}
+                />
+              </button>
+            </label>
+
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+                ระยะเวลา (นาที) หลังแจ้งเจอที่ต้องนำของถึงห้องบุคคล
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                disabled={settings.foundHandoverDeadlineEnabled === false}
+                value={settings.foundHandoverDeadlineMinutes ?? 60}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    foundHandoverDeadlineMinutes: Math.min(
+                      1440,
+                      Math.max(1, parseInt(e.target.value, 10) || 60)
+                    ),
+                  })
+                }
+                className={cn(
+                  "w-full max-w-xs px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white",
+                  settings.foundHandoverDeadlineEnabled === false && "opacity-50"
+                )}
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                ค่าเริ่มต้น 60 นาที (1 ชั่วโมง) — สูงสุด 1,440 นาที (24 ชั่วโมง)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">NFC Tag</h2>
+            <p className="text-sm text-gray-500">เปิด/ปิดระบบลงทะเบียนและแจ้งพบผ่าน NFC</p>
+          </div>
+          <div className="p-5 space-y-4">
+            <label className="flex items-center justify-between">
+              <span className="text-gray-700 dark:text-gray-300">เปิดใช้งาน NFC Tag</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setSettings({
+                    ...settings,
+                    nfcEnabled: !(settings.nfcEnabled ?? true),
+                  })
+                }
+                className={cn(
+                  "w-12 h-7 rounded-full transition-colors relative",
+                  (settings.nfcEnabled ?? true) ? "bg-[#06C755]" : "bg-gray-300 dark:bg-gray-600"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                    (settings.nfcEnabled ?? true) ? "right-1" : "left-1"
+                  )}
+                />
+              </button>
+            </label>
+            <div>
+              <label className="text-sm text-gray-700 dark:text-gray-300 mb-2 block">
+                Public Base URL (สำหรับ QR/NFC)
+              </label>
+              <input
+                type="url"
+                value={settings.nfcPublicBaseUrl || ""}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    nfcPublicBaseUrl: e.target.value.trim() || undefined,
+                  })
+                }
+                placeholder="https://your-domain.com"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 mt-1">ว่างไว้เพื่อใช้ origin ของเว็บปัจจุบัน</p>
+            </div>
+          </div>
+        </div>
+        </>
+        )}
+
+        {settingsTab === "storage" && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden lg:col-span-2">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
               <Database className="w-5 h-5 text-orange-500" />
@@ -932,9 +1044,12 @@ export default function AdminSettingsPage() {
               </label>
               <input
                 type="number"
-                value={settings.autoDeleteDays}
+                value={settings.autoDeleteDays ?? 0}
                 onChange={(e) =>
-                  setSettings({ ...settings, autoDeleteDays: parseInt(e.target.value) || 0 })
+                  setSettings({
+                    ...settings,
+                    autoDeleteDays: parseInt(e.target.value, 10) || 0,
+                  })
                 }
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white"
               />
@@ -947,9 +1062,12 @@ export default function AdminSettingsPage() {
               </label>
               <input
                 type="number"
-                value={settings.maxImageSize}
+                value={settings.maxImageSize ?? 5}
                 onChange={(e) =>
-                  setSettings({ ...settings, maxImageSize: parseInt(e.target.value) || 1 })
+                  setSettings({
+                    ...settings,
+                    maxImageSize: Math.max(1, parseInt(e.target.value, 10) || 1),
+                  })
                 }
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white"
               />
@@ -957,25 +1075,29 @@ export default function AdminSettingsPage() {
 
             <div>
               <label className="text-sm text-gray-700 dark:text-gray-300 mb-2 block">
-                คุณภาพการบีบอัด ({Math.round(settings.compressionQuality * 100)}%)
+                คุณภาพการบีบอัด ({Math.round((settings.compressionQuality ?? 0.8) * 100)}%)
               </label>
               <input
                 type="range"
                 min="0.1"
                 max="1"
                 step="0.1"
-                value={settings.compressionQuality}
+                value={settings.compressionQuality ?? 0.8}
                 onChange={(e) =>
-                  setSettings({ ...settings, compressionQuality: parseFloat(e.target.value) })
+                  setSettings({
+                    ...settings,
+                    compressionQuality: parseFloat(e.target.value),
+                  })
                 }
                 className="w-full accent-[#06C755]"
               />
             </div>
           </div>
         </div>
+        )}
 
-        {/* Data Management */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+        {settingsTab === "data" && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden lg:col-span-2">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <Trash2 className="w-5 h-5 text-red-500" />
@@ -1033,39 +1155,30 @@ export default function AdminSettingsPage() {
             </button>
           </div>
         </div>
+        )}
       </div>
 
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-6 py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors"
-        >
-          {saving ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <Save className="w-5 h-5" />
-          )}
-          บันทึกการตั้งค่า
-        </button>
+      <div className="rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 p-4 text-sm text-blue-800 dark:text-blue-300">
+        การตั้งค่าทั้งหมดบันทึกลง Supabase ที่{" "}
+        <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">settings/appSettings</code>
+        — กดปุ่ม <strong>บันทึกการตั้งค่า</strong> ด้านบน
       </div>
 
-      {/* Firebase Rules Info */}
+      {/* Supabase Policy Info */}
       <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4">
         <div className="flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-yellow-700 dark:text-yellow-400">
-              อย่าลืมตั้งค่า Firebase Rules!
+              อย่าลืมตรวจสอบ Supabase RLS Policies!
             </p>
             <p className="text-sm text-yellow-600 dark:text-yellow-500 mt-1">
-              ดูไฟล์ <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">docs/firestore-rules.txt</code> และ{" "}
-              <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">docs/storage-rules.txt</code> แล้วก็อปไปวางใน Firebase Console
+              ยืนยันว่า role ที่เป็น admin มีสิทธิ์อ่าน/เขียนตารางที่เกี่ยวข้องใน Supabase
             </p>
           </div>
         </div>
       </div>
+      {dialog}
     </div>
   );
 }

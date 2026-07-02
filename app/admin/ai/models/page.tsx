@@ -16,7 +16,7 @@ import {
   Search,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
-import { getAppSettings, updateAppSettings } from "@/lib/firestore";
+import { getAppSettings, updateAppSettings } from "@/lib/database";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 
 interface ModelInfo {
@@ -119,6 +119,13 @@ export default function AdminAIModelsPage() {
     );
   }, [generateContentModels, settings.aiMatchingModel]);
 
+  const visionModelValid = useMemo(() => {
+    if (!settings.aiVisionModel) return false;
+    return generateContentModels.some(
+      (model) => normalizeModelName(model.name) === normalizeModelName(settings.aiVisionModel || "")
+    );
+  }, [generateContentModels, settings.aiVisionModel]);
+
   const handleSave = async () => {
     if (!user?.uid) return;
 
@@ -134,6 +141,10 @@ export default function AdminAIModelsPage() {
           aiMatchingTemperature: settings.aiMatchingTemperature,
           aiMatchingTopP: settings.aiMatchingTopP,
           aiMatchingMaxOutputTokens: settings.aiMatchingMaxOutputTokens,
+          aiVisionModel: settings.aiVisionModel,
+          aiVisionTemperature: settings.aiVisionTemperature,
+          aiVisionTopP: settings.aiVisionTopP,
+          aiVisionMaxOutputTokens: settings.aiVisionMaxOutputTokens,
         },
         user.uid
       );
@@ -367,6 +378,90 @@ export default function AdminAIModelsPage() {
                 </div>
               </div>
             </div>
+
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Vision (รูปภาพ)</h3>
+                {!visionModelValid && settings.aiVisionModel && (
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    ไม่อยู่ในรายการ generateContent
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Model name
+                  </label>
+                  <input
+                    list="ai-models"
+                    value={settings.aiVisionModel || ""}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, aiVisionModel: e.target.value }))
+                    }
+                    placeholder="gemini-1.5-flash"
+                    className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    แนะนำโมเดลที่รองรับภาพ เช่น gemini-1.5-flash
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Temperature</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      value={settings.aiVisionTemperature ?? ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          aiVisionTemperature: parseNumber(e.target.value),
+                        }))
+                      }
+                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Top P</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      value={settings.aiVisionTopP ?? ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          aiVisionTopP: parseNumber(e.target.value),
+                        }))
+                      }
+                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Max Tokens</label>
+                    <input
+                      type="number"
+                      min={64}
+                      step={32}
+                      value={settings.aiVisionMaxOutputTokens ?? ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          aiVisionMaxOutputTokens: parseNumber(e.target.value),
+                        }))
+                      }
+                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -460,6 +555,14 @@ export default function AdminAIModelsPage() {
                       className="px-3 py-2 rounded-xl text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
                     >
                       ใช้กับ Matching
+                    </button>
+                    <button
+                      onClick={() =>
+                        setSettings((prev) => ({ ...prev, aiVisionModel: model.name }))
+                      }
+                      className="px-3 py-2 rounded-xl text-sm bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
+                    >
+                      ใช้กับ Vision
                     </button>
                   </div>
                 </div>

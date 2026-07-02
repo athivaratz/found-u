@@ -1,21 +1,28 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Package, Settings, LogOut, Sun, Moon, Loader2, LogIn } from "lucide-react";
+import { useMounted } from "@/hooks/use-mounted";
+import { Settings, Shield, LogOut, Sun, Moon, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { menuItems } from "@/lib/menu";
+import { getUserPublicEmail, getUserShownName } from "@/lib/user-display";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
+import { AUTH_ROUTES } from "@/lib/auth-routes";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, loading: authLoading, isAdmin, signIn, logout } = useAuth();
+  const { user, appUser, loading: authLoading, isAdmin, logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
+  const themeMounted = useMounted();
+  const isDarkTheme = themeMounted && resolvedTheme === "dark";
 
   const handleSignIn = async () => {
     try {
-      await signIn();
+      window.location.assign(AUTH_ROUTES.hub);
     } catch (error) {
       console.error("Error signing in:", error);
     }
@@ -29,36 +36,52 @@ export default function Sidebar() {
     }
   };
 
+  const publicEmail = user ? getUserPublicEmail(appUser, user) : null;
+
   return (
     <aside className="w-72 bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen overflow-y-auto hidden md:flex flex-col z-50">
       {/* Sidebar Header */}
       <div className="p-6 border-b border-border-light">
-        <Link href="/" className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-full bg-line-green/20 flex items-center justify-center">
-            <Package className="w-6 h-6 text-line-green" />
-          </div>
+        <Link href="/home" className="flex items-center gap-3 mb-6">
+          <Image
+            src="/logo.png"
+            alt="Found-U"
+            width={48}
+            height={48}
+            className="h-12 w-12 object-contain"
+          />
           <div>
-            <h1 className="text-lg font-bold text-text-primary">BD2Fondue</h1>
+            <h1 className="text-lg font-bold text-text-primary">Found-U</h1>
             <p className="text-xs text-text-secondary">Lost & Found</p>
           </div>
         </Link>
 
         {/* User Section */}
-        <div className="bg-bg-secondary rounded-xl p-3">
+        <div className="bg-bg-secondary rounded-xl p-3 min-h-[3.75rem]">
           {authLoading ? (
-            <Loader2 className="w-5 h-5 text-line-green animate-spin mx-auto" />
+            <div className="flex items-center gap-3" aria-hidden>
+              <div className="h-10 w-10 rounded-full bg-bg-tertiary animate-pulse shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 w-28 rounded bg-bg-tertiary animate-pulse" />
+                <div className="h-3 w-36 rounded bg-bg-tertiary animate-pulse" />
+              </div>
+            </div>
           ) : user ? (
             <div className="flex items-center gap-3">
-              <img
-                src={user.photoURL || ""}
-                alt=""
-                className="w-10 h-10 rounded-full object-cover"
-              />
+              <UserAvatar user={user} appUser={appUser} />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-text-primary text-sm truncate">
-                  {user.displayName}
+                  {getUserShownName(appUser, user)}
                 </p>
-                <p className="text-xs text-text-secondary truncate">{user.email}</p>
+                {publicEmail ? (
+                  <p className="text-xs text-text-secondary truncate">
+                    {publicEmail}
+                  </p>
+                ) : (
+                  <p className="text-xs text-text-tertiary truncate">
+                    ยังไม่มีอีเมล
+                  </p>
+                )}
               </div>
             </div>
           ) : (
@@ -118,27 +141,43 @@ export default function Sidebar() {
 
       {/* Footer Actions */}
       <div className="p-4 border-t border-border-light space-y-2">
+        {user && (
+          <Link href="/settings">
+            <div className="px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
+              <Settings className="w-4 h-4" />
+              ตั้งค่า
+            </div>
+          </Link>
+        )}
         {isAdmin && (
           <Link href="/admin">
             <div className="px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
-              <Settings className="w-4 h-4" />
+              <Shield className="w-4 h-4" />
               Admin Panel
             </div>
           </Link>
         )}
         <button
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
           className="w-full px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors"
+          aria-label="สลับโหมดสว่าง/มืด"
         >
-          {resolvedTheme === "dark" ? (
-            <>
-              <Sun className="w-4 h-4" />
-              Light Mode
-            </>
+          {themeMounted ? (
+            isDarkTheme ? (
+              <>
+                <Sun className="w-4 h-4" />
+                Light Mode
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4" />
+                Dark Mode
+              </>
+            )
           ) : (
             <>
-              <Moon className="w-4 h-4" />
-              Dark Mode
+              <span className="w-4 h-4 shrink-0" aria-hidden />
+              โหมดสี
             </>
           )}
         </button>

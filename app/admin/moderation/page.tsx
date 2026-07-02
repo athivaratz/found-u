@@ -31,10 +31,20 @@ import {
   timestampToDate,
   getCategories,
   getLocations,
-} from "@/lib/firestore";
-import { STATUS_CONFIG, type LostItem, type FoundItem, type ItemStatus } from "@/lib/types";
-import type { CategoryConfig, LocationConfig } from "@/lib/firestore";
+} from "@/lib/database";
+import {
+  STATUS_CONFIG,
+  getItemDisplayName,
+  isFoundItem,
+  isLostItem,
+  type LostItem,
+  type FoundItem,
+  type ItemStatus,
+} from "@/lib/types";
+import type { CategoryConfig, LocationConfig } from "@/lib/database";
 import { cn, formatThaiDate } from "@/lib/utils";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 
 export default function AdminModerationPage() {
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
@@ -46,6 +56,7 @@ export default function AdminModerationPage() {
   const [processing, setProcessing] = useState(false);
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [locations, setLocations] = useState<LocationConfig[]>([]);
+  const { showAlert, showConfirm, dialog } = useAppDialog();
 
   useEffect(() => {
     // Load categories and locations from Firestore
@@ -84,7 +95,11 @@ export default function AdminModerationPage() {
   // Filter items
   const filteredItems = allItems.filter((item) => {
     if (filter === "pending") {
-      return item.status === "searching" || item.status === "found";
+      return (
+        item.status === "searching" ||
+        item.status === "found" ||
+        item.status === "pending_room_confirm"
+      );
     }
     if (filter === "flagged") {
       // Items that might need attention (e.g., old items still searching)
@@ -101,7 +116,12 @@ export default function AdminModerationPage() {
   // Stats
   const stats = {
     total: allItems.length,
-    pending: allItems.filter((i) => i.status === "searching" || i.status === "found").length,
+    pending: allItems.filter(
+      (i) =>
+        i.status === "searching" ||
+        i.status === "found" ||
+        i.status === "pending_room_confirm"
+    ).length,
     flagged: allItems.filter((item) => {
       if (item.createdAt) {
         const createdDate = timestampToDate(item.createdAt as any);
@@ -117,14 +137,18 @@ export default function AdminModerationPage() {
   const handleApprove = async (item: LostItem | FoundItem) => {
     setProcessing(true);
     try {
-      if ("itemName" in item) {
+      if (isLostItem(item)) {
         await updateLostItem(item.id, { status: "found" });
       } else {
         await updateFoundItem(item.id, { status: "found" });
       }
     } catch (error) {
       console.error("Error approving item:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "ดำเนินการไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setProcessing(false);
   };
@@ -133,7 +157,7 @@ export default function AdminModerationPage() {
   const handleMarkClaimed = async (item: LostItem | FoundItem) => {
     setProcessing(true);
     try {
-      if ("itemName" in item) {
+      if (isLostItem(item)) {
         await updateLostItem(item.id, { status: "claimed" });
       } else {
         await updateFoundItem(item.id, { status: "claimed" });
@@ -141,18 +165,28 @@ export default function AdminModerationPage() {
       setShowDetailModal(false);
     } catch (error) {
       console.error("Error marking as claimed:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "ดำเนินการไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setProcessing(false);
   };
 
   // Delete item
   const handleDelete = async (item: LostItem | FoundItem) => {
-    if (!confirm("ต้องการลบรายการนี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้")) return;
+    const confirmed = await showConfirm({
+      title: "ลบรายการ",
+      message: "ต้องการลบรายการนี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้",
+      variant: "warning",
+      confirmLabel: "ลบ",
+    });
+    if (!confirmed) return;
 
     setProcessing(true);
     try {
-      if ("itemName" in item) {
+      if (isLostItem(item)) {
         await deleteLostItem(item.id);
       } else {
         await deleteFoundItem(item.id);
@@ -160,7 +194,11 @@ export default function AdminModerationPage() {
       setShowDetailModal(false);
     } catch (error) {
       console.error("Error deleting item:", error);
-      alert("เกิดข้อผิดพลาด");
+      void showAlert({
+        title: "ลบไม่สำเร็จ",
+        message: "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
     }
     setProcessing(false);
   };
@@ -258,7 +296,7 @@ export default function AdminModerationPage() {
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
             {filteredItems.map((item) => {
-              const isLost = "itemName" in item;
+              const isLost = isLostItem(item);
               const isOld = (() => {
                 if (item.createdAt) {
                   const createdDate = timestampToDate(item.createdAt as any);
@@ -384,27 +422,53 @@ export default function AdminModerationPage() {
         )}
       </div>
 
-      {/* Detail Modal */}
-      {showDetailModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  ตรวจสอบรายการ
-                </h3>
+      <ResponsiveModal
+        open={showDetailModal && !!selectedItem}
+        onClose={() => setShowDetailModal(false)}
+        title="ตรวจสอบรายการ"
+        size="lg"
+        footer={
+          selectedItem ? (
+            <div className="space-y-3 w-full">
+              {selectedItem.status !== "claimed" && (
                 <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                  type="button"
+                  onClick={() => handleMarkClaimed(selectedItem)}
+                  disabled={processing}
+                  className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors flex items-center justify-center gap-2"
                 >
-                  <XCircle className="w-5 h-5" />
+                  {processing ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      ยืนยันรับคืนแล้ว
+                    </>
+                  )}
                 </button>
-              </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDelete(selectedItem)}
+                disabled={processing}
+                className="w-full py-3 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2"
+              >
+                <XCircle className="w-5 h-5" />
+                ลบรายการนี้
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDetailModal(false)}
+                className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                ปิด
+              </button>
             </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4">
+          ) : null
+        }
+      >
+        {selectedItem && (
+            <div className="space-y-4">
               {/* Image */}
               {"photoUrl" in selectedItem && selectedItem.photoUrl && (
                 <div className="relative w-full h-48 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700">
@@ -425,7 +489,7 @@ export default function AdminModerationPage() {
               </div>
 
               {/* Details */}
-              {"itemName" in selectedItem && (
+              {isLostItem(selectedItem) && (
                 <>
                   <div>
                     <label className="text-sm text-gray-500">สิ่งของ</label>
@@ -457,7 +521,7 @@ export default function AdminModerationPage() {
                 </>
               )}
 
-              {"description" in selectedItem && !("itemName" in selectedItem) && (
+              {isFoundItem(selectedItem) && (
                 <>
                   <div>
                     <label className="text-sm text-gray-500">รายละเอียด</label>
@@ -490,43 +554,9 @@ export default function AdminModerationPage() {
                 </span>
               </div>
             </div>
-
-            {/* Actions */}
-            <div className="p-6 border-t border-gray-100 dark:border-gray-700 space-y-3">
-              {selectedItem.status !== "claimed" && (
-                <button
-                  onClick={() => handleMarkClaimed(selectedItem)}
-                  disabled={processing}
-                  className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors flex items-center justify-center gap-2"
-                >
-                  {processing ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      <CheckCircle className="w-5 h-5" />
-                      ยืนยันรับคืนแล้ว
-                    </>
-                  )}
-                </button>
-              )}
-              <button
-                onClick={() => handleDelete(selectedItem)}
-                disabled={processing}
-                className="w-full py-3 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2"
-              >
-                <XCircle className="w-5 h-5" />
-                ลบรายการนี้
-              </button>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                ปิด
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </ResponsiveModal>
+      {dialog}
     </div>
   );
 }

@@ -1,29 +1,42 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { type User } from 'firebase/auth';
-import { onAuthChange, signInWithGoogle, signOut } from '@/lib/auth';
-import { createOrUpdateUser, subscribeToUser, subscribeToAppSettings, isUserBanned, getTimeoutRemaining } from '@/lib/firestore';
-import type { AppUser, BetaStatus, BanStatus, AppSettings } from '@/lib/types';
-import { DEFAULT_APP_SETTINGS } from '@/lib/types';
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  auth,
+  type User,
+  onAuthChange,
+  reloadCurrentUser,
+  signOut,
+} from "@/lib/auth";
+import { getTimeoutRemaining, isUserBanned } from "@/lib/database";
+import { getAuthSessionStatus, postStudentLogin } from "@/lib/student-auth-api";
+import type { AppSettings, AppUser, BanStatus } from "@/lib/types";
+import { DEFAULT_APP_SETTINGS } from "@/lib/types";
+import { deferAfterFirstPaint } from "@/lib/bfcache";
 
 interface AuthContextType {
   user: User | null;
   appUser: AppUser | null;
   appSettings: AppSettings;
+  appSettingsReady: boolean;
   loading: boolean;
+  sessionReady: boolean;
   isAuthActionLoading: boolean;
   isAdmin: boolean;
-  isBetaApproved: boolean;
-  betaStatus: BetaStatus;
+  isStudentVerified: boolean;
   hasSeenTutorial: boolean;
-  // Ban/Timeout
+  mustChangePassword: boolean;
+  mustSetupPin: boolean;
+  hasPin: boolean;
   isBanned: boolean;
   banStatus: BanStatus;
   banReason: string | undefined;
-  timeoutRemaining: number; // minutes remaining
-  signIn: () => Promise<void>;
+  timeoutRemaining: number;
+  signInWithStudentId: (studentId: string, password: string) => Promise<{ mustChangePassword: boolean; mustSetupPin: boolean }>;
+  signInWithCustomToken: (_customToken: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshSession: () => Promise<void>;
+  refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,105 +45,201 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [appSettingsReady, setAppSettingsReady] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
+  const [sessionFlags, setSessionFlags] = useState({
+    mustSetupPin: false,
+    hasPin: false,
+    isAdmin: false,
+    isStudentVerified: false,
+  });
+
+  const applySessionStatus = (status: {
+    mustSetupPin?: boolean;
+    hasPin?: boolean;
+    isAdmin?: boolean;
+    isStudentVerified?: boolean;
+    profile?: AppUser | null;
+  }) => {
+    const hasPin = Boolean(status.hasPin);
+    setSessionFlags({
+      hasPin,
+      mustSetupPin: Boolean(status.mustSetupPin) && !hasPin,
+      isAdmin: Boolean(status.isAdmin),
+      isStudentVerified: Boolean(status.isStudentVerified),
+    });
+    if (status.profile) {
+      setAppUser(status.profile);
+    }
+  };
+
+  const refreshUserProfile = async () => {
+    const uid = auth.currentUser?.id ?? user?.id;
+    if (!uid) return;
+    const { getUser } = await import("@/lib/database");
+    const latest = await getUser(uid);
+    if (latest) setAppUser(latest);
+  };
+
+  const refreshSession = async () => {
+    const current = auth.currentUser ?? user;
+    if (!current) return;
+    setSessionReady(false);
+    await reloadCurrentUser();
+    await refreshUserProfile();
+    try {
+      const status = await getAuthSessionStatus();
+      applySessionStatus(status);
+    } catch {
+      setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
+    } finally {
+      setSessionReady(true);
+    }
+  };
 
   useEffect(() => {
-    console.log('Auth Provider mounted, subscribing to auth changes...');
-    const unsubscribe = onAuthChange(async (firebaseUser) => {
-      console.log('Auth state changed:', firebaseUser ? `User ${firebaseUser.email}` : 'No user');
-      setUser(firebaseUser);
-      
-      if (firebaseUser) {
-        // สร้างหรืออัปเดต user ใน Firestore
-        try {
-          console.log('Creating/Updating user in Firestore...');
-          await createOrUpdateUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            displayName: firebaseUser.displayName || '',
-            photoURL: firebaseUser.photoURL || undefined,
-          });
-          console.log('User synced with Firestore');
-        } catch (error) {
-          console.error('Error creating/updating user:', error);
-        }
-      } else {
+    let cancelled = false;
+
+    const syncSessionForUser = async (sessionUser: User | null) => {
+      if (cancelled) return;
+      setUser(sessionUser);
+
+      if (!sessionUser) {
         setAppUser(null);
+        setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
+        setSessionReady(true);
+        setLoading(false);
+        return;
       }
-      
-      setLoading(false);
+
+      setSessionReady(false);
+      try {
+        const status = await getAuthSessionStatus();
+        if (!cancelled) applySessionStatus(status);
+      } catch (error) {
+        console.error("Session sync error:", error);
+        if (!cancelled) setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
+      } finally {
+        if (!cancelled) {
+          setSessionReady(true);
+          setLoading(false);
+        }
+      }
+    };
+
+    const unsubscribe = onAuthChange((sessionUser) => {
+      void syncSessionForUser(sessionUser);
     });
 
-    return () => unsubscribe();
+    void reloadCurrentUser({ network: false }).then((existing) => {
+      if (cancelled || existing) return;
+      void syncSessionForUser(null);
+    });
+
+    deferAfterFirstPaint(() => {
+      void auth.refreshNetwork();
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
-  // Subscribe to user document changes
   useEffect(() => {
-    if (!user?.uid) {
+    if (!user?.id) {
       setAppUser(null);
       return;
     }
 
-    const unsubscribe = subscribeToUser(user.uid, (userData) => {
-      setAppUser(userData);
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    void import("@/lib/database").then(({ subscribeToUser }) => {
+      if (cancelled) return;
+      unsubscribe = subscribeToUser(
+        user.id,
+        (userData) => setAppUser(userData),
+        (error) => console.error("User listener error:", error)
+      );
     });
 
-    return () => unsubscribe();
-  }, [user?.uid]);
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [user?.id]);
 
-  // Subscribe to app settings changes
   useEffect(() => {
-    const unsubscribe = subscribeToAppSettings((settings) => {
-      setAppSettings(settings);
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    void import("@/lib/database").then(({ subscribeToAppSettings }) => {
+      if (cancelled) return;
+      unsubscribe = subscribeToAppSettings((settings) => {
+        setAppSettings(settings);
+        setAppSettingsReady(true);
+      });
     });
 
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
-  const signIn = async () => {
+  const signInWithStudentId = async (studentId: string, password: string) => {
     setIsAuthActionLoading(true);
     try {
-      const { error } = await signInWithGoogle();
-      // Handle specific error cases
-      if (error) {
-        // Don't throw for user-cancelled operations
-        const authError = error as any;
-        if (authError.message === 'Sign-in already in progress' ||
-            authError.code === 'auth/popup-closed-by-user') {
-          return;
-        }
-        throw error;
+      const result = await postStudentLogin(studentId, password);
+      try {
+        const status = await getAuthSessionStatus();
+        applySessionStatus(status);
+      } catch {
+        applySessionStatus({ mustSetupPin: result.mustSetupPin, hasPin: !result.mustSetupPin });
       }
-    } catch (error) {
-      console.error('Sign-in error:', error);
-      throw error;
+      setSessionReady(true);
+      return {
+        mustChangePassword: result.mustChangePassword,
+        mustSetupPin: Boolean(result.mustSetupPin),
+      };
     } finally {
       setIsAuthActionLoading(false);
     }
+  };
+
+  const signInWithCustomTokenHandler = async (_customToken: string) => {
+    void _customToken;
+    throw new Error("Custom token auth was removed. Use Supabase session tokens.");
   };
 
   const logout = async () => {
     setIsAuthActionLoading(true);
     try {
       const { error } = await signOut();
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
     } finally {
       setIsAuthActionLoading(false);
     }
   };
 
-  // คำนวณ isBetaApproved โดยพิจารณา restrictModeEnabled
-  const isBetaApproved = 
-    appUser?.role === 'admin' || // Admin เข้าได้เสมอ
-    !appSettings.restrictModeEnabled || // ถ้าปิด restrict mode ทุกคนเข้าได้
-    appUser?.betaStatus === 'approved'; // ถ้าเปิด restrict mode ต้อง approved
-
-  // คำนวณ ban status
+  const isAdmin = appUser?.role === "admin" || sessionFlags.isAdmin;
+  const isStudentVerified =
+    isAdmin ||
+    appUser?.isStudentVerified === true ||
+    !!appUser?.studentId ||
+    sessionFlags.isStudentVerified;
   const isBanned = appUser ? isUserBanned(appUser) : false;
   const timeoutRemaining = appUser ? getTimeoutRemaining(appUser) : 0;
+  const mustChangePassword = appUser?.mustChangePassword === true;
+  const mustSetupPin =
+    sessionReady &&
+    !mustChangePassword &&
+    !isAdmin &&
+    sessionFlags.mustSetupPin;
+  const authLoading = loading || (!!user && !sessionReady);
 
   return (
     <AuthContext.Provider
@@ -138,19 +247,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         appUser,
         appSettings,
-        loading,
+        appSettingsReady,
+        loading: authLoading,
+        sessionReady,
         isAuthActionLoading,
-        isAdmin: appUser?.role === 'admin',
-        isBetaApproved,
-        betaStatus: appUser?.betaStatus || 'none',
+        isAdmin,
+        isStudentVerified,
         hasSeenTutorial: appUser?.hasSeenTutorial || false,
-        // Ban/Timeout
+        mustChangePassword,
+        mustSetupPin,
+        hasPin: sessionFlags.hasPin,
         isBanned,
-        banStatus: appUser?.banStatus || 'none',
+        banStatus: appUser?.banStatus || "none",
         banReason: appUser?.banReason,
         timeoutRemaining,
-        signIn,
+        signInWithStudentId,
+        signInWithCustomToken: signInWithCustomTokenHandler,
         logout,
+        refreshSession,
+        refreshUserProfile,
       }}
     >
       {children}
@@ -161,7 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

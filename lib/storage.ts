@@ -1,20 +1,14 @@
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage';
-import { storage } from './firebase';
 import imageCompression from 'browser-image-compression';
 
 // ========================================
-// Image Compression (Zero Vercel Cost)
+// Image Compression
 // ========================================
 
 export interface CompressionOptions {
   maxSizeMB?: number;        // ขนาดไฟล์สูงสุด (default: 0.5MB)
   maxWidthOrHeight?: number; // ขนาดกว้าง/สูงสูงสุด (default: 1024px)
   useWebWorker?: boolean;    // ใช้ Web Worker (default: true)
+  initialQuality?: number;   // คุณภาพ JPEG หลังบีบอัด (0–1)
 }
 
 /**
@@ -27,11 +21,11 @@ export async function compressImage(
   options?: CompressionOptions
 ): Promise<File> {
   const defaultOptions = {
-    maxSizeMB: 0.5,          // 500KB
-    maxWidthOrHeight: 1024,  // 1024px
+    maxSizeMB: 0.5,
+    maxWidthOrHeight: 1024,
     useWebWorker: true,
-    fileType: 'image/jpeg',
-    initialQuality: 0.8,
+    fileType: "image/jpeg" as const,
+    initialQuality: options?.initialQuality ?? 0.8,
   };
 
   try {
@@ -55,29 +49,37 @@ export async function compressImage(
 // ========================================
 
 /**
- * อัปโหลดรูปไป Firebase Storage
+ * อัปโหลดรูป
  */
 export async function uploadImage(file: File, path: string): Promise<string> {
-  const storageRef = ref(storage, path);
-  
-  const snapshot = await uploadBytes(storageRef, file, {
-    contentType: file.type,
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('path', path);
+
+  const response = await fetch('/api/storage/upload', {
+    method: 'POST',
+    body: formData,
   });
-  
-  const downloadUrl = await getDownloadURL(snapshot.ref);
-  return downloadUrl;
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload image through server API');
+  }
+
+  const data = await response.json();
+  return data.publicUrl as string;
 }
 
 /**
  * อัปโหลดรูปของเจอ พร้อมบีบอัดอัตโนมัติ
  */
 export async function uploadFoundItemImage(
-  file: File, 
+  file: File,
   itemId: string,
-  compress: boolean = true
+  compress: boolean = true,
+  compressionOptions?: CompressionOptions
 ): Promise<string> {
-  // บีบอัดรูปก่อนอัปโหลด (ถ้าเปิดใช้งาน)
-  const fileToUpload = compress ? await compressImage(file) : file;
+  const fileToUpload = compress ? await compressImage(file, compressionOptions) : file;
   
   const extension = 'jpg'; // บังคับใช้ jpg หลังบีบอัด
   const path = `found-items/${itemId}/${Date.now()}.${extension}`;
@@ -106,12 +108,15 @@ export async function uploadAvatar(
 // ========================================
 
 /**
- * ลบรูปจาก Firebase Storage
+ * ลบรูป
  */
 export async function deleteImage(url: string): Promise<void> {
   try {
-    const storageRef = ref(storage, url);
-    await deleteObject(storageRef);
+    await fetch('/api/storage/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
   } catch (error) {
     console.error('Error deleting image:', error);
   }
@@ -122,8 +127,11 @@ export async function deleteImage(url: string): Promise<void> {
  */
 export async function deleteImageByPath(path: string): Promise<void> {
   try {
-    const storageRef = ref(storage, path);
-    await deleteObject(storageRef);
+    await fetch('/api/storage/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
   } catch (error) {
     console.error('Error deleting image:', error);
   }

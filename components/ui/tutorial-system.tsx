@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, X, Search, Camera, Clock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { updateUserTutorialSeen } from "@/lib/firestore";
+import { updateUserTutorialSeen } from "@/lib/database";
 
 interface TutorialStep {
   id: number;
@@ -17,7 +17,7 @@ interface TutorialStep {
 const tutorialSteps: TutorialStep[] = [
   {
     id: 1,
-    title: "ยินดีต้อนรับสู่ BD2Fondue",
+    title: "ยินดีต้อนรับสู่ Found-U",
     description: "ระบบแจ้งของหายและของเจอสำหรับโรงเรียน\nช่วยให้คุณตามหาของที่หายได้ง่ายขึ้น",
     icon: <Sparkles className="w-12 h-12 text-white" />,
     bgColor: "from-[#06C755] to-[#04a044]",
@@ -131,7 +131,7 @@ export function TutorialSystem({ isOpen, userId, onComplete }: TutorialSystemPro
   const isLastStep = currentStep === tutorialSteps.length - 1;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80">
+    <div className="overlay-modal fixed inset-0 flex items-center justify-center bg-black/80">
       {/* Tutorial Card */}
       <div
         className="relative w-full max-w-md mx-4 overflow-hidden animate-fade-in"

@@ -7,17 +7,25 @@ import { cn } from "@/lib/utils";
 interface HeaderProps {
   title: string;
   showBack?: boolean;
+  /** Navigate to path instead of router.back() */
+  backHref?: string;
   rightAction?: React.ReactNode;
   className?: string;
 }
 
 export default function Header({
   title,
-  showBack = false,
+  showBack = true,
+  backHref,
   rightAction,
   className,
 }: HeaderProps) {
   const router = useRouter();
+
+  const handleBack = () => {
+    if (backHref) router.push(backHref);
+    else router.back();
+  };
 
   return (
     <header
@@ -30,7 +38,7 @@ export default function Header({
       <div className="w-10">
         {showBack && (
           <button
-            onClick={() => router.back()}
+            onClick={handleBack}
             className="p-2 -ml-2 rounded-full hover:bg-bg-secondary transition-colors"
             aria-label="กลับ"
           >

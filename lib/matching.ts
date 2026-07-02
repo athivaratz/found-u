@@ -15,6 +15,36 @@ function toDate(date: any): Date {
   return new Date(date);
 }
 
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+function calculateDistanceKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function distanceToScore(distanceKm: number): number {
+  if (distanceKm <= 0.1) return 1;
+  if (distanceKm <= 0.5) return 0.85;
+  if (distanceKm <= 1) return 0.7;
+  if (distanceKm <= 2) return 0.5;
+  if (distanceKm <= 5) return 0.3;
+  return 0;
+}
+
 export interface MatchScore {
   lostItem: LostItem;
   foundItem: FoundItem;
@@ -114,7 +144,7 @@ export function calculateMatchScore(lostItem: LostItem, foundItem: FoundItem): M
 
   // 1. Category match (if both have category info)
   let categoryScore = 0;
-  const foundCategory = detectCategoryFromText(foundItem.description);
+  const foundCategory = foundItem.category || detectCategoryFromText(foundItem.description);
   if (lostItem.category && foundCategory) {
     if (lostItem.category === foundCategory) {
       categoryScore = 1;
@@ -135,7 +165,22 @@ export function calculateMatchScore(lostItem: LostItem, foundItem: FoundItem): M
   }
 
   // 3. Location similarity (using smart matching)
-  const locationScore = calculateLocationSimilarity(lostItem.locationLost, foundItem.locationFound);
+  let locationScore = calculateLocationSimilarity(lostItem.locationLost, foundItem.locationFound);
+  const lostCoords = lostItem.locationCoords;
+  const foundCoords = foundItem.locationCoords;
+  if (lostCoords && foundCoords) {
+    const distanceKm = calculateDistanceKm(
+      lostCoords.lat,
+      lostCoords.lng,
+      foundCoords.lat,
+      foundCoords.lng
+    );
+    const distanceScore = distanceToScore(distanceKm);
+    locationScore = Math.max(locationScore, distanceScore);
+    if (distanceScore >= 0.5) {
+      reasons.push(`พิกัดใกล้กัน (${distanceKm.toFixed(2)} km)`);
+    }
+  }
   totalScore += locationScore * WEIGHTS.locationSimilarity;
   if (locationScore > 0.5) {
     reasons.push(`สถานที่ใกล้เคียง (${Math.round(locationScore * 100)}%)`);
@@ -246,7 +291,7 @@ export function findMatchesForLostItem(
   const lostCategory = lostItem.category;
   if (lostCategory && lostCategory !== 'other') {
     const categoryMatches = candidates.filter(f => {
-      const foundCategory = detectCategoryFromText(f.description);
+      const foundCategory = f.category || detectCategoryFromText(f.description);
       return !foundCategory || foundCategory === lostCategory;
     });
     // Only use category filter if we still have candidates
@@ -295,7 +340,7 @@ export function findMatchesForFoundItem(
   );
 
   // Step 2: (Optional) Filter by category if detectable
-  const foundCategory = detectCategoryFromText(foundItem.description);
+  const foundCategory = foundItem.category || detectCategoryFromText(foundItem.description);
   if (foundCategory && foundCategory !== 'other') {
     const categoryMatches = candidates.filter(l => {
       return !l.category || l.category === 'other' || l.category === foundCategory;

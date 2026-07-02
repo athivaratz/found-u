@@ -3,93 +3,144 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { Loader2 } from "lucide-react";
 import { LoadingModal } from "@/components/ui/loading-modal";
 import { TutorialSystem } from "@/components/ui/tutorial-system";
+import { StudentRegistrationModal } from "@/components/auth/student-registration-modal";
+import { AUTH_ROUTES, isAuthPublicPath } from "@/lib/auth-routes";
+import { isKnownRoute } from "@/lib/known-routes";
 
-// Pages that don't require beta approval
-const PUBLIC_PATHS = ["/login", "/pending", "/banned"];
+const PUBLIC_PATHS = ["/", "/banned"];
+
+function isPublicPath(pathname: string) {
+  return (
+    PUBLIC_PATHS.includes(pathname) ||
+    isAuthPublicPath(pathname) ||
+    !isKnownRoute(pathname)
+  );
+}
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { 
-    user, 
-    appUser, 
-    appSettings,
-    loading, 
-    isAuthActionLoading, 
-    isBetaApproved, 
-    betaStatus, 
+  const {
+    user,
+    appUser,
+    loading,
+    sessionReady,
+    isAuthActionLoading,
+    isStudentVerified,
+    isAdmin,
     hasSeenTutorial,
+    mustChangePassword,
+    mustSetupPin,
     isBanned,
   } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [showTutorial, setShowTutorial] = useState(false);
 
+  const needsStudentVerification =
+    !!user &&
+    !!appUser &&
+    sessionReady &&
+    !isBanned &&
+    !mustChangePassword &&
+    !mustSetupPin &&
+    !isStudentVerified &&
+    !isAdmin;
+
   useEffect(() => {
-    if (!loading) {
-      // Not logged in - redirect to login (except if already on login)
-      if (!user && pathname !== "/login") {
-        router.push("/login");
-        return;
-      }
-      
-      // Logged in and on login page - redirect to home
-      if (user && pathname === "/login") {
-        router.push("/");
-        return;
-      }
-
-      // Check if user is banned - redirect to banned page
-      if (user && isBanned && pathname !== "/banned") {
-        router.push("/banned");
-        return;
-      }
-
-      // If user is not banned but on banned page, redirect to home
-      if (user && !isBanned && pathname === "/banned") {
-        router.push("/");
-        return;
-      }
-
-      // Check if restrict mode is enabled and user is not approved
-      if (user && !isBanned && appSettings.restrictModeEnabled && !isBetaApproved && !PUBLIC_PATHS.includes(pathname)) {
-        router.push("/pending");
-        return;
-      }
+    if (user && pathname === "/") {
+      router.replace("/home");
+      return;
     }
-  }, [user, loading, pathname, router, appSettings.restrictModeEnabled, isBetaApproved, isBanned]);
 
-  // Show tutorial for first-time beta users
+    if (loading) return;
+
+    if (!user && !isPublicPath(pathname)) {
+      router.push(AUTH_ROUTES.hub);
+      return;
+    }
+
+    if (user && (pathname === AUTH_ROUTES.hub || pathname === AUTH_ROUTES.login)) {
+      if (mustChangePassword) {
+        router.push(AUTH_ROUTES.changePassword);
+      } else if (mustSetupPin) {
+        router.push(AUTH_ROUTES.setupPin);
+      } else if (isStudentVerified || isAdmin) {
+        router.push("/home");
+      }
+      return;
+    }
+
+    if (user && mustChangePassword && pathname !== AUTH_ROUTES.changePassword) {
+      router.push(AUTH_ROUTES.changePassword);
+      return;
+    }
+
+    if (user && mustSetupPin && !isAdmin && pathname !== AUTH_ROUTES.setupPin) {
+      router.push(AUTH_ROUTES.setupPin);
+      return;
+    }
+
+    if (user && isBanned && pathname !== "/banned") {
+      router.push("/banned");
+      return;
+    }
+
+    if (user && !isBanned && pathname === "/banned") {
+      router.push("/home");
+    }
+  }, [
+    user,
+    loading,
+    pathname,
+    router,
+    mustChangePassword,
+    mustSetupPin,
+    isStudentVerified,
+    isAdmin,
+    isBanned,
+  ]);
+
   useEffect(() => {
-    if (!loading && user && isBetaApproved && !hasSeenTutorial && !PUBLIC_PATHS.includes(pathname)) {
+    if (
+      !loading &&
+      user &&
+      isStudentVerified &&
+      !hasSeenTutorial &&
+      !isPublicPath(pathname)
+    ) {
       setShowTutorial(true);
     }
-  }, [loading, user, isBetaApproved, hasSeenTutorial, pathname]);
+  }, [loading, user, isStudentVerified, hasSeenTutorial, pathname]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg-secondary">
-        <div className="flex flex-col items-center">
-          <Loader2 className="w-10 h-10 text-line-green animate-spin mb-4" />
-          <p className="text-text-secondary">กำลังตรวจสอบสิทธิ์...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If not logged in and on a protected route, don't render anything while redirecting
-  if (!user && pathname !== "/login") {
+  if (user && pathname === "/") {
     return null;
   }
 
-  // If user is banned and not on banned page, don't render (will redirect)
-  if (user && isBanned && pathname !== "/banned") {
+  if (!loading && !user && !isPublicPath(pathname)) {
     return null;
   }
 
-  // If restrict mode is enabled and user is not approved, don't render (will redirect)
-  if (user && !isBanned && appSettings.restrictModeEnabled && !isBetaApproved && !PUBLIC_PATHS.includes(pathname)) {
+  if (!loading && user && isBanned && pathname !== "/banned") {
+    return null;
+  }
+
+  if (
+    !loading &&
+    user &&
+    mustChangePassword &&
+    pathname !== AUTH_ROUTES.changePassword
+  ) {
+    return null;
+  }
+
+  if (
+    !loading &&
+    user &&
+    mustSetupPin &&
+    !isAdmin &&
+    pathname !== AUTH_ROUTES.setupPin
+  ) {
     return null;
   }
 
@@ -97,8 +148,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     <>
       {children}
       <LoadingModal isOpen={isAuthActionLoading} message="กำลังดำเนินการ..." />
+      <StudentRegistrationModal open={needsStudentVerification} />
 
-      {/* Tutorial System */}
       {showTutorial && appUser && (
         <TutorialSystem
           isOpen={showTutorial}
