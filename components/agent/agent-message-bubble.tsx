@@ -9,8 +9,8 @@ import {
 import { AgentThinkingLog } from "@/components/agent/agent-thinking-log";
 import {
   ItemResultCard,
-  type SerializedItem,
 } from "@/components/agent/item-result-card";
+import type { SerializedItem } from "@/lib/agent/item-privacy";
 import { MatchResultCard } from "@/components/agent/match-result-card";
 import { NerResultCard, type NerResultData } from "@/components/agent/ner-result-card";
 import { cn } from "@/lib/utils";
@@ -108,7 +108,7 @@ export function AgentMessageBubble({
   if (isUser) {
     return (
       <div className="flex justify-end mb-4">
-        <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-br-md bg-line-green/10 text-text-primary text-[15px] leading-relaxed">
+        <div className="max-w-[85%] md:max-w-[70%] px-4 py-2.5 rounded-2xl rounded-br-md bg-line-green/10 text-text-primary text-[15px] leading-relaxed">
           {text}
         </div>
       </div>
@@ -137,12 +137,12 @@ export function AgentMessageBubble({
         ))}
 
         {items.length > 0 && (
-          <div className="flex gap-3 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
-            {items.map((item) => (
+          <div className="flex gap-3 overflow-x-auto md:overflow-visible pb-2 mb-3 -mx-1 px-1 md:grid md:grid-cols-2 md:gap-3">
+            {items.map((item, index) => (
               <ItemResultCard
-                key={`${item.type}-${item.id}`}
+                key={item.id ? `${item.type}-${item.id}` : `${item.type}-${item.itemName}-${item.location}-${index}`}
                 item={item}
-                isNew={newItemIds.has(item.id)}
+                isNew={newItemIds.has(item.id || "")}
               />
             ))}
           </div>

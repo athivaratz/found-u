@@ -20,6 +20,13 @@ import {
   reportLostItemServer,
 } from "@/lib/agent/item-actions-server";
 import {
+  logPrivacyAction,
+  serializeFoundForViewer,
+  serializeLostForLookup,
+  serializeLostForViewer,
+  type ViewerContext,
+} from "@/lib/agent/item-privacy";
+import {
   serializeFoundItem,
   serializeLostItem,
 } from "@/lib/agent/row-mappers";
@@ -35,33 +42,75 @@ import {
   type AgentToolEnvelope,
 } from "@/lib/agent/validations/agent-tools";
 
+function buildViewer(userId: string | null, isAdmin: boolean): ViewerContext {
+  return { userId, isAdmin };
+}
+
+function isItemOwner(
+  itemUserId: string | undefined | null,
+  viewerUserId: string | null
+): boolean {
+  return Boolean(viewerUserId && itemUserId && itemUserId === viewerUserId);
+}
+
 export function createAgentTools(options: {
   userId: string | null;
+  isAdmin: boolean;
   settings: AppSettings;
 }) {
-  const { userId, settings } = options;
+  const { userId, isAdmin, settings } = options;
+  const viewer = buildViewer(userId, isAdmin);
 
   return {
     searchItems: tool({
       description:
-        "ค้นหารายการของหายหรือของเจอในฐานข้อมูล — ต้องเรียกก่อนตอบว่ามีรายการหรือไม่ ห้ามเดาจากความรู้ทั่วไป",
+        "Search the public lost-item catalog — returns public-safe fields for other users' items; location must match the user query. Never guess from general knowledge.",
       inputSchema: searchItemsToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         try {
-          const { lost, found } = await searchItemsServer({
+          const searchType =
+            !isAdmin && input.type === "found" ? "lost" : input.type ?? "lost";
+          const status = input.status ?? "searching";
+
+          const { lost, found, filteredCount = 0 } = await searchItemsServer({
             query: input.query,
-            type: input.type,
+            type: searchType,
             category: input.category,
-            status: input.status,
+            status,
             limit: input.limit,
+            mode: "agent",
           });
+
+          const visibleFound = isAdmin
+            ? found
+            : found.filter((item) => isItemOwner(item.userId, userId));
+
+          if (!isAdmin && found.length > visibleFound.length) {
+            logPrivacyAction("searchItems_redact_found", userId, "non_admin");
+          }
+          if (filteredCount > 0) {
+            logPrivacyAction("searchItems_location_filter", userId, "location_mismatch", {
+              filteredCount,
+            });
+          }
+
+          const serializedLost = lost.map((item) =>
+            serializeLostForViewer(item, viewer)
+          );
+          const serializedFound = visibleFound.map((item) =>
+            serializeFoundForViewer(item, viewer)
+          );
+          const total = serializedLost.length + serializedFound.length;
+
           return {
             ok: true,
             resultType: "items",
             data: {
-              lost: lost.map(serializeLostItem),
-              found: found.map(serializeFoundItem),
-              total: lost.length + found.length,
+              lost: serializedLost,
+              found: serializedFound,
+              total,
+              exactMatch: total > 0 && filteredCount === 0,
+              filteredCount,
             },
           };
         } catch (error) {
@@ -69,7 +118,7 @@ export function createAgentTools(options: {
           return {
             ok: false,
             resultType: "items",
-            data: { lost: [], found: [], total: 0 },
+            data: { lost: [], found: [], total: 0, exactMatch: false, filteredCount: 0 },
             message: "ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง",
           };
         }
@@ -78,7 +127,7 @@ export function createAgentTools(options: {
 
     lookupTrackingCode: tool({
       description:
-        "ค้นหารายการจากรหัสติดตาม — ต้องเรียกก่อนยืนยันรหัส ห้ามเดารหัส",
+        "Look up an item by exact tracking code the user provided — never invent codes.",
       inputSchema: lookupTrackingCodeToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         try {
@@ -86,7 +135,7 @@ export function createAgentTools(options: {
           return {
             ok: Boolean(item),
             resultType: "tracking",
-            data: item ? serializeLostItem(item) : null,
+            data: item ? serializeLostForLookup(item, viewer) : null,
             message: item ? undefined : "ไม่พบรหัสติดตามนี้",
           };
         } catch (error) {
@@ -103,7 +152,7 @@ export function createAgentTools(options: {
 
     analyzeImage: tool({
       description:
-        "วิเคราะห์รูปภาพสิ่งของเพื่อระบุชื่อ หมวดหมู่ สี ยี่ห้อ — ใช้เมื่อมีรูปภาพ",
+        "Analyze an item photo for name, category, color, brand — use when an image is provided.",
       inputSchema: analyzeImageToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         try {
@@ -169,7 +218,7 @@ export function createAgentTools(options: {
 
     findMatches: tool({
       description:
-        "จับคู่รายการของหายกับของเจอตาม item id — ใช้หลังมีรายการแล้วเท่านั้น",
+        "Match the caller's own lost/found item by item id — only for items the user owns.",
       inputSchema: findMatchesToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         try {
@@ -190,14 +239,29 @@ export function createAgentTools(options: {
                 message: "ไม่พบรายการของหาย",
               };
             }
+            if (!isAdmin && !isItemOwner(lostItem.userId, userId)) {
+              logPrivacyAction("findMatches_forbidden", userId, "not_owner", {
+                itemId: input.itemId,
+              });
+              return {
+                ok: false,
+                resultType: "match",
+                data: [],
+                message: "ไม่มีสิทธิ์จับคู่รายการนี้",
+              };
+            }
             const { found } = await searchItemsServer({
               query: lostItem.itemName || lostItem.description || "",
               type: "found",
               limit: 10,
+              mode: "catalog",
             });
+            const visibleFound = isAdmin
+              ? found
+              : found.filter((item) => isItemOwner(item.userId, userId));
             const matches = input.useAI
-              ? await findMatchesForLostItemAI(lostItem, found, 5, aiConfig)
-              : findMatchesForLostItem(lostItem, found);
+              ? await findMatchesForLostItemAI(lostItem, visibleFound, 5, aiConfig)
+              : findMatchesForLostItem(lostItem, visibleFound);
             return {
               ok: true,
               resultType: "match",
@@ -206,8 +270,8 @@ export function createAgentTools(options: {
                 confidence: getMatchConfidence(m.score),
                 scorePercentage: Math.round(m.score * 100),
                 reasons: m.reasons,
-                lostItem: serializeLostItem(m.lostItem),
-                foundItem: serializeFoundItem(m.foundItem),
+                lostItem: serializeLostForViewer(m.lostItem, viewer),
+                foundItem: serializeFoundForViewer(m.foundItem, viewer),
               })),
             };
           }
@@ -221,10 +285,22 @@ export function createAgentTools(options: {
               message: "ไม่พบรายการของเจอ",
             };
           }
+          if (!isAdmin && !isItemOwner(foundItem.userId, userId)) {
+            logPrivacyAction("findMatches_forbidden", userId, "not_owner", {
+              itemId: input.itemId,
+            });
+            return {
+              ok: false,
+              resultType: "match",
+              data: [],
+              message: "ไม่มีสิทธิ์จับคู่รายการนี้",
+            };
+          }
           const { lost } = await searchItemsServer({
             query: foundItem.itemName || foundItem.description || "",
             type: "lost",
             limit: 10,
+            mode: "agent",
           });
           const matches = input.useAI
             ? await findMatchesForFoundItemAI(foundItem, lost, 5, aiConfig)
@@ -237,8 +313,8 @@ export function createAgentTools(options: {
               confidence: getMatchConfidence(m.score),
               scorePercentage: Math.round(m.score * 100),
               reasons: m.reasons,
-              lostItem: serializeLostItem(m.lostItem),
-              foundItem: serializeFoundItem(m.foundItem),
+              lostItem: serializeLostForViewer(m.lostItem, viewer),
+              foundItem: serializeFoundForViewer(m.foundItem, viewer),
             })),
           };
         } catch (error) {
@@ -255,7 +331,7 @@ export function createAgentTools(options: {
 
     getUserItems: tool({
       description:
-        "ดึงรายการของหายและของเจอที่ผู้ใช้ปัจจุบันแจ้งไว้ — ใช้เมื่อ user ถามเรื่องรายการของตัวเอง",
+        "List lost and found items reported by the current user — use when the user asks about their own items.",
       inputSchema: getUserItemsToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         if (!userId) {
@@ -294,7 +370,7 @@ export function createAgentTools(options: {
 
     reportLostItem: tool({
       description:
-        "แจ้งของหายลงระบบทันที — สกัด fields จากข้อความ user แล้วเรียก tool นี้โดยตรง (ห้ามใช้ extractItemInfo)",
+        "Report a lost item immediately — extract fields from the user message and call directly (do not use extractItemInfo).",
       inputSchema: reportLostItemToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         if (!userId) {
@@ -306,17 +382,30 @@ export function createAgentTools(options: {
           };
         }
         try {
-          const { item, matches } = await reportLostItemServer({
+          const result = await reportLostItemServer({
             userId,
             ...input,
           });
+          if (!result.ok) {
+            return {
+              ok: false,
+              resultType: "report",
+              data: null,
+              message: result.message,
+            };
+          }
+          const { item, matches } = result;
           return {
             ok: true,
             resultType: "report",
             data: {
               type: "lost" as const,
               item: serializeLostItem(item),
-              matches,
+              matches: matches.map((m) => ({
+                ...m,
+                lostItem: serializeLostForViewer(m.lostItem, viewer),
+                foundItem: serializeFoundForViewer(m.foundItem, viewer),
+              })),
             },
           };
         } catch (error) {
@@ -333,7 +422,7 @@ export function createAgentTools(options: {
 
     reportFoundItem: tool({
       description:
-        "แจ้งเจอของลงระบบทันที — สกัด fields จากข้อความ user แล้วเรียก tool นี้โดยตรง (ห้ามใช้ extractItemInfo)",
+        "Report a found item immediately — extract fields from the user message and call directly (do not use extractItemInfo).",
       inputSchema: reportFoundItemToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         if (!userId) {
@@ -345,17 +434,30 @@ export function createAgentTools(options: {
           };
         }
         try {
-          const { item, matches } = await reportFoundItemServer(
+          const result = await reportFoundItemServer(
             { userId, ...input },
             settings
           );
+          if (!result.ok) {
+            return {
+              ok: false,
+              resultType: "report",
+              data: null,
+              message: result.message,
+            };
+          }
+          const { item, matches } = result;
           return {
             ok: true,
             resultType: "report",
             data: {
               type: "found" as const,
               item: serializeFoundItem(item),
-              matches,
+              matches: matches.map((m) => ({
+                ...m,
+                lostItem: serializeLostForViewer(m.lostItem, viewer),
+                foundItem: serializeFoundForViewer(m.foundItem, viewer),
+              })),
             },
           };
         } catch (error) {

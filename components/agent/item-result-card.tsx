@@ -3,21 +3,9 @@
 import Link from "next/link";
 import { formatThaiDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import type { SerializedItem } from "@/lib/agent/item-privacy";
 
-export type SerializedItem = {
-  type: "lost" | "found";
-  id: string;
-  trackingCode?: string;
-  itemName?: string | null;
-  category?: string | null;
-  description?: string | null;
-  location?: string;
-  locationPlaceName?: string | null;
-  photoUrl?: string | null;
-  status?: string;
-  dateLost?: string;
-  dateFound?: string;
-};
+export type { SerializedItem };
 
 type ItemResultCardProps = {
   item: SerializedItem;
@@ -38,13 +26,15 @@ export function ItemResultCard({ item, className, isNew }: ItemResultCardProps) 
   const location = item.locationPlaceName || item.location || "-";
   const dateStr = item.dateLost || item.dateFound;
   const dateLabel = dateStr ? formatThaiDate(new Date(dateStr)) : "-";
+  const isOwnerView = item.visibility === "owner" || isNew;
+  const showTracking = isOwnerView && Boolean(item.trackingCode);
 
   return (
     <div
       className={cn(
         "rounded-2xl p-4 agent-glass",
         "bg-white/70 dark:bg-white/5 border border-white/30 dark:border-white/10",
-        "min-w-[260px] max-w-sm shrink-0",
+        "min-w-[260px] max-w-sm shrink-0 md:min-w-0 md:max-w-none md:shrink",
         isNew && "ring-2 ring-line-green/40",
         className
       )}
@@ -77,13 +67,13 @@ export function ItemResultCard({ item, className, isNew }: ItemResultCardProps) 
       </div>
       <p className="text-xs text-text-secondary mt-2">
         สถานะ: {statusLabels[item.status || ""] || item.status || "-"}
-        {item.trackingCode ? ` · ${item.trackingCode}` : ""}
+        {showTracking ? ` · ${item.trackingCode}` : ""}
       </p>
       <p className="text-xs text-text-tertiary mt-1 truncate">📍 {location} · {dateLabel}</p>
       <div className="flex gap-2 mt-3 pt-3 border-t border-border-light/60">
-        {item.trackingCode ? (
+        {showTracking ? (
           <Link
-            href={`/tracking?code=${encodeURIComponent(item.trackingCode)}`}
+            href={`/tracking?code=${encodeURIComponent(item.trackingCode!)}`}
             className="flex-1 text-center text-xs font-medium py-2 rounded-xl bg-line-green text-white hover:bg-line-green-hover transition-colors"
           >
             ติดตามรหัส
@@ -91,7 +81,10 @@ export function ItemResultCard({ item, className, isNew }: ItemResultCardProps) 
         ) : null}
         <Link
           href="/list"
-          className="flex-1 text-center text-xs font-medium py-2 rounded-xl bg-bg-tertiary text-text-primary hover:bg-bg-secondary transition-colors"
+          className={cn(
+            "text-center text-xs font-medium py-2 rounded-xl bg-bg-tertiary text-text-primary hover:bg-bg-secondary transition-colors",
+            showTracking ? "flex-1" : "w-full"
+          )}
         >
           ดูรายการ
         </Link>

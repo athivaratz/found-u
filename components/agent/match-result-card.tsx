@@ -1,6 +1,7 @@
 "use client";
 
-import { ItemResultCard, type SerializedItem } from "@/components/agent/item-result-card";
+import { ItemResultCard } from "@/components/agent/item-result-card";
+import type { SerializedItem } from "@/lib/agent/item-privacy";
 import { cn } from "@/lib/utils";
 
 type MatchResultCardProps = {
@@ -38,7 +39,7 @@ export function MatchResultCard({ match, className }: MatchResultCardProps) {
           <p className="text-xs text-text-secondary capitalize">{match.confidence}</p>
         </div>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="flex gap-3 overflow-x-auto md:overflow-visible pb-1 -mx-1 px-1 md:grid md:grid-cols-2 md:gap-3">
         <ItemResultCard item={match.lostItem} />
         <ItemResultCard item={match.foundItem} />
       </div>

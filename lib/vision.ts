@@ -156,6 +156,7 @@ export async function extractVisionData(
       temperature: resolvedConfig.temperature,
       maxOutputTokens: resolvedConfig.maxOutputTokens,
       topP: resolvedConfig.topP,
+      responseMimeType: "application/json",
     };
 
     const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {

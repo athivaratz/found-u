@@ -38,7 +38,7 @@ export function AgentMessageList({ messages, status }: AgentMessageListProps) {
   }, [messages, status, showTyping]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6">
+    <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 md:px-6">
       <AnimatePresence initial={false}>
         {messages.map((message, index) => (
           <m.div
@@ -54,9 +54,7 @@ export function AgentMessageList({ messages, status }: AgentMessageListProps) {
                 index === messages.length - 1 &&
                 message.role === "assistant"
               }
-              showThinkingLog={
-                !showTyping || index !== messages.length - 1
-              }
+              showThinkingLog
             />
           </m.div>
         ))}

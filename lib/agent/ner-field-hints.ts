@@ -18,6 +18,24 @@ export const CONTACT_TYPES = [
   "email",
 ] as const;
 
+export const AGENT_FIELD_RULES_EN = `Field extraction for lost/found reports:
+- itemName: short item name
+- category: one of — ${ITEM_CATEGORIES.join(", ")}
+- description: color, brand, distinguishing features (fallback to itemName)
+- locationLost/locationFound: incident location (where lost/found), NOT drop-off point
+- time/dateLost/dateFound: incident time if stated; omit if unknown
+- contact + contactType: personal contact only (${CONTACT_TYPES.join(", ")}) — never put a location here
+- dropOffLocation (found): where to hand in the item; default personnel_office if omitted`;
+
+export const AGENT_NO_INVENT_RULE_EN =
+  "Do not invent fields the user did not provide — ask when unsure.";
+
+export function buildAgentFieldExtractionSection(): string {
+  return `${AGENT_FIELD_RULES_EN}
+
+${AGENT_NO_INVENT_RULE_EN}`;
+}
+
 export const NER_FIELD_RULES = `กฎการสกัดข้อมูลสำหรับแจ้งของหาย/เจอ:
 - itemName: ชื่อสิ่งของ (กระชับ)
 - category: ต้องเป็นค่าใดค่าหนึ่ง — ${ITEM_CATEGORIES.join(", ")}

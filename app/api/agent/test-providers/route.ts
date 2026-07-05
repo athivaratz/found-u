@@ -10,6 +10,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
+type ProviderTestResult = {
+  configured: boolean;
+  ok: boolean;
+  model?: string;
+  error?: string;
+};
+
 function resolveModelLabel(
   provider: AgentProviderName,
   settings: typeof DEFAULT_APP_SETTINGS
@@ -44,59 +51,86 @@ async function requireAdmin() {
   return null;
 }
 
+async function testSingleProvider(
+  provider: AgentProviderName,
+  mergedSettings: typeof DEFAULT_APP_SETTINGS
+): Promise<ProviderTestResult> {
+  const modelLabel = resolveModelLabel(provider, mergedSettings);
+  const result: ProviderTestResult = {
+    configured: isProviderConfigured(provider),
+    ok: false,
+    model: modelLabel,
+  };
+
+  if (!result.configured) {
+    result.error = "API key not configured";
+    return result;
+  }
+
+  try {
+    const model = getAgentModel(provider, mergedSettings);
+    await generateText({
+      model,
+      prompt: "Reply with OK only.",
+      maxOutputTokens: 8,
+    });
+    result.ok = true;
+  } catch (error) {
+    result.error = error instanceof Error ? error.message : "Connection failed";
+  }
+
+  return result;
+}
+
 export async function POST(request: Request) {
   const authError = await requireAdmin();
   if (authError) return authError;
 
   let mergedSettings = { ...DEFAULT_APP_SETTINGS, ...(await getAppSettingsAdmin()) };
+  let providerFilter: AgentProviderName | undefined;
+
   try {
     const body = await request.json();
     if (body?.settings && typeof body.settings === "object") {
       mergedSettings = { ...mergedSettings, ...body.settings };
     }
+    if (body?.provider === "gemini" || body?.provider === "openrouter") {
+      providerFilter = body.provider;
+    }
   } catch {
     // use database settings only
   }
-  return runProviderTests(mergedSettings);
+
+  return runProviderTests(mergedSettings, providerFilter);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const authError = await requireAdmin();
   if (authError) return authError;
 
   const mergedSettings = { ...DEFAULT_APP_SETTINGS, ...(await getAppSettingsAdmin()) };
-  return runProviderTests(mergedSettings);
+  const { searchParams } = new URL(request.url);
+  const providerParam = searchParams.get("provider");
+  const providerFilter =
+    providerParam === "gemini" || providerParam === "openrouter"
+      ? providerParam
+      : undefined;
+
+  return runProviderTests(mergedSettings, providerFilter);
 }
 
-async function runProviderTests(mergedSettings: typeof DEFAULT_APP_SETTINGS) {
-  const results: Record<
-    string,
-    { configured: boolean; ok: boolean; model?: string; error?: string }
-  > = {
-    gemini: { configured: isProviderConfigured("gemini"), ok: false },
-    openrouter: { configured: isProviderConfigured("openrouter"), ok: false },
-  };
+async function runProviderTests(
+  mergedSettings: typeof DEFAULT_APP_SETTINGS,
+  providerFilter?: AgentProviderName
+) {
+  const providers: AgentProviderName[] = providerFilter
+    ? [providerFilter]
+    : ["gemini", "openrouter"];
 
-  for (const provider of ["gemini", "openrouter"] as const) {
-    const modelLabel = resolveModelLabel(provider, mergedSettings);
-    results[provider].model = modelLabel;
+  const results: Record<string, ProviderTestResult> = {};
 
-    if (!results[provider].configured) {
-      results[provider].error = "API key not configured";
-      continue;
-    }
-    try {
-      const model = getAgentModel(provider, mergedSettings);
-      await generateText({
-        model,
-        prompt: "Reply with OK only.",
-        maxOutputTokens: 8,
-      });
-      results[provider].ok = true;
-    } catch (error) {
-      results[provider].error =
-        error instanceof Error ? error.message : "Connection failed";
-    }
+  for (const provider of providers) {
+    results[provider] = await testSingleProvider(provider, mergedSettings);
   }
 
   return NextResponse.json({

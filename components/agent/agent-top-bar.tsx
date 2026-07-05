@@ -6,16 +6,25 @@ import { cn } from "@/lib/utils";
 import { thaiCopy } from "@/lib/copy/thai-student";
 
 type AgentTopBarProps = {
-  isThinking?: boolean;
+  status?: string;
   onNewChat?: () => void;
   className?: string;
 };
 
-export function AgentTopBar({ isThinking, onNewChat, className }: AgentTopBarProps) {
+function getSubtitle(status?: string): string {
+  if (status === "submitted") return thaiCopy.agent.thinking;
+  if (status === "streaming") return "ขั้นตอนการทำงาน";
+  return "ผู้ช่วย Lost & Found";
+}
+
+export function AgentTopBar({ status, onNewChat, className }: AgentTopBarProps) {
+  const isActive = status === "submitted" || status === "streaming";
+  const subtitle = getSubtitle(status);
+
   return (
     <header
       className={cn(
-        "sticky top-0 z-20 flex items-center justify-between gap-3 px-4 py-3",
+        "sticky top-0 z-20 flex items-center justify-between gap-3 px-4 py-3 shrink-0",
         "agent-glass bg-bg-primary/80 dark:bg-bg-primary/60 border-b border-border-light/60 dark:border-white/10",
         className
       )}
@@ -23,19 +32,17 @@ export function AgentTopBar({ isThinking, onNewChat, className }: AgentTopBarPro
       <div className="flex items-center gap-2.5 min-w-0">
         <div className="relative shrink-0">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-line-green to-emerald-500" />
-          {isThinking ? (
+          {isActive ? (
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-line-green border-2 border-bg-primary animate-pulse" />
           ) : null}
         </div>
         <div className="min-w-0">
           <h1 className="text-sm font-semibold text-text-primary truncate">Found-U Agent</h1>
-          <p className="text-[10px] text-text-tertiary truncate">
-            {isThinking ? thaiCopy.agent.thinking : "ผู้ช่วย Lost & Found"}
-          </p>
+          <p className="text-[10px] text-text-tertiary truncate">{subtitle}</p>
         </div>
       </div>
 
-      <ModeSwitcher variant="compact" className="shrink-0" />
+      <ModeSwitcher variant="compact" className="shrink-0 md:hidden" />
 
       {onNewChat ? (
         <button
@@ -47,7 +54,7 @@ export function AgentTopBar({ isThinking, onNewChat, className }: AgentTopBarPro
           <RotateCcw className="w-5 h-5" />
         </button>
       ) : (
-        <div className="w-9 shrink-0 sm:hidden" />
+        <div className="w-9 shrink-0 md:hidden" />
       )}
     </header>
   );

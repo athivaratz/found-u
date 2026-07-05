@@ -5,6 +5,7 @@ import type {
   ItemStatus,
   LostItem,
 } from "@/lib/types";
+import type { SerializedItem } from "@/lib/agent/item-privacy";
 
 type DbRow = Record<string, unknown>;
 
@@ -81,9 +82,10 @@ export function mapFoundItemRow(row: DbRow): FoundItem {
   };
 }
 
-export function serializeLostItem(item: LostItem) {
+export function serializeOwnerLostItem(item: LostItem): SerializedItem {
   return {
-    type: "lost" as const,
+    type: "lost",
+    visibility: "owner",
     id: item.id,
     trackingCode: item.trackingCode,
     itemName: item.itemName,
@@ -97,9 +99,24 @@ export function serializeLostItem(item: LostItem) {
   };
 }
 
-export function serializeFoundItem(item: FoundItem) {
+export function serializePublicLostItem(item: LostItem): SerializedItem {
   return {
-    type: "found" as const,
+    type: "lost",
+    visibility: "public",
+    itemName: item.itemName,
+    category: item.category,
+    description: item.description,
+    location: item.locationLost,
+    locationPlaceName: item.locationPlaceName,
+    status: item.status,
+    dateLost: item.dateLost.toISOString(),
+  };
+}
+
+export function serializeOwnerFoundItem(item: FoundItem): SerializedItem {
+  return {
+    type: "found",
+    visibility: "owner",
     id: item.id,
     trackingCode: item.trackingCode,
     itemName: item.itemName,
@@ -112,4 +129,29 @@ export function serializeFoundItem(item: FoundItem) {
     dateFound: item.dateFound.toISOString(),
     matchedLostId: item.matchedLostId,
   };
+}
+
+export function serializePublicFoundItem(item: FoundItem): SerializedItem {
+  return {
+    type: "found",
+    visibility: "public",
+    itemName: item.itemName,
+    category: item.category,
+    description: item.description,
+    location: item.locationFound,
+    locationPlaceName: item.locationPlaceName,
+    photoUrl: item.photoUrl,
+    status: item.status,
+    dateFound: item.dateFound.toISOString(),
+  };
+}
+
+/** @deprecated Use serializeOwnerLostItem — kept for owner-only report flows */
+export function serializeLostItem(item: LostItem) {
+  return serializeOwnerLostItem(item);
+}
+
+/** @deprecated Use serializeOwnerFoundItem — kept for owner-only report flows */
+export function serializeFoundItem(item: FoundItem) {
+  return serializeOwnerFoundItem(item);
 }

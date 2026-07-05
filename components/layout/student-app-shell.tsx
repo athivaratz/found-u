@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Sidebar from "@/components/layout/sidebar";
 import BottomNav from "@/components/layout/bottom-nav";
@@ -24,6 +23,8 @@ export type StudentAppShellProps = {
   headerBackHref?: string;
   showBottomNav?: boolean;
   maxWidth?: StudentShellMaxWidth;
+  /** Full-screen chat on mobile; sidebar + wide pane on desktop */
+  variant?: "default" | "assistant";
   className?: string;
   mainClassName?: string;
 };
@@ -34,15 +35,35 @@ export function StudentAppShell({
   headerBackHref = "/home",
   showBottomNav = true,
   maxWidth = "lg",
+  variant = "default",
   className,
   mainClassName,
 }: StudentAppShellProps) {
   const contentClass = cn("mx-auto w-full", maxWidthClasses[maxWidth]);
-  const pathname = usePathname();
-  const isAssistant = pathname?.startsWith("/assistant");
+  const isAssistant = variant === "assistant";
 
   if (isAssistant) {
-    return <>{children}</>;
+    return (
+      <div className={cn("min-h-screen bg-bg-secondary transition-colors", className)}>
+        {/* Mobile: immersive full-screen chat */}
+        <div className="md:hidden h-[100dvh] flex flex-col">{children}</div>
+
+        {/* Desktop: sidebar + full-height chat column */}
+        <div className="hidden md:flex h-screen overflow-hidden">
+          <Sidebar />
+          <main
+            className={cn(
+              "flex-1 ml-72 bg-bg-secondary flex flex-col min-h-0 min-w-0 h-screen p-4 md:p-5",
+              mainClassName
+            )}
+          >
+            <div className="flex-1 flex flex-col min-h-0 w-full max-w-5xl mx-auto">
+              {children}
+            </div>
+          </main>
+        </div>
+      </div>
+    );
   }
 
   return (

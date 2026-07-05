@@ -37,54 +37,108 @@ function parseNumber(value: string) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-function AgentProviderTestButton({ settings }: { settings: AppSettings }) {
-  const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+type ProviderName = "gemini" | "openrouter";
+
+type ProviderTestState = {
+  testing: boolean;
+  result: string | null;
+};
+
+function formatProviderResult(
+  name: string,
+  info: {
+    configured: boolean;
+    ok: boolean;
+    model?: string;
+    error?: string;
+  }
+): string {
+  const modelSuffix = info.model ? ` [${info.model}]` : "";
+  if (info.ok) return `${name}${modelSuffix}: OK`;
+  if (!info.configured) return `${name}: no key`;
+  return `${name}${modelSuffix}: ${info.error || "fail"}`;
+}
+
+function ProviderTestButton({
+  label,
+  provider,
+  settings,
+  className,
+}: {
+  label: string;
+  provider?: ProviderName;
+  settings: AppSettings;
+  className?: string;
+}) {
+  const [state, setState] = useState<ProviderTestState>({
+    testing: false,
+    result: null,
+  });
 
   const runTest = async () => {
-    setTesting(true);
-    setResult(null);
+    setState({ testing: true, result: null });
     try {
       const res = await fetch("/api/agent/test-providers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings }),
+        body: JSON.stringify({ settings, provider }),
       });
       const data = await res.json();
-      const lines = Object.entries(data.providers || {}).map(
-        ([name, info]) => {
-          const p = info as {
-            configured: boolean;
-            ok: boolean;
-            model?: string;
-            error?: string;
-          };
-          const modelSuffix = p.model ? ` [${p.model}]` : "";
-          if (p.ok) return `${name}${modelSuffix}: OK`;
-          if (!p.configured) return `${name}: no key`;
-          return `${name}${modelSuffix}: ${p.error || "fail"}`;
-        }
+      const lines = Object.entries(data.providers || {}).map(([name, info]) =>
+        formatProviderResult(name, info as Parameters<typeof formatProviderResult>[1])
       );
-      setResult(lines.join(" · "));
+      setState({ testing: false, result: lines.join(" · ") });
     } catch {
-      setResult("ทดสอบไม่สำเร็จ");
-    } finally {
-      setTesting(false);
+      setState({ testing: false, result: "ทดสอบไม่สำเร็จ" });
     }
   };
 
+  const isOk = state.result?.includes(": OK");
+  const isFail = state.result && !isOk;
+
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3">
+    <div className={className}>
       <button
         type="button"
         onClick={runTest}
-        disabled={testing}
+        disabled={state.testing}
         className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-60"
       >
-        {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
-        ทดสอบ Provider
+        {state.testing ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Activity className="w-4 h-4" />
+        )}
+        {label}
       </button>
-      {result ? <span className="text-xs text-gray-500">{result}</span> : null}
+      {state.result ? (
+        <p
+          className={`mt-1.5 text-xs flex items-center gap-1 ${
+            isOk
+              ? "text-green-600"
+              : isFail
+                ? "text-amber-600"
+                : "text-gray-500"
+          }`}
+        >
+          {isOk ? (
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          ) : isFail ? (
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          ) : null}
+          <span>{state.result}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function AgentProviderTestPanel({ settings }: { settings: AppSettings }) {
+  return (
+    <div className="mt-4 flex flex-wrap items-start gap-4">
+      <ProviderTestButton label="ทดสอบ Gemini" provider="gemini" settings={settings} />
+      <ProviderTestButton label="ทดสอบ OpenRouter" provider="openrouter" settings={settings} />
+      <ProviderTestButton label="ทดสอบทั้งหมด" settings={settings} />
     </div>
   );
 }
@@ -688,7 +742,7 @@ export default function AdminAIModelsPage() {
               />
             </div>
           </div>
-          <AgentProviderTestButton settings={settings} />
+          <AgentProviderTestPanel settings={settings} />
         </div>
 
         <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">

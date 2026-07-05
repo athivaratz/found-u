@@ -12,6 +12,8 @@ import {
   isProviderError,
 } from "@/lib/agent/fallback";
 import { withProviderFallback } from "@/lib/agent/provider-router";
+import { warnHallucinatedTrackingCodes } from "@/lib/agent/hallucination-guard";
+import { isAdminUser } from "@/lib/nfc-server";
 import { thaiCopy } from "@/lib/copy/thai-student";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
@@ -37,6 +39,7 @@ export async function POST(request: NextRequest) {
       messages,
       mergedSettings.agentContextMaxMessages ?? 8
     );
+    warnHallucinatedTrackingCodes(pruned);
 
     const rateLimit = await checkAndRecordRateLimitAtomic(
       user.id,
@@ -57,10 +60,12 @@ export async function POST(request: NextRequest) {
     const { result: streamResponse } = await withProviderFallback(
       mergedSettings,
       async (provider, model) => {
+        const isAdmin = await isAdminUser(user.id);
         const agent = createFoundUAgent({
           model,
           settings: mergedSettings,
           userId: user.id,
+          isAdmin,
         });
 
         return createAgentUIStreamResponse({

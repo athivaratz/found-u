@@ -46,6 +46,9 @@ export interface AppSettings {
   agentTemperature?: number;
   agentContextMaxMessages?: number;
 
+  /** pg_trgm similarity threshold for fuzzy item search (0–1, default 0.15) */
+  searchSimilarityThreshold?: number;
+
   // Map & Geofence Settings
   mapsEnabled?: boolean;
   mapTileUrl?: string;
@@ -115,6 +118,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   agentMaxOutputTokens: 512,
   agentTemperature: 0.3,
   agentContextMaxMessages: 8,
+  searchSimilarityThreshold: 0.15,
   mapsEnabled: true,
   mapTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   mapAttribution: "© OpenStreetMap contributors",

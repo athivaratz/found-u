@@ -14,6 +14,7 @@ import { VoiceSphereOverlay } from "@/components/agent/voice-sphere-overlay";
 import type { AgentFallbackPayload } from "@/lib/agent/fallback";
 import { agentMessagesKey } from "@/lib/agent/storage-keys";
 import { thaiCopy } from "@/lib/copy/thai-student";
+import { cn } from "@/lib/utils";
 import { useMounted } from "@/hooks/use-mounted";
 import Link from "next/link";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
@@ -126,7 +127,7 @@ export function AgentChatShell() {
 
   if (authLoading) {
     return (
-      <div className="h-[100dvh] flex items-center justify-center agent-mesh-bg">
+      <div className="h-full flex-1 flex items-center justify-center agent-mesh-bg min-h-0">
         <div className="w-8 h-8 rounded-full border-2 border-line-green border-t-transparent animate-spin" />
       </div>
     );
@@ -134,7 +135,7 @@ export function AgentChatShell() {
 
   if (!user) {
     return (
-      <div className="h-[100dvh] flex flex-col agent-mesh-bg">
+      <div className="h-full flex-1 flex flex-col agent-mesh-bg min-h-0">
         <AgentTopBar />
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           <p className="text-text-secondary mb-4">{thaiCopy.agent.loginRequired}</p>
@@ -150,16 +151,30 @@ export function AgentChatShell() {
     );
   }
 
+  const sendPrompt = (prompt: string) => {
+    if (!user || isThinking) return;
+    setFallback(null);
+    setInput("");
+    sendMessage({ text: prompt });
+  };
+
   return (
-    <div className="h-[100dvh] flex flex-col agent-mesh-bg max-w-3xl mx-auto w-full">
-      <AgentTopBar isThinking={isThinking} onNewChat={handleNewChat} />
+    <div
+      className={cn(
+        "flex flex-col min-h-0 flex-1 agent-mesh-bg",
+        "md:rounded-2xl md:border md:border-border-light/70 md:bg-bg-primary/70",
+        "md:shadow-sm md:overflow-hidden md:h-full"
+      )}
+    >
+      <AgentTopBar
+        status={status}
+        onNewChat={handleNewChat}
+      />
 
       {messages.length === 0 && !fallback ? (
         <AgentEmptyState
-          onSelectPrompt={(prompt) => {
-            setInput(prompt);
-            sendMessage({ text: prompt });
-          }}
+          className="flex-1 min-h-0"
+          onSelectPrompt={sendPrompt}
         />
       ) : (
         <AgentMessageList messages={messages} status={status} />
@@ -167,15 +182,12 @@ export function AgentChatShell() {
 
       {fallback ? <TraditionalFallbackPanel payload={fallback} className="mx-4 mb-2" /> : null}
 
-      <ClassicQuickLinks
-        className="px-4 pb-2"
-        onAgentPrompt={(prompt) => {
-          if (!user || isThinking) return;
-          setFallback(null);
-          setInput(prompt);
-          sendMessage({ text: prompt });
-        }}
-      />
+      {messages.length > 0 ? (
+        <ClassicQuickLinks
+          className="px-4 pb-2 shrink-0"
+          onAgentPrompt={sendPrompt}
+        />
+      ) : null}
 
       <AgentComposer
         value={input}
@@ -183,6 +195,7 @@ export function AgentChatShell() {
         onSubmit={handleSubmit}
         onVoiceClick={() => !isThinking && setVoiceOpen(true)}
         disabled={composerDisabled}
+        className="shrink-0"
       />
 
       <VoiceSphereOverlay
@@ -190,9 +203,8 @@ export function AgentChatShell() {
         onClose={() => setVoiceOpen(false)}
         onTranscript={(text) => {
           setFallback(null);
-          setInput(text);
-          sendMessage({ text });
           setVoiceOpen(false);
+          sendPrompt(text);
         }}
       />
     </div>

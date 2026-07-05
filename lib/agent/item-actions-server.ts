@@ -7,8 +7,6 @@ import {
 import {
   mapFoundItemRow,
   mapLostItemRow,
-  serializeFoundItem,
-  serializeLostItem,
 } from "@/lib/agent/row-mappers";
 import { searchItemsServer } from "@/lib/agent/item-queries-server";
 import { createFoundItemSchema, createLostItemSchema } from "@/lib/validations/items";
@@ -22,6 +20,7 @@ import {
 import { generateTrackingCode } from "@/lib/utils";
 import { computeHandoverDeadlineFromNow } from "@/lib/found-handover";
 import { ITEM_CATEGORIES } from "@/lib/agent/ner-field-hints";
+import { formatReportValidationError } from "@/lib/agent/report-validation-errors";
 
 function normalizeCategory(category: string): ItemCategory {
   const lower = category.trim().toLowerCase();
@@ -90,10 +89,24 @@ export async function reportLostItemServer(params: {
   contacts?: ContactInfo[];
   contact?: string;
   contactType?: string;
-}) {
+}): Promise<
+  | {
+      ok: true;
+      item: Awaited<ReturnType<typeof mapLostItemRow>>;
+      matches: Array<{
+        score: number;
+        confidence: string;
+        scorePercentage: number;
+        reasons: string[];
+        lostItem: Awaited<ReturnType<typeof mapLostItemRow>>;
+        foundItem: Awaited<ReturnType<typeof mapFoundItemRow>>;
+      }>;
+    }
+  | { ok: false; message: string; missingFields?: string[] }
+> {
   const supabase = await createClient();
   const trackingCode = generateTrackingCode("lost");
-  const validated = createLostItemSchema.parse({
+  const validated = createLostItemSchema.safeParse({
     trackingCode,
     itemName: params.itemName.trim(),
     category: normalizeCategory(params.category),
@@ -106,23 +119,28 @@ export async function reportLostItemServer(params: {
     status: "searching",
   });
 
+  if (!validated.success) {
+    const { message, missingFields } = formatReportValidationError(validated.error);
+    return { ok: false, message, missingFields };
+  }
+
   const now = new Date().toISOString();
   const { data: inserted, error } = await supabase
     .from("lost_items")
     .insert(
       stripUndefined({
-        tracking_code: validated.trackingCode,
-        item_name: validated.itemName,
-        category: validated.category,
-        description: validated.description,
-        location_lost: validated.locationLost,
-        location_place_name: validated.locationPlaceName,
-        location_coords: validated.locationCoords,
-        date_lost: toIso(validated.dateLost),
-        contacts: validated.contacts,
-        user_id: validated.userId,
-        status: validated.status,
-        matched_found_id: validated.matchedFoundId,
+        tracking_code: validated.data.trackingCode,
+        item_name: validated.data.itemName,
+        category: validated.data.category,
+        description: validated.data.description,
+        location_lost: validated.data.locationLost,
+        location_place_name: validated.data.locationPlaceName,
+        location_coords: validated.data.locationCoords,
+        date_lost: toIso(validated.data.dateLost),
+        contacts: validated.data.contacts,
+        user_id: validated.data.userId,
+        status: validated.data.status,
+        matched_found_id: validated.data.matchedFoundId,
         created_at: now,
         updated_at: now,
       })
@@ -141,14 +159,15 @@ export async function reportLostItemServer(params: {
   const matches = findMatchesForLostItem(item, found);
 
   return {
+    ok: true,
     item,
     matches: matches.map((match) => ({
       score: match.score,
       confidence: getMatchConfidence(match.score),
       scorePercentage: Math.round(match.score * 100),
       reasons: match.reasons,
-      lostItem: serializeLostItem(match.lostItem),
-      foundItem: serializeFoundItem(match.foundItem),
+      lostItem: match.lostItem,
+      foundItem: match.foundItem,
     })),
   };
 }
@@ -170,7 +189,21 @@ export async function reportFoundItemServer(
     contactType?: string;
   },
   settings?: AppSettings
-) {
+): Promise<
+  | {
+      ok: true;
+      item: Awaited<ReturnType<typeof mapFoundItemRow>>;
+      matches: Array<{
+        score: number;
+        confidence: string;
+        scorePercentage: number;
+        reasons: string[];
+        lostItem: Awaited<ReturnType<typeof mapLostItemRow>>;
+        foundItem: Awaited<ReturnType<typeof mapFoundItemRow>>;
+      }>;
+    }
+  | { ok: false; message: string; missingFields?: string[] }
+> {
   const supabase = await createClient();
   const trackingCode = generateTrackingCode("found");
   const handoverDeadlineAt = computeHandoverDeadlineFromNow(settings);
@@ -178,7 +211,7 @@ export async function reportFoundItemServer(
     (params.dropOffLocation as DropOffLocation | undefined) ||
     DEFAULT_FOUND_DROP_OFF_LOCATION;
 
-  const validated = createFoundItemSchema.parse({
+  const validated = createFoundItemSchema.safeParse({
     trackingCode,
     description: params.description.trim(),
     locationFound: params.locationFound.trim(),
@@ -202,31 +235,36 @@ export async function reportFoundItemServer(
     userId: params.userId,
   });
 
+  if (!validated.success) {
+    const { message, missingFields } = formatReportValidationError(validated.error);
+    return { ok: false, message, missingFields };
+  }
+
   const now = new Date().toISOString();
   const { data: inserted, error } = await supabase
     .from("found_items")
     .insert(
       stripUndefined({
-        tracking_code: validated.trackingCode,
-        photo_url: validated.photoUrl,
-        item_name: validated.itemName,
-        category: validated.category,
-        color: validated.color,
-        brand: validated.brand,
-        description: validated.description,
-        location_found: validated.locationFound,
-        location_place_name: validated.locationPlaceName,
-        location_coords: validated.locationCoords,
-        date_found: toIso(validated.dateFound),
-        drop_off_location: validated.dropOffLocation,
-        finder_contacts: validated.finderContacts,
-        user_id: validated.userId,
-        status: validated.status,
-        room_handover_confirmed: validated.roomHandoverConfirmed,
-        handover_deadline_at: validated.handoverDeadlineAt
-          ? toIso(validated.handoverDeadlineAt)
+        tracking_code: validated.data.trackingCode,
+        photo_url: validated.data.photoUrl,
+        item_name: validated.data.itemName,
+        category: validated.data.category,
+        color: validated.data.color,
+        brand: validated.data.brand,
+        description: validated.data.description,
+        location_found: validated.data.locationFound,
+        location_place_name: validated.data.locationPlaceName,
+        location_coords: validated.data.locationCoords,
+        date_found: toIso(validated.data.dateFound),
+        drop_off_location: validated.data.dropOffLocation,
+        finder_contacts: validated.data.finderContacts,
+        user_id: validated.data.userId,
+        status: validated.data.status,
+        room_handover_confirmed: validated.data.roomHandoverConfirmed,
+        handover_deadline_at: validated.data.handoverDeadlineAt
+          ? toIso(validated.data.handoverDeadlineAt)
           : undefined,
-        matched_lost_id: validated.matchedLostId,
+        matched_lost_id: validated.data.matchedLostId,
         created_at: now,
         updated_at: now,
       })
@@ -245,14 +283,15 @@ export async function reportFoundItemServer(
   const matches = findMatchesForFoundItem(item, lost);
 
   return {
+    ok: true,
     item,
     matches: matches.map((match) => ({
       score: match.score,
       confidence: getMatchConfidence(match.score),
       scorePercentage: Math.round(match.score * 100),
       reasons: match.reasons,
-      lostItem: serializeLostItem(match.lostItem),
-      foundItem: serializeFoundItem(match.foundItem),
+      lostItem: match.lostItem,
+      foundItem: match.foundItem,
     })),
   };
 }

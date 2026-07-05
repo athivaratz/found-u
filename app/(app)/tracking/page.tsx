@@ -43,7 +43,7 @@ function toDate(value: Date | { toDate: () => Date } | undefined): Date {
 }
 
 export default function TrackingPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -236,7 +236,9 @@ export default function TrackingPage() {
                         <MapPin className="w-4 h-4 text-text-tertiary" />
                         <span>ทำหายที่: {searchResult.locationLost}</span>
                       </div>
-                      {searchResult.contacts && searchResult.contacts.length > 0 && (
+                      {searchResult.contacts &&
+                        searchResult.contacts.length > 0 &&
+                        (isAdmin || searchResult.userId === user?.uid) && (
                         <div className="flex items-center gap-2 text-text-secondary">
                           <User className="w-4 h-4 text-text-tertiary" />
                           <span>
@@ -250,6 +252,15 @@ export default function TrackingPage() {
                               );
                             })}
                           </span>
+                        </div>
+                      )}
+                      {searchResult.contacts &&
+                        searchResult.contacts.length > 0 &&
+                        !isAdmin &&
+                        searchResult.userId !== user?.uid && (
+                        <div className="flex items-center gap-2 text-text-secondary text-sm bg-bg-tertiary rounded-lg p-3">
+                          <User className="w-4 h-4 text-text-tertiary shrink-0" />
+                          <span>ติดต่อเจ้าของรายการได้ผ่านห้องบุคคลครับ</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2 text-text-secondary">

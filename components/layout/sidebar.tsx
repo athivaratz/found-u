@@ -57,9 +57,11 @@ export default function Sidebar() {
           </div>
         </Link>
 
-        <div className="mb-4 flex justify-center">
-          <ModeSwitcher variant="compact" />
-        </div>
+        {!pathname?.startsWith("/assistant") ? (
+          <div className="mb-4 flex justify-center">
+            <ModeSwitcher variant="compact" />
+          </div>
+        ) : null}
 
         {/* User Section */}
         <div className="bg-bg-secondary rounded-xl p-3 min-h-[3.75rem]">

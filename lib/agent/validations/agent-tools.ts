@@ -1,11 +1,15 @@
 import { z } from "zod";
 import { ITEM_CATEGORIES, CONTACT_TYPES } from "@/lib/agent/ner-field-hints";
 
-const categoryDescribe = `หมวดหมู่: ${ITEM_CATEGORIES.join(", ")}`;
+const categoryDescribe = `Category enum: ${ITEM_CATEGORIES.join(", ")}`;
 
 export const searchItemsToolSchema = z.object({
-  query: z.string().min(1).max(200).describe("คำค้น: ชื่อของ สถานที่ หรือรหัส"),
-  type: z.enum(["lost", "found", "all"]).optional().default("all"),
+  query: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe("Search text: item name and location; location must match for results"),
+  type: z.enum(["lost", "found", "all"]).optional().default("lost"),
   category: z.string().optional(),
   status: z
     .enum(["searching", "pending_room_confirm", "found", "claimed", "expired"])
@@ -18,7 +22,7 @@ export const lookupTrackingCodeToolSchema = z.object({
     .string()
     .min(3)
     .max(32)
-    .describe("รหัสติดตาม เช่น LOST-XXXXXX หรือ FOUND-XXXXXX"),
+    .describe("Tracking code e.g. LOST-XXXXXX or FOUND-XXXXXX"),
 });
 
 export const analyzeImageToolSchema = z.object({
@@ -29,7 +33,7 @@ export const analyzeImageToolSchema = z.object({
 
 export const findMatchesToolSchema = z.object({
   type: z.enum(["lost", "found"]),
-  itemId: z.string().min(1).describe("รหัสรายการในฐานข้อมูล"),
+  itemId: z.string().min(1).describe("Database item id owned by the current user"),
   useAI: z.boolean().optional().default(false),
 });
 
@@ -43,21 +47,21 @@ const contactSchema = z.object({
 });
 
 export const reportLostItemToolSchema = z.object({
-  itemName: z.string().min(1).max(200).describe("ชื่อสิ่งของที่หาย"),
+  itemName: z.string().min(1).max(200).describe("Lost item name"),
   category: z.string().min(1).max(64).describe(categoryDescribe),
   description: z
     .string()
     .max(2000)
     .optional()
-    .describe("รายละเอียด สี ยี่ห้อ จุดเด่น"),
+    .describe("Details: color, brand, distinguishing marks"),
   locationLost: z
     .string()
     .min(1)
     .max(500)
-    .describe("สถานที่ที่ทำหาย (จุดเกิดเหตุ)"),
-  dateLost: z.string().max(64).optional().describe("วันที่หาย ISO หรือข้อความ"),
-  time: z.string().max(64).optional().describe("เวลาที่หาย เช่น 15:00"),
-  contact: z.string().max(200).optional().describe("ช่องทางติดต่อ"),
+    .describe("Where the item was lost (incident location)"),
+  dateLost: z.string().max(64).optional().describe("Date lost ISO or text"),
+  time: z.string().max(64).optional().describe("Time lost e.g. 15:00"),
+  contact: z.string().max(200).optional().describe("Contact value"),
   contactType: z.enum(CONTACT_TYPES).optional(),
   contacts: z.array(contactSchema).max(5).optional(),
 });
@@ -67,13 +71,13 @@ export const reportFoundItemToolSchema = z.object({
     .string()
     .min(1)
     .max(2000)
-    .describe("รายละเอียดสิ่งของที่เจอ"),
+    .describe("Description of the found item"),
   locationFound: z
     .string()
     .min(1)
     .max(500)
-    .describe("สถานที่ที่เจอ (จุดเกิดเหตุ)"),
-  itemName: z.string().max(200).optional().describe("ชื่อสิ่งของ"),
+    .describe("Where the item was found (incident location)"),
+  itemName: z.string().max(200).optional().describe("Item name"),
   category: z.string().max(64).optional().describe(categoryDescribe),
   color: z.string().max(100).optional(),
   brand: z.string().max(100).optional(),
@@ -83,7 +87,7 @@ export const reportFoundItemToolSchema = z.object({
     .string()
     .max(64)
     .optional()
-    .describe("สถานที่ฝากของ เช่น personnel_office"),
+    .describe("Drop-off location e.g. personnel_office"),
   contact: z.string().max(200).optional(),
   contactType: z.enum(CONTACT_TYPES).optional(),
   finderContacts: z.array(contactSchema).max(5).optional(),

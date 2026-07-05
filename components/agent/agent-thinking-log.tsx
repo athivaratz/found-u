@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ChevronDown,
   CheckCircle2,
@@ -50,6 +50,14 @@ export function AgentThinkingLog({
 }: AgentThinkingLogProps) {
   const toolParts = (message.parts || []).filter(isToolUIPart);
   const [expanded, setExpanded] = useState(isStreaming);
+
+  useEffect(() => {
+    if (isStreaming) {
+      setExpanded(true);
+    } else if (toolParts.length > 0) {
+      setExpanded(false);
+    }
+  }, [isStreaming, toolParts.length]);
 
   if (toolParts.length === 0) return null;
 

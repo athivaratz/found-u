@@ -8,9 +8,11 @@ export function createFoundUAgent(options: {
   model: LanguageModel;
   settings: AppSettings;
   userId: string | null;
+  isAdmin?: boolean;
 }) {
   const tools = createAgentTools({
     userId: options.userId,
+    isAdmin: options.isAdmin ?? false,
     settings: options.settings,
   });
 
@@ -18,7 +20,9 @@ export function createFoundUAgent(options: {
 
   return new ToolLoopAgent({
     model: options.model,
-    instructions: buildAgentSystemPrompt(),
+    instructions: buildAgentSystemPrompt({
+      userLoggedIn: Boolean(options.userId),
+    }),
     tools,
     stopWhen: isStepCount(maxSteps),
     temperature: options.settings.agentTemperature ?? 0.3,
