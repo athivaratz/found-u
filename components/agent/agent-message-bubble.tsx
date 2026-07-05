@@ -33,14 +33,24 @@ function extractToolArtifacts(message: UIMessage) {
     reasons?: string[];
   }> = [];
   const nerResults: NerResultData[] = [];
+  const toolErrors: string[] = [];
 
   for (const part of message.parts || []) {
     if (!isToolUIPart(part) || part.state !== "output-available") continue;
     const output = part.output as {
+      ok?: boolean;
       resultType?: string;
       data?: unknown;
+      message?: string;
     } | undefined;
-    if (!output?.data) continue;
+    if (!output) continue;
+
+    if (output.ok === false) {
+      if (output.message) toolErrors.push(output.message);
+      continue;
+    }
+
+    if (output.data == null) continue;
 
     if (output.resultType === "ner" && output.data) {
       nerResults.push(output.data as NerResultData);
@@ -66,7 +76,7 @@ function extractToolArtifacts(message: UIMessage) {
     }
   }
 
-  return { items, newItems, matches, nerResults };
+  return { items, newItems, matches, nerResults, toolErrors };
 }
 
 type AgentMessageBubbleProps = {
@@ -83,8 +93,8 @@ export function AgentMessageBubble({
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
   const text = extractTextFromMessage(message);
-  const { items, newItems, matches, nerResults } = isUser
-    ? { items: [], newItems: [], matches: [], nerResults: [] }
+  const { items, newItems, matches, nerResults, toolErrors } = isUser
+    ? { items: [], newItems: [], matches: [], nerResults: [], toolErrors: [] }
     : extractToolArtifacts(message);
 
   const newItemIds = new Set(newItems.map((item) => item.id));
@@ -112,6 +122,15 @@ export function AgentMessageBubble({
         {showThinkingLog ? (
           <AgentThinkingLog message={message} isStreaming={isStreaming} />
         ) : null}
+
+        {toolErrors.map((err, i) => (
+          <div
+            key={`tool-err-${i}`}
+            className="rounded-xl px-3 py-2 mb-3 text-xs text-status-error bg-status-error-light/80 border border-status-error/20"
+          >
+            {err}
+          </div>
+        ))}
 
         {nerResults.map((ner, i) => (
           <NerResultCard key={`ner-${i}`} data={ner} />

@@ -15,10 +15,16 @@ import { cn } from "@/lib/utils";
 
 type StepStatus = "pending" | "running" | "done" | "error";
 
-function getStepStatus(part: { state?: string }): StepStatus {
+function getStepStatus(part: {
+  state?: string;
+  output?: unknown;
+}): StepStatus {
   const state = part.state;
-  if (state === "output-available" || state === "output-error") {
-    return state === "output-error" ? "error" : "done";
+  if (state === "output-error") return "error";
+  if (state === "output-available") {
+    const output = part.output as { ok?: boolean } | undefined;
+    if (output && output.ok === false) return "error";
+    return "done";
   }
   if (state === "input-available" || state === "input-streaming") return "running";
   return "pending";

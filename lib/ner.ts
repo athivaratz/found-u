@@ -1,5 +1,6 @@
 import { DEFAULT_APP_SETTINGS } from "./types";
 import { extractNERFallback } from "./ner-fallback";
+import { NER_NO_INVENT_RULE } from "@/lib/agent/ner-field-hints";
 
 // NER Service using Gemini models for extracting structured data from text
 // Optimized for speed: ~2-3 seconds response
@@ -77,6 +78,8 @@ const NER_PROMPT = `คุณคือ AI สำหรับระบบ Lost & 
    - ตัวอย่าง: "เอามาฝากไว้ห้องปกครองรี1/11", "มีรางวัลให้คนเจอ", "ด่วนมาก"
 9. target (String): "lost" หรือ "found"
 
+${NER_NO_INVENT_RULE}
+
 --- Examples ---
 Input: "ตามหาพวงกุญแจซันซู หายตอนวันสอบธรรมะ น่าจะแถวสนามกีฬากับสหกรณ์ ใครเจอเอามาฝากห้องปกครองรี1/11(3604)หน่อย"
 Output: {"item":"พวงกุญแจ","description":"ลายซันซู","location":"สนามกีฬากับสหกรณ์","time":"วันสอบธรรมะ","contact":null,"contactType":null,"category":"keys","remark":"ฝากไว้ที่ห้องปกครองรี1/11 (3604)","target":"lost"}
@@ -133,8 +136,8 @@ export async function extractNERData(
   config?: AIGenerationConfig
 ): Promise<NERExtractedData | null> {
   if (!GEMINI_API_KEY) {
-    console.error("GEMMA_API_KEY not found");
-    return null;
+    console.error("GEMMA_API_KEY not found — using rule-based NER fallback");
+    return extractNERFallback(text, type);
   }
 
   try {

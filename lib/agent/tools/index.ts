@@ -1,5 +1,4 @@
 import { tool } from "ai";
-import { extractNERData } from "@/lib/ner";
 import { extractVisionData } from "@/lib/vision";
 import {
   findMatchesForFoundItem,
@@ -12,6 +11,7 @@ import {
   getFoundItemByIdServer,
   getLostItemByIdServer,
   getLostItemByTrackingCodeServer,
+  getUserFoundItemsServer,
   getUserLostItemsServer,
   searchItemsServer,
 } from "@/lib/agent/item-queries-server";
@@ -26,7 +26,6 @@ import {
 import type { AppSettings } from "@/lib/types";
 import {
   analyzeImageToolSchema,
-  extractItemInfoToolSchema,
   findMatchesToolSchema,
   getUserItemsToolSchema,
   lookupTrackingCodeToolSchema,
@@ -45,136 +44,191 @@ export function createAgentTools(options: {
   return {
     searchItems: tool({
       description:
-        "ค้นหารายการของหายหรือของเจอในฐานข้อมูลตามคำค้น ชื่อ สถานที่ หรือรหัสติดตาม",
+        "ค้นหารายการของหายหรือของเจอในฐานข้อมูล — ต้องเรียกก่อนตอบว่ามีรายการหรือไม่ ห้ามเดาจากความรู้ทั่วไป",
       inputSchema: searchItemsToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
-        const { lost, found } = await searchItemsServer({
-          query: input.query,
-          type: input.type,
-          category: input.category,
-          status: input.status,
-          limit: input.limit,
-        });
-        return {
-          ok: true,
-          resultType: "items",
-          data: {
-            lost: lost.map(serializeLostItem),
-            found: found.map(serializeFoundItem),
-            total: lost.length + found.length,
-          },
-        };
+        try {
+          const { lost, found } = await searchItemsServer({
+            query: input.query,
+            type: input.type,
+            category: input.category,
+            status: input.status,
+            limit: input.limit,
+          });
+          return {
+            ok: true,
+            resultType: "items",
+            data: {
+              lost: lost.map(serializeLostItem),
+              found: found.map(serializeFoundItem),
+              total: lost.length + found.length,
+            },
+          };
+        } catch (error) {
+          console.error("[searchItems]", error);
+          return {
+            ok: false,
+            resultType: "items",
+            data: { lost: [], found: [], total: 0 },
+            message: "ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง",
+          };
+        }
       },
     }),
 
     lookupTrackingCode: tool({
-      description: "ค้นหารายการของหายจากรหัสติดตาม (tracking code)",
+      description:
+        "ค้นหารายการจากรหัสติดตาม — ต้องเรียกก่อนยืนยันรหัส ห้ามเดารหัส",
       inputSchema: lookupTrackingCodeToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
-        const item = await getLostItemByTrackingCodeServer(input.trackingCode);
-        return {
-          ok: Boolean(item),
-          resultType: "tracking",
-          data: item ? serializeLostItem(item) : null,
-          message: item ? undefined : "ไม่พบรหัสติดตามนี้",
-        };
-      },
-    }),
-
-    extractItemInfo: tool({
-      description: "สกัดข้อมูล structured จากข้อความแจ้งของหายหรือของเจอ",
-      inputSchema: extractItemInfoToolSchema,
-      execute: async (input): Promise<AgentToolEnvelope> => {
-        const result = await extractNERData(input.text, input.target, {
-          model: settings.aiNerModel || settings.agentModel,
-          temperature: settings.aiNerTemperature,
-          topP: settings.aiNerTopP,
-          maxOutputTokens: settings.aiNerMaxOutputTokens ?? 512,
-        });
-        return {
-          ok: Boolean(result?.item),
-          resultType: "ner",
-          data: result,
-        };
+        try {
+          const item = await getLostItemByTrackingCodeServer(input.trackingCode);
+          return {
+            ok: Boolean(item),
+            resultType: "tracking",
+            data: item ? serializeLostItem(item) : null,
+            message: item ? undefined : "ไม่พบรหัสติดตามนี้",
+          };
+        } catch (error) {
+          console.error("[lookupTrackingCode]", error);
+          return {
+            ok: false,
+            resultType: "tracking",
+            data: null,
+            message: "ค้นหารหัสไม่สำเร็จ ลองใหม่อีกครั้ง",
+          };
+        }
       },
     }),
 
     analyzeImage: tool({
-      description: "วิเคราะห์รูปภาพสิ่งของเพื่อระบุชื่อ หมวดหมู่ สี ยี่ห้อ",
+      description:
+        "วิเคราะห์รูปภาพสิ่งของเพื่อระบุชื่อ หมวดหมู่ สี ยี่ห้อ — ใช้เมื่อมีรูปภาพ",
       inputSchema: analyzeImageToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
-        let base64 = input.imageBase64;
-        let mimeType = "image/jpeg";
+        try {
+          let base64 = input.imageBase64;
+          let mimeType = "image/jpeg";
 
-        if (input.imageUrl?.startsWith("data:")) {
-          const match = input.imageUrl.match(/^data:(.+);base64,(.*)$/);
-          if (match) {
-            mimeType = match[1];
-            base64 = match[2];
+          if (input.imageUrl?.startsWith("data:")) {
+            const match = input.imageUrl.match(/^data:(.+);base64,(.*)$/);
+            if (match) {
+              mimeType = match[1];
+              base64 = match[2];
+            }
+          } else if (input.imageUrl) {
+            const res = await fetch(input.imageUrl);
+            if (!res.ok) {
+              return {
+                ok: false,
+                resultType: "vision",
+                data: null,
+                message: "โหลดรูปภาพไม่สำเร็จ",
+              };
+            }
+            const buf = await res.arrayBuffer();
+            base64 = Buffer.from(buf).toString("base64");
+            mimeType = res.headers.get("content-type") || mimeType;
           }
-        } else if (input.imageUrl) {
-          const res = await fetch(input.imageUrl);
-          const buf = await res.arrayBuffer();
-          base64 = Buffer.from(buf).toString("base64");
-          mimeType = res.headers.get("content-type") || mimeType;
-        }
 
-        if (!base64) {
+          if (!base64) {
+            return {
+              ok: false,
+              resultType: "vision",
+              data: null,
+              message: "ต้องระบุ imageUrl หรือ imageBase64",
+            };
+          }
+
+          const result = await extractVisionData(base64, mimeType, {
+            model: settings.aiVisionModel,
+            temperature: settings.aiVisionTemperature,
+            topP: settings.aiVisionTopP,
+            maxOutputTokens: settings.aiVisionMaxOutputTokens,
+          });
+          const data =
+            result && typeof result === "object" && "data" in result
+              ? (result as { data: unknown }).data
+              : result;
+          return {
+            ok: Boolean(data),
+            resultType: "vision",
+            data: data ?? null,
+          };
+        } catch (error) {
+          console.error("[analyzeImage]", error);
           return {
             ok: false,
             resultType: "vision",
             data: null,
-            message: "ต้องระบุ imageUrl หรือ imageBase64",
+            message: "วิเคราะห์รูปไม่สำเร็จ",
           };
         }
-
-        const result = await extractVisionData(base64, mimeType, {
-          model: settings.aiVisionModel,
-          temperature: settings.aiVisionTemperature,
-          topP: settings.aiVisionTopP,
-          maxOutputTokens: settings.aiVisionMaxOutputTokens,
-        });
-        const data =
-          result && typeof result === "object" && "data" in result
-            ? (result as { data: unknown }).data
-            : result;
-        return {
-          ok: Boolean(data),
-          resultType: "vision",
-          data: data ?? null,
-        };
       },
     }),
 
     findMatches: tool({
-      description: "จับคู่รายการของหายกับของเจอ (หรือกลับกัน) ตาม item id",
+      description:
+        "จับคู่รายการของหายกับของเจอตาม item id — ใช้หลังมีรายการแล้วเท่านั้น",
       inputSchema: findMatchesToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
-        const aiConfig = {
-          model: settings.aiMatchingModel,
-          temperature: settings.aiMatchingTemperature,
-          topP: settings.aiMatchingTopP,
-          maxOutputTokens: settings.aiMatchingMaxOutputTokens,
-        };
+        try {
+          const aiConfig = {
+            model: settings.aiMatchingModel,
+            temperature: settings.aiMatchingTemperature,
+            topP: settings.aiMatchingTopP,
+            maxOutputTokens: settings.aiMatchingMaxOutputTokens,
+          };
 
-        if (input.type === "lost") {
-          const lostItem = await getLostItemByIdServer(input.itemId);
-          if (!lostItem) {
+          if (input.type === "lost") {
+            const lostItem = await getLostItemByIdServer(input.itemId);
+            if (!lostItem) {
+              return {
+                ok: false,
+                resultType: "match",
+                data: [],
+                message: "ไม่พบรายการของหาย",
+              };
+            }
+            const { found } = await searchItemsServer({
+              query: lostItem.itemName || lostItem.description || "",
+              type: "found",
+              limit: 10,
+            });
+            const matches = input.useAI
+              ? await findMatchesForLostItemAI(lostItem, found, 5, aiConfig)
+              : findMatchesForLostItem(lostItem, found);
+            return {
+              ok: true,
+              resultType: "match",
+              data: matches.map((m) => ({
+                score: m.score,
+                confidence: getMatchConfidence(m.score),
+                scorePercentage: Math.round(m.score * 100),
+                reasons: m.reasons,
+                lostItem: serializeLostItem(m.lostItem),
+                foundItem: serializeFoundItem(m.foundItem),
+              })),
+            };
+          }
+
+          const foundItem = await getFoundItemByIdServer(input.itemId);
+          if (!foundItem) {
             return {
               ok: false,
               resultType: "match",
               data: [],
-              message: "ไม่พบรายการของหาย",
+              message: "ไม่พบรายการของเจอ",
             };
           }
-          const { found } = await searchItemsServer({
-            query: lostItem.itemName || lostItem.description || "",
-            type: "found",
+          const { lost } = await searchItemsServer({
+            query: foundItem.itemName || foundItem.description || "",
+            type: "lost",
             limit: 10,
           });
           const matches = input.useAI
-            ? await findMatchesForLostItemAI(lostItem, found, 5, aiConfig)
-            : findMatchesForLostItem(lostItem, found);
+            ? await findMatchesForFoundItemAI(foundItem, lost, 5, aiConfig)
+            : findMatchesForFoundItem(foundItem, lost);
           return {
             ok: true,
             resultType: "match",
@@ -187,68 +241,60 @@ export function createAgentTools(options: {
               foundItem: serializeFoundItem(m.foundItem),
             })),
           };
-        }
-
-        const foundItem = await getFoundItemByIdServer(input.itemId);
-        if (!foundItem) {
+        } catch (error) {
+          console.error("[findMatches]", error);
           return {
             ok: false,
             resultType: "match",
             data: [],
-            message: "ไม่พบรายการของเจอ",
+            message: "จับคู่ไม่สำเร็จ ลองใหม่อีกครั้ง",
           };
         }
-        const { lost } = await searchItemsServer({
-          query: foundItem.itemName || foundItem.description || "",
-          type: "lost",
-          limit: 10,
-        });
-        const matches = input.useAI
-          ? await findMatchesForFoundItemAI(foundItem, lost, 5, aiConfig)
-          : findMatchesForFoundItem(foundItem, lost);
-        return {
-          ok: true,
-          resultType: "match",
-          data: matches.map((m) => ({
-            score: m.score,
-            confidence: getMatchConfidence(m.score),
-            scorePercentage: Math.round(m.score * 100),
-            reasons: m.reasons,
-            lostItem: serializeLostItem(m.lostItem),
-            foundItem: serializeFoundItem(m.foundItem),
-          })),
-        };
       },
     }),
 
     getUserItems: tool({
-      description: "ดึงรายการของหายที่ผู้ใช้ปัจจุบันแจ้งไว้",
+      description:
+        "ดึงรายการของหายและของเจอที่ผู้ใช้ปัจจุบันแจ้งไว้ — ใช้เมื่อ user ถามเรื่องรายการของตัวเอง",
       inputSchema: getUserItemsToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         if (!userId) {
           return {
             ok: false,
             resultType: "items",
-            data: { lost: [], found: [] },
+            data: { lost: [], found: [], total: 0 },
             message: "ต้องเข้าสู่ระบบก่อน",
           };
         }
-        const items = await getUserLostItemsServer(userId, input.limit);
-        return {
-          ok: true,
-          resultType: "items",
-          data: {
-            lost: items.map(serializeLostItem),
-            found: [],
-            total: items.length,
-          },
-        };
+        try {
+          const [lostItems, foundItems] = await Promise.all([
+            getUserLostItemsServer(userId, input.limit),
+            getUserFoundItemsServer(userId, input.limit),
+          ]);
+          return {
+            ok: true,
+            resultType: "items",
+            data: {
+              lost: lostItems.map(serializeLostItem),
+              found: foundItems.map(serializeFoundItem),
+              total: lostItems.length + foundItems.length,
+            },
+          };
+        } catch (error) {
+          console.error("[getUserItems]", error);
+          return {
+            ok: false,
+            resultType: "items",
+            data: { lost: [], found: [], total: 0 },
+            message: "ดึงรายการไม่สำเร็จ",
+          };
+        }
       },
     }),
 
     reportLostItem: tool({
       description:
-        "แจ้งของหายลงระบบให้ผู้ใช้ทันที (สร้างรายการและรหัสติดตาม) — ใช้หลัง extractItemInfo เมื่อผู้ใช้ต้องการแจ้งของหาย",
+        "แจ้งของหายลงระบบทันที — สกัด fields จากข้อความ user แล้วเรียก tool นี้โดยตรง (ห้ามใช้ extractItemInfo)",
       inputSchema: reportLostItemToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         if (!userId) {
@@ -279,7 +325,7 @@ export function createAgentTools(options: {
             ok: false,
             resultType: "report",
             data: null,
-            message: "บันทึกรายการไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองใหม่",
+            message: "บันทึกรายการไม่สำเร็จ กรุณาตรวจสอบชื่อของและสถานที่แล้วลองใหม่",
           };
         }
       },
@@ -287,7 +333,7 @@ export function createAgentTools(options: {
 
     reportFoundItem: tool({
       description:
-        "แจ้งเจอของลงระบบให้ผู้ใช้ทันที (สร้างรายการและรหัสติดตาม) — ใช้หลัง extractItemInfo เมื่อผู้ใช้ต้องการแจ้งเจอของ",
+        "แจ้งเจอของลงระบบทันที — สกัด fields จากข้อความ user แล้วเรียก tool นี้โดยตรง (ห้ามใช้ extractItemInfo)",
       inputSchema: reportFoundItemToolSchema,
       execute: async (input): Promise<AgentToolEnvelope> => {
         if (!userId) {
@@ -318,7 +364,7 @@ export function createAgentTools(options: {
             ok: false,
             resultType: "report",
             data: null,
-            message: "บันทึกรายการไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองใหม่",
+            message: "บันทึกรายการไม่สำเร็จ กรุณาตรวจสอบรายละเอียดและสถานที่แล้วลองใหม่",
           };
         }
       },

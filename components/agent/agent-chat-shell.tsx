@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useAuth } from "@/contexts/auth-context";
-import { AGENT_MESSAGES_KEY } from "@/contexts/app-mode-context";
 import { AgentTopBar } from "@/components/agent/agent-top-bar";
 import { AgentEmptyState } from "@/components/agent/agent-empty-state";
 import { AgentMessageList } from "@/components/agent/agent-message-list";
@@ -13,14 +12,16 @@ import { ClassicQuickLinks } from "@/components/agent/classic-quick-links";
 import { TraditionalFallbackPanel } from "@/components/agent/traditional-fallback-panel";
 import { VoiceSphereOverlay } from "@/components/agent/voice-sphere-overlay";
 import type { AgentFallbackPayload } from "@/lib/agent/fallback";
+import { agentMessagesKey } from "@/lib/agent/storage-keys";
 import { thaiCopy } from "@/lib/copy/thai-student";
+import { useMounted } from "@/hooks/use-mounted";
 import Link from "next/link";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 
-function loadStoredMessages(): UIMessage[] {
+function loadStoredMessages(userId: string): UIMessage[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = sessionStorage.getItem(AGENT_MESSAGES_KEY);
+    const raw = localStorage.getItem(agentMessagesKey(userId));
     if (!raw) return [];
     return JSON.parse(raw) as UIMessage[];
   } catch {
@@ -30,10 +31,11 @@ function loadStoredMessages(): UIMessage[] {
 
 export function AgentChatShell() {
   const { user, loading: authLoading } = useAuth();
+  const mounted = useMounted();
+  const hydratedRef = useRef(false);
   const [input, setInput] = useState("");
   const [fallback, setFallback] = useState<AgentFallbackPayload | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
-  const [initialMessages] = useState(() => loadStoredMessages());
 
   const { messages, sendMessage, setMessages, status, error } = useChat({
     transport: new DefaultChatTransport({
@@ -51,14 +53,27 @@ export function AgentChatShell() {
         return res;
       },
     }),
-    messages: initialMessages,
+    messages: [],
   });
 
   useEffect(() => {
-    if (messages.length > 0) {
-      sessionStorage.setItem(AGENT_MESSAGES_KEY, JSON.stringify(messages));
+    if (!mounted || !user || hydratedRef.current) return;
+    const stored = loadStoredMessages(user.id);
+    if (stored.length > 0) {
+      setMessages(stored);
     }
-  }, [messages]);
+    hydratedRef.current = true;
+  }, [mounted, user, setMessages]);
+
+  useEffect(() => {
+    if (!user) return;
+    const key = agentMessagesKey(user.id);
+    if (messages.length === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(messages));
+    }
+  }, [messages, user]);
 
   useEffect(() => {
     if (!error) return;
@@ -99,7 +114,9 @@ export function AgentChatShell() {
 
   const handleNewChat = () => {
     setMessages([]);
-    sessionStorage.removeItem(AGENT_MESSAGES_KEY);
+    if (user) {
+      localStorage.removeItem(agentMessagesKey(user.id));
+    }
     setFallback(null);
     setInput("");
   };
@@ -164,14 +181,15 @@ export function AgentChatShell() {
         value={input}
         onChange={setInput}
         onSubmit={handleSubmit}
-        onVoiceClick={() => setVoiceOpen(true)}
+        onVoiceClick={() => !isThinking && setVoiceOpen(true)}
         disabled={composerDisabled}
       />
 
       <VoiceSphereOverlay
-        open={voiceOpen}
+        open={voiceOpen && !isThinking}
         onClose={() => setVoiceOpen(false)}
         onTranscript={(text) => {
+          setFallback(null);
           setInput(text);
           sendMessage({ text });
           setVoiceOpen(false);

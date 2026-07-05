@@ -6,6 +6,8 @@ import {
   isProviderConfigured,
   type AgentProviderName,
 } from "@/lib/agent/provider-router";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
 function resolveModelLabel(
@@ -22,7 +24,30 @@ function resolveModelLabel(
   return settings.agentModel || "gemini-2.0-flash";
 }
 
+async function isAdminUser(userId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data } = await admin.from("accounts").select("role").eq("id", userId).maybeSingle();
+  return data?.role === "admin";
+}
+
+async function requireAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!(await isAdminUser(user.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
+
   let mergedSettings = { ...DEFAULT_APP_SETTINGS, ...(await getAppSettingsAdmin()) };
   try {
     const body = await request.json();
@@ -36,6 +61,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
+
   const mergedSettings = { ...DEFAULT_APP_SETTINGS, ...(await getAppSettingsAdmin()) };
   return runProviderTests(mergedSettings);
 }

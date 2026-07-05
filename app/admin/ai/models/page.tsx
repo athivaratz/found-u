@@ -17,7 +17,7 @@ import {
   Activity,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
-import { getAppSettings, updateAppSettings } from "@/lib/database";
+import { getAppSettingsWithMeta, updateAppSettings } from "@/lib/database";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 
 interface ModelInfo {
@@ -94,6 +94,7 @@ export default function AdminAIModelsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [settingsLoadError, setSettingsLoadError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -127,9 +128,16 @@ export default function AdminAIModelsPage() {
   useEffect(() => {
     let mounted = true;
 
-    getAppSettings()
-      .then((data) => {
-        if (mounted) setSettings(data);
+    getAppSettingsWithMeta()
+      .then(({ settings: data, loadError }) => {
+        if (mounted) {
+          setSettings(data);
+          if (loadError) {
+            setSettingsLoadError(
+              "โหลดการตั้งค่าจากฐานข้อมูลไม่สำเร็จ — กำลังแสดงค่าเริ่มต้น กรุณาตรวจสอบสิทธิ์หรือลองใหม่"
+            );
+          }
+        }
       })
       .catch((error) => {
         console.error("Error loading settings:", error);
@@ -264,6 +272,13 @@ export default function AdminAIModelsPage() {
               บันทึก
             </button>
           </div>
+
+          {settingsLoadError ? (
+            <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              {settingsLoadError}
+            </div>
+          ) : null}
 
           {showSuccess && (
             <div className="mt-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
@@ -634,6 +649,39 @@ export default function AdminAIModelsPage() {
                   setSettings((prev) => ({
                     ...prev,
                     agentContextMaxMessages: parseNumber(e.target.value),
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Temperature</label>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.1}
+                value={settings.agentTemperature ?? 0.3}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentTemperature: parseNumber(e.target.value),
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Max Output Tokens</label>
+              <input
+                type="number"
+                min={128}
+                max={4096}
+                value={settings.agentMaxOutputTokens ?? 512}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentMaxOutputTokens: parseNumber(e.target.value),
                   }))
                 }
                 className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"

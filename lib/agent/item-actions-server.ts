@@ -21,6 +21,15 @@ import {
 } from "@/lib/types";
 import { generateTrackingCode } from "@/lib/utils";
 import { computeHandoverDeadlineFromNow } from "@/lib/found-handover";
+import { ITEM_CATEGORIES } from "@/lib/agent/ner-field-hints";
+
+function normalizeCategory(category: string): ItemCategory {
+  const lower = category.trim().toLowerCase();
+  if (ITEM_CATEGORIES.includes(lower as ItemCategory)) {
+    return lower as ItemCategory;
+  }
+  return "other";
+}
 
 function stripUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
   return Object.fromEntries(
@@ -87,7 +96,7 @@ export async function reportLostItemServer(params: {
   const validated = createLostItemSchema.parse({
     trackingCode,
     itemName: params.itemName.trim(),
-    category: params.category.trim(),
+    category: normalizeCategory(params.category),
     description: params.description?.trim() || params.itemName.trim(),
     locationLost: params.locationLost.trim(),
     locationPlaceName: params.locationLost.trim(),
@@ -180,7 +189,7 @@ export async function reportFoundItemServer(
     roomHandoverConfirmed: false,
     ...(params.itemName?.trim() ? { itemName: params.itemName.trim() } : {}),
     ...(params.category?.trim()
-      ? { category: params.category.trim() as ItemCategory }
+      ? { category: normalizeCategory(params.category) }
       : {}),
     ...(params.color?.trim() ? { color: params.color.trim() } : {}),
     ...(params.brand?.trim() ? { brand: params.brand.trim() } : {}),

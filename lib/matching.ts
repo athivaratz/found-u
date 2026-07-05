@@ -282,9 +282,13 @@ export function findMatchesForLostItem(
     return [];
   }
 
-  // Step 1: Filter by status (only found/claimed items)
-  let candidates = foundItems.filter(f =>
-    (f.status === 'found' || f.status === 'claimed') && !f.matchedLostId
+  // Step 1: Filter by status (found, claimed, or pending handover)
+  let candidates = foundItems.filter(
+    (f) =>
+      (f.status === "found" ||
+        f.status === "claimed" ||
+        f.status === "pending_room_confirm") &&
+      !f.matchedLostId
   );
 
   // Step 2: (Optional) Filter by category if known
@@ -329,8 +333,13 @@ export function findMatchesForFoundItem(
   foundItem: FoundItem,
   lostItems: LostItem[]
 ): MatchScore[] {
-  // Skip if item is not found/claimed
-  if ((foundItem.status !== 'found' && foundItem.status !== 'claimed') || foundItem.matchedLostId) {
+  // Skip if item cannot be matched yet
+  if (
+    (foundItem.status !== "found" &&
+      foundItem.status !== "claimed" &&
+      foundItem.status !== "pending_room_confirm") ||
+    foundItem.matchedLostId
+  ) {
     return [];
   }
 
@@ -428,7 +437,9 @@ function resolveMatchConfig(config?: AIGenerationConfig) {
 
 const AI_MATCH_PROMPT = `คุณเป็น AI สำหรับจับคู่ของหายกับของที่เจอ
 
-เปรียบเทียบรายการ "ของหาย" กับ "ของเจอ" แล้วให้คะแนนความตรงกัน
+เปรียบเทียบรายการ "ของหาย" กับ "ของเจอ" แล้วให้คะแนนความตรงกัน (0.0-1.0)
+- score >= 0.7 และ isMatch: true เมื่อมั่นใจว่าน่าจะเป็นคู่กัน
+- ห้ามเดาข้อมูลที่ไม่มีในรายการ
 
 ของหาย:
 - ชื่อ: {lostItem}
@@ -441,12 +452,12 @@ const AI_MATCH_PROMPT = `คุณเป็น AI สำหรับจับค
 
 ตอบเป็น JSON เท่านั้น:
 {
-  "score": 0.0-1.0 (ความน่าจะเป็นที่ตรงกัน),
+  "score": 0.0-1.0,
   "reasons": ["เหตุผล1", "เหตุผล2"],
   "isMatch": true/false
 }
 
-JSON:`;
+ตัวอย่าง: หูฟังซัมซุงหายหน้าห้องสมุด vs เจอหูฟังสีดำหน้าห้องสมุด → score 0.85, isMatch: true`;
 
 interface AIMatchResult {
   score: number;
@@ -485,6 +496,7 @@ async function aiCompareItems(
           temperature: resolvedConfig.temperature,
           maxOutputTokens: resolvedConfig.maxOutputTokens,
           topP: resolvedConfig.topP,
+          responseMimeType: "application/json",
         },
       }),
     });

@@ -1,6 +1,6 @@
 import { ToolLoopAgent, isStepCount, type InferAgentUIMessage } from "ai";
 import type { LanguageModel } from "ai";
-import { AGENT_SYSTEM_PROMPT } from "@/lib/agent/system-prompt";
+import { buildAgentSystemPrompt } from "@/lib/agent/system-prompt";
 import { createAgentTools } from "@/lib/agent/tools";
 import type { AppSettings } from "@/lib/types";
 
@@ -18,7 +18,7 @@ export function createFoundUAgent(options: {
 
   return new ToolLoopAgent({
     model: options.model,
-    instructions: AGENT_SYSTEM_PROMPT,
+    instructions: buildAgentSystemPrompt(),
     tools,
     stopWhen: isStepCount(maxSteps),
     temperature: options.settings.agentTemperature ?? 0.3,

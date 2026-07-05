@@ -35,7 +35,7 @@ export function AgentTopBar({ isThinking, onNewChat, className }: AgentTopBarPro
         </div>
       </div>
 
-      <ModeSwitcher variant="compact" className="hidden sm:inline-flex" />
+      <ModeSwitcher variant="compact" className="shrink-0" />
 
       {onNewChat ? (
         <button

@@ -20,8 +20,12 @@ function clampLimit(limit?: number): number {
   return Math.min(limit, MAX_LIMIT);
 }
 
+function sanitizeSearchQuery(value: string): string {
+  return value.replace(/,/g, " ").trim();
+}
+
 function escapeIlike(value: string): string {
-  return value.replace(/[%_\\]/g, "\\$&");
+  return sanitizeSearchQuery(value).replace(/[%_\\]/g, "\\$&");
 }
 
 export async function searchItemsServer(
@@ -104,6 +108,22 @@ export async function getUserLostItemsServer(
 
   if (error) throw error;
   return (data || []).map((row) => mapLostItemRow(row as Record<string, unknown>));
+}
+
+export async function getUserFoundItemsServer(
+  userId: string,
+  limit = 10
+): Promise<FoundItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("found_items")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(clampLimit(limit));
+
+  if (error) throw error;
+  return (data || []).map((row) => mapFoundItemRow(row as Record<string, unknown>));
 }
 
 export async function getLostItemByIdServer(id: string): Promise<LostItem | null> {

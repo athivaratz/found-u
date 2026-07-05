@@ -9,6 +9,9 @@ export type NerResultData = {
   time?: string | null;
   category?: string | null;
   target?: "lost" | "found";
+  contact?: string | null;
+  contactType?: string | null;
+  remark?: string | null;
 };
 
 type NerResultCardProps = {
@@ -34,6 +37,13 @@ export function NerResultCard({ data, className }: NerResultCardProps) {
         {data.location ? <p>📍 {data.location}</p> : null}
         {data.time ? <p>🕐 {data.time}</p> : null}
         {data.category ? <p>หมวด: {data.category}</p> : null}
+        {data.contact ? (
+          <p>
+            ติดต่อ: {data.contact}
+            {data.contactType ? ` (${data.contactType})` : ""}
+          </p>
+        ) : null}
+        {data.remark ? <p>หมายเหตุ: {data.remark}</p> : null}
       </div>
     </div>
   );

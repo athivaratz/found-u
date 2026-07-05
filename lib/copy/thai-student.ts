@@ -19,7 +19,6 @@ export const thaiCopy = {
     toolLabels: {
       searchItems: "ค้นหาในฐานข้อมูล",
       lookupTrackingCode: "ค้นหารหัสติดตาม",
-      extractItemInfo: "สกัดข้อมูลจากข้อความ",
       analyzeImage: "วิเคราะห์รูปภาพ",
       findMatches: "จับคู่รายการ",
       getUserItems: "ดึงรายการของฉัน",
