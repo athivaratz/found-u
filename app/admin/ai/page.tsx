@@ -123,7 +123,26 @@ export default function AdminAIPage() {
               )}
             </div>
           </div>
+          <div className="rounded-xl bg-bg-secondary dark:bg-gray-700/40 p-3">
+            <div className="text-xs text-gray-500 dark:text-gray-400">Agent Provider</div>
+            <div className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
+              {loading ? (
+                <span className="inline-flex items-center gap-2 text-gray-400">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  กำลังโหลด
+                </span>
+              ) : (
+                settings.agentProvider || "auto"
+              )}
+            </div>
+          </div>
         </div>
+        <Link
+          href="/assistant"
+          className="mt-4 inline-flex items-center gap-2 text-sm text-[#06C755] hover:underline"
+        >
+          เปิดหน้าผู้ช่วย AI →
+        </Link>
       </div>
     </div>
   );

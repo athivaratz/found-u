@@ -1,10 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Sidebar from "@/components/layout/sidebar";
 import BottomNav from "@/components/layout/bottom-nav";
 import Header from "@/components/layout/header";
+import { ModeSwitcher } from "@/components/agent/mode-switcher";
 
 export type StudentShellMaxWidth = "sm" | "md" | "lg" | "full";
 
@@ -36,11 +38,20 @@ export function StudentAppShell({
   mainClassName,
 }: StudentAppShellProps) {
   const contentClass = cn("mx-auto w-full", maxWidthClasses[maxWidth]);
+  const pathname = usePathname();
+  const isAssistant = pathname?.startsWith("/assistant");
+
+  if (isAssistant) {
+    return <>{children}</>;
+  }
 
   return (
     <div className={cn("min-h-screen bg-bg-secondary transition-colors", className)}>
       {/* Mobile */}
       <div className={cn("md:hidden", showBottomNav && "main-with-bottom-nav")}>
+        <div className="sticky top-0 z-40 px-4 py-2 bg-bg-secondary/95 backdrop-blur-md border-b border-border-light/60 flex justify-center">
+          <ModeSwitcher variant="compact" />
+        </div>
         {headerTitle && (
           <Header title={headerTitle} showBack backHref={headerBackHref} />
         )}
@@ -59,6 +70,9 @@ export function StudentAppShell({
             mainClassName
           )}
         >
+          <div className="flex justify-center mb-6">
+            <ModeSwitcher />
+          </div>
           <div className={contentClass}>{children}</div>
         </main>
       </div>

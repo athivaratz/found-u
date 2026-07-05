@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, Camera, Clock } from "lucide-react";
+import { useAppMode } from "@/contexts/app-mode-context";
 import { cn } from "@/lib/utils";
 
 // Navigation items
@@ -15,6 +16,7 @@ const navItems = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { setMode } = useAppMode();
 
   return (
     <nav
@@ -31,6 +33,7 @@ export default function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setMode("classic", { navigate: false })}
                 className={cn(
                   "flex flex-col items-center justify-center py-2 px-4 rounded-xl transition-all duration-200",
                   isActive

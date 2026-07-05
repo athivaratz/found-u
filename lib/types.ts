@@ -36,6 +36,16 @@ export interface AppSettings {
   aiVisionTopP?: number;
   aiVisionMaxOutputTokens?: number;
 
+  // Agentic AI Settings
+  agentProvider?: "gemini" | "openrouter" | "auto";
+  agentFallbackProvider?: "gemini" | "openrouter";
+  agentModel?: string;
+  agentOpenRouterModel?: string;
+  agentMaxSteps?: number;
+  agentMaxOutputTokens?: number;
+  agentTemperature?: number;
+  agentContextMaxMessages?: number;
+
   // Map & Geofence Settings
   mapsEnabled?: boolean;
   mapTileUrl?: string;
@@ -97,6 +107,14 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   aiVisionTemperature: 0.1,
   aiVisionTopP: 0.8,
   aiVisionMaxOutputTokens: 256,
+  agentProvider: "auto",
+  agentFallbackProvider: "openrouter",
+  agentModel: "gemini-2.0-flash",
+  agentOpenRouterModel: "google/gemini-2.0-flash-exp:free",
+  agentMaxSteps: 4,
+  agentMaxOutputTokens: 512,
+  agentTemperature: 0.3,
+  agentContextMaxMessages: 8,
   mapsEnabled: true,
   mapTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   mapAttribution: "© OpenStreetMap contributors",

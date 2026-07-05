@@ -1,4 +1,5 @@
 import { DEFAULT_APP_SETTINGS } from "./types";
+import { extractNERFallback } from "./ner-fallback";
 
 // NER Service using Gemini models for extracting structured data from text
 // Optimized for speed: ~2-3 seconds response
@@ -93,6 +94,39 @@ Output: {"item":"หูฟัง","description":"สีดำ","location":"ใ�
 Input Text: "{text}"
 JSON Output:`;
 
+function parseJsonFromModelText(raw: string): Record<string, unknown> | null {
+  const trimmed = raw.trim();
+  // Strip markdown code fences
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1].trim() : trimmed;
+
+  const jsonMatch = candidate.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  try {
+    return JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeExtractedData(
+  parsedData: Record<string, unknown>,
+  type: "lost" | "found"
+): NERExtractedData {
+  return {
+    item: String(parsedData.item || ""),
+    description: (parsedData.description as string | null) ?? null,
+    location: (parsedData.location as string | null) ?? null,
+    time: (parsedData.time as string | null) ?? null,
+    contact: (parsedData.contact as string | null) ?? null,
+    contactType: (parsedData.contactType as NERExtractedData["contactType"]) ?? null,
+    category: (parsedData.category as NERExtractedData["category"]) ?? null,
+    remark: (parsedData.remark as string | null) ?? null,
+    target: (parsedData.target as "lost" | "found") || type,
+  };
+}
+
 export async function extractNERData(
   text: string,
   type: "lost" | "found",
@@ -114,6 +148,7 @@ export async function extractNERData(
           temperature: resolvedConfig.temperature,
           maxOutputTokens: resolvedConfig.maxOutputTokens,
           topP: resolvedConfig.topP,
+          responseMimeType: "application/json",
         },
       }),
     });
@@ -121,42 +156,34 @@ export async function extractNERData(
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Gemini API error:", errorText);
-      return null;
+      return extractNERFallback(text, type);
     }
 
     const data = await response.json();
 
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
       console.error("Invalid response format from Gemini API");
-      return null;
+      return extractNERFallback(text, type);
     }
 
     const generatedText = data.candidates[0].content.parts[0].text;
 
-    // Extract JSON from the response
-    const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error("No JSON found in response");
-      return null;
+    const parsedData = parseJsonFromModelText(generatedText);
+    if (!parsedData) {
+      console.error("No JSON found in response, using rule-based fallback");
+      return extractNERFallback(text, type);
     }
 
-    const parsedData = JSON.parse(jsonMatch[0]);
+    const result = normalizeExtractedData(parsedData, type);
+    if (!result.item) {
+      const fallback = extractNERFallback(text, type);
+      return { ...fallback, ...result, item: fallback.item };
+    }
 
-    // Validate and ensure target is correct
-    return {
-      item: parsedData.item || "",
-      description: parsedData.description || null,
-      location: parsedData.location || null,
-      time: parsedData.time || null,
-      contact: parsedData.contact || null,
-      contactType: parsedData.contactType || null,
-      category: parsedData.category || null,
-      remark: parsedData.remark || null,
-      target: parsedData.target || type,
-    };
+    return result;
   } catch (error) {
     console.error("Error calling Gemini API:", error);
-    return null;
+    return extractNERFallback(text, type);
   }
 }
 

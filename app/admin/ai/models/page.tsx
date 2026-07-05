@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Search,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { getAppSettings, updateAppSettings } from "@/lib/database";
@@ -34,6 +35,58 @@ function parseNumber(value: string) {
   if (value.trim() === "") return undefined;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function AgentProviderTestButton({ settings }: { settings: AppSettings }) {
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const runTest = async () => {
+    setTesting(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/agent/test-providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings }),
+      });
+      const data = await res.json();
+      const lines = Object.entries(data.providers || {}).map(
+        ([name, info]) => {
+          const p = info as {
+            configured: boolean;
+            ok: boolean;
+            model?: string;
+            error?: string;
+          };
+          const modelSuffix = p.model ? ` [${p.model}]` : "";
+          if (p.ok) return `${name}${modelSuffix}: OK`;
+          if (!p.configured) return `${name}: no key`;
+          return `${name}${modelSuffix}: ${p.error || "fail"}`;
+        }
+      );
+      setResult(lines.join(" · "));
+    } catch {
+      setResult("ทดสอบไม่สำเร็จ");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        onClick={runTest}
+        disabled={testing}
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-60"
+      >
+        {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
+        ทดสอบ Provider
+      </button>
+      {result ? <span className="text-xs text-gray-500">{result}</span> : null}
+    </div>
+  );
 }
 
 export default function AdminAIModelsPage() {
@@ -126,6 +179,13 @@ export default function AdminAIModelsPage() {
     );
   }, [generateContentModels, settings.aiVisionModel]);
 
+  const agentModelValid = useMemo(() => {
+    if (!settings.agentModel) return false;
+    return generateContentModels.some(
+      (model) => normalizeModelName(model.name) === normalizeModelName(settings.agentModel || "")
+    );
+  }, [generateContentModels, settings.agentModel]);
+
   const handleSave = async () => {
     if (!user?.uid) return;
 
@@ -145,6 +205,14 @@ export default function AdminAIModelsPage() {
           aiVisionTemperature: settings.aiVisionTemperature,
           aiVisionTopP: settings.aiVisionTopP,
           aiVisionMaxOutputTokens: settings.aiVisionMaxOutputTokens,
+          agentProvider: settings.agentProvider,
+          agentFallbackProvider: settings.agentFallbackProvider,
+          agentModel: settings.agentModel,
+          agentOpenRouterModel: settings.agentOpenRouterModel,
+          agentMaxSteps: settings.agentMaxSteps,
+          agentMaxOutputTokens: settings.agentMaxOutputTokens,
+          agentTemperature: settings.agentTemperature,
+          agentContextMaxMessages: settings.agentContextMaxMessages,
         },
         user.uid
       );
@@ -466,6 +534,116 @@ export default function AdminAIModelsPage() {
         </div>
 
         <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            Agentic AI (ผู้ช่วย /assistant)
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">
+            ตั้งค่า provider, โมเดล, และขีดจำกัด agent loop
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="text-xs text-gray-500">Provider หลัก</label>
+              <select
+                value={settings.agentProvider || "auto"}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentProvider: e.target.value as AppSettings["agentProvider"],
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              >
+                <option value="auto">Auto (Gemini → OpenRouter)</option>
+                <option value="gemini">Gemini</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Fallback Provider</label>
+              <select
+                value={settings.agentFallbackProvider || "openrouter"}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentFallbackProvider: e.target.value as AppSettings["agentFallbackProvider"],
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              >
+                <option value="gemini">Gemini</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+            </div>
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs text-gray-500">Gemini Agent Model</label>
+                {!agentModelValid && settings.agentModel && (
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    ไม่อยู่ในรายการ
+                  </span>
+                )}
+              </div>
+              <input
+                list="ai-models"
+                value={settings.agentModel || ""}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, agentModel: e.target.value }))
+                }
+                placeholder="models/gemini-2.5-flash"
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">OpenRouter Model</label>
+              <input
+                value={settings.agentOpenRouterModel || ""}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentOpenRouterModel: e.target.value,
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Max Steps</label>
+              <input
+                type="number"
+                min={1}
+                max={8}
+                value={settings.agentMaxSteps ?? 4}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentMaxSteps: parseNumber(e.target.value),
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Context Messages (prune)</label>
+              <input
+                type="number"
+                min={4}
+                max={12}
+                value={settings.agentContextMaxMessages ?? 8}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentContextMaxMessages: parseNumber(e.target.value),
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <AgentProviderTestButton settings={settings} />
+        </div>
+
+        <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -563,6 +741,14 @@ export default function AdminAIModelsPage() {
                       className="px-3 py-2 rounded-xl text-sm bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
                     >
                       ใช้กับ Vision
+                    </button>
+                    <button
+                      onClick={() =>
+                        setSettings((prev) => ({ ...prev, agentModel: model.name }))
+                      }
+                      className="px-3 py-2 rounded-xl text-sm bg-violet-500/10 text-violet-600 hover:bg-violet-500/20"
+                    >
+                      ใช้กับ Agent
                     </button>
                   </div>
                 </div>

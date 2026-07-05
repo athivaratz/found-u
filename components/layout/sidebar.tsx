@@ -12,6 +12,7 @@ import { getUserPublicEmail, getUserShownName } from "@/lib/user-display";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
+import { ModeSwitcher } from "@/components/agent/mode-switcher";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -55,6 +56,10 @@ export default function Sidebar() {
             <p className="text-xs text-text-secondary">Lost & Found</p>
           </div>
         </Link>
+
+        <div className="mb-4 flex justify-center">
+          <ModeSwitcher variant="compact" />
+        </div>
 
         {/* User Section */}
         <div className="bg-bg-secondary rounded-xl p-3 min-h-[3.75rem]">

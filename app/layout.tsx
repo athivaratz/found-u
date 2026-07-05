@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Kanit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
+import { AppModeProvider } from "@/contexts/app-mode-context";
 import { DataProvider } from "@/contexts/DataContext";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -54,6 +55,7 @@ export default function RootLayout({
             storageKey="theme"
           >
             <AuthProvider>
+              <AppModeProvider>
               <BfcacheRestoreHandler />
               <DataProvider>
                 <AuthGuard>
@@ -69,6 +71,7 @@ export default function RootLayout({
                   </div>
                 </AuthGuard>
               </DataProvider>
+              </AppModeProvider>
             </AuthProvider>
           </ThemeProvider>
         </ErrorBoundary>

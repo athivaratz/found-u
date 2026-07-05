@@ -48,6 +48,7 @@ service-account*.json
 *.tsbuildinfo
 next-env.d.ts
 
+# development
 docs/
 .vscode/
 .cursor/
