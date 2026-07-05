@@ -5,7 +5,7 @@ import {
   checkAndRecordRateLimitAtomic,
   getAppSettingsAdmin,
 } from "@/lib/ai-rate-limit";
-import { pruneUiMessages } from "@/lib/agent/context-pruner";
+import { buildAgentRequestContext } from "@/lib/agent/context-pruner";
 import { createFoundUAgent } from "@/lib/agent/create-agent";
 import {
   buildFallbackPayload,
@@ -14,6 +14,7 @@ import {
 import { withProviderFallback } from "@/lib/agent/provider-router";
 import { warnHallucinatedTrackingCodes } from "@/lib/agent/hallucination-guard";
 import { isAdminUser } from "@/lib/nfc-server";
+import type { MemoryFact } from "@/lib/chat/types";
 import { thaiCopy } from "@/lib/copy/thai-student";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
@@ -32,13 +33,25 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const messages = (body.messages || []) as UIMessage[];
+    const memoryFacts = (body.memoryFacts || []) as MemoryFact[];
+    const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
 
     const settings = await getAppSettingsAdmin();
     const mergedSettings = { ...DEFAULT_APP_SETTINGS, ...settings };
-    const pruned = pruneUiMessages(
-      messages,
-      mergedSettings.agentContextMaxMessages ?? 8
-    );
+
+    const ctx = buildAgentRequestContext(messages, mergedSettings);
+    const pruned = ctx.modelMessages;
+
+    if (ctx.droppedCount > 0 || sessionId) {
+      console.info("[chat/context]", {
+        sessionId,
+        totalMessages: messages.length,
+        dropped: ctx.droppedCount,
+        estimatedTokens: ctx.estimatedTokens,
+        strategy: mergedSettings.agentContextStrategy ?? "hybrid",
+      });
+    }
+
     warnHallucinatedTrackingCodes(pruned);
 
     const rateLimit = await checkAndRecordRateLimitAtomic(
@@ -57,6 +70,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const maxFacts = mergedSettings.agentMemoryMaxFacts ?? 5;
+    const safeFacts = memoryFacts
+      .filter((f) => f.userId === user.id)
+      .slice(0, maxFacts);
+
     const { result: streamResponse } = await withProviderFallback(
       mergedSettings,
       async (provider, model) => {
@@ -66,6 +84,7 @@ export async function POST(request: NextRequest) {
           settings: mergedSettings,
           userId: user.id,
           isAdmin,
+          memoryFacts: safeFacts,
         });
 
         return createAgentUIStreamResponse({
@@ -73,6 +92,7 @@ export async function POST(request: NextRequest) {
           uiMessages: pruned,
           headers: {
             "X-Agent-Provider": provider,
+            ...(sessionId ? { "X-Chat-Session-Id": sessionId } : {}),
           },
         });
       }

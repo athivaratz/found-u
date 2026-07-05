@@ -13,7 +13,6 @@ import { getAuthSessionStatus, postStudentLogin } from "@/lib/student-auth-api";
 import type { AppSettings, AppUser, BanStatus } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 import { deferAfterFirstPaint } from "@/lib/bfcache";
-import { clearAgentMessagesForUser } from "@/lib/agent/storage-keys";
 
 interface AuthContextType {
   user: User | null;
@@ -219,8 +218,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     setIsAuthActionLoading(true);
     try {
-      const uid = user?.id;
-      if (uid) clearAgentMessagesForUser(uid);
       const { error } = await signOut();
       if (error) throw error;
     } finally {

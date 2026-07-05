@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
+import { History, RotateCcw } from "lucide-react";
 import { ModeSwitcher } from "@/components/agent/mode-switcher";
 import { cn } from "@/lib/utils";
 import { thaiCopy } from "@/lib/copy/thai-student";
@@ -8,6 +8,7 @@ import { thaiCopy } from "@/lib/copy/thai-student";
 type AgentTopBarProps = {
   status?: string;
   onNewChat?: () => void;
+  onOpenHistory?: () => void;
   className?: string;
 };
 
@@ -17,7 +18,7 @@ function getSubtitle(status?: string): string {
   return "ผู้ช่วย Lost & Found";
 }
 
-export function AgentTopBar({ status, onNewChat, className }: AgentTopBarProps) {
+export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: AgentTopBarProps) {
   const isActive = status === "submitted" || status === "streaming";
   const subtitle = getSubtitle(status);
 
@@ -44,18 +45,30 @@ export function AgentTopBar({ status, onNewChat, className }: AgentTopBarProps) 
 
       <ModeSwitcher variant="compact" className="shrink-0 md:hidden" />
 
-      {onNewChat ? (
-        <button
-          type="button"
-          onClick={onNewChat}
-          className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors shrink-0"
-          aria-label={thaiCopy.agent.newChat}
-        >
-          <RotateCcw className="w-5 h-5" />
-        </button>
-      ) : (
-        <div className="w-9 shrink-0 md:hidden" />
-      )}
+      <div className="flex items-center gap-1 shrink-0">
+        {onOpenHistory ? (
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors lg:hidden"
+            aria-label="ประวัติแชท"
+          >
+            <History className="w-5 h-5" />
+          </button>
+        ) : null}
+        {onNewChat ? (
+          <button
+            type="button"
+            onClick={onNewChat}
+            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors shrink-0"
+            aria-label={thaiCopy.agent.newChat}
+          >
+            <RotateCcw className="w-5 h-5" />
+          </button>
+        ) : (
+          <div className="w-9 shrink-0 md:hidden" />
+        )}
+      </div>
     </header>
   );
 }

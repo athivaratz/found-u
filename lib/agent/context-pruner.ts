@@ -1,45 +1,32 @@
 import type { UIMessage } from "ai";
-import { isToolUIPart } from "ai";
+import type { AppSettings } from "@/lib/types";
+import { buildAgentRequestContext } from "@/lib/chat/context/window-builder";
 
-const DEFAULT_MAX_MESSAGES = 8;
+export { buildAgentRequestContext } from "@/lib/chat/context/window-builder";
+export { pruneConversationMessages } from "@/lib/agent/context-pruner-legacy";
 
-function messageHasReportSuccess(message: UIMessage): boolean {
-  for (const part of message.parts || []) {
-    if (!isToolUIPart(part) || part.state !== "output-available") continue;
-    const output = part.output as { resultType?: string; ok?: boolean } | undefined;
-    if (output?.resultType === "report" && output.ok === true) return true;
-  }
-  return false;
-}
-
-export function pruneConversationMessages<T extends { role: string }>(
-  messages: T[],
-  maxMessages = DEFAULT_MAX_MESSAGES
-): T[] {
-  if (messages.length <= maxMessages) return messages;
-  return messages.slice(-maxMessages);
-}
-
+/** Prune messages for the agent model using hybrid token/message strategy. */
 export function pruneUiMessages(
   messages: UIMessage[],
-  maxMessages = DEFAULT_MAX_MESSAGES
+  maxMessages?: number,
+  settings?: Pick<
+    AppSettings,
+    "agentContextMaxTokens" | "agentContextStrategy"
+  >
 ): UIMessage[] {
-  if (messages.length <= maxMessages) return messages;
+  const result = buildAgentRequestContext(messages, {
+    agentContextMaxMessages: maxMessages ?? 8,
+    agentContextMaxTokens: settings?.agentContextMaxTokens ?? 6000,
+    agentContextStrategy: settings?.agentContextStrategy ?? "hybrid",
+  });
 
-  const reportAnchorIndex = (() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.role === "assistant" && messageHasReportSuccess(m)) return i;
-    }
-    return -1;
-  })();
+  if (result.droppedCount > 0) {
+    console.info("[chat/context]", {
+      dropped: result.droppedCount,
+      strategy: settings?.agentContextStrategy ?? "hybrid",
+      estimatedTokens: result.estimatedTokens,
+    });
+  }
 
-  const tail = messages.slice(-maxMessages);
-  if (reportAnchorIndex < 0) return tail;
-
-  const anchor = messages[reportAnchorIndex];
-  const anchorInTail = tail.some((m) => m.id === anchor.id);
-  if (anchorInTail) return tail;
-
-  return [anchor, ...tail.slice(1 - maxMessages)];
+  return result.modelMessages;
 }

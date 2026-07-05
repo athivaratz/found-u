@@ -45,6 +45,9 @@ export interface AppSettings {
   agentMaxOutputTokens?: number;
   agentTemperature?: number;
   agentContextMaxMessages?: number;
+  agentContextMaxTokens?: number;
+  agentContextStrategy?: "messages" | "tokens" | "hybrid";
+  agentMemoryMaxFacts?: number;
 
   /** pg_trgm similarity threshold for fuzzy item search (0–1, default 0.15) */
   searchSimilarityThreshold?: number;
@@ -118,6 +121,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   agentMaxOutputTokens: 512,
   agentTemperature: 0.3,
   agentContextMaxMessages: 8,
+  agentContextMaxTokens: 6000,
+  agentContextStrategy: "hybrid",
+  agentMemoryMaxFacts: 5,
   searchSimilarityThreshold: 0.15,
   mapsEnabled: true,
   mapTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",

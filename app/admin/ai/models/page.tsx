@@ -275,6 +275,9 @@ export default function AdminAIModelsPage() {
           agentMaxOutputTokens: settings.agentMaxOutputTokens,
           agentTemperature: settings.agentTemperature,
           agentContextMaxMessages: settings.agentContextMaxMessages,
+          agentContextMaxTokens: settings.agentContextMaxTokens,
+          agentContextStrategy: settings.agentContextStrategy,
+          agentMemoryMaxFacts: settings.agentMemoryMaxFacts,
         },
         user.uid
       );
@@ -703,6 +706,56 @@ export default function AdminAIModelsPage() {
                   setSettings((prev) => ({
                     ...prev,
                     agentContextMaxMessages: parseNumber(e.target.value),
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Context Max Tokens</label>
+              <input
+                type="number"
+                min={2000}
+                max={32000}
+                step={500}
+                value={settings.agentContextMaxTokens ?? 6000}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentContextMaxTokens: parseNumber(e.target.value),
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Context Strategy</label>
+              <select
+                value={settings.agentContextStrategy ?? "hybrid"}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentContextStrategy: e.target.value as "messages" | "tokens" | "hybrid",
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+              >
+                <option value="hybrid">hybrid</option>
+                <option value="messages">messages</option>
+                <option value="tokens">tokens</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Memory Facts (max inject)</label>
+              <input
+                type="number"
+                min={0}
+                max={20}
+                value={settings.agentMemoryMaxFacts ?? 5}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    agentMemoryMaxFacts: parseNumber(e.target.value),
                   }))
                 }
                 className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
