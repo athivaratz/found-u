@@ -1,18 +1,49 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   auth,
+  type AuthChangeEvent,
   type User,
   onAuthChange,
   reloadCurrentUser,
   signOut,
 } from "@/lib/auth";
+import {
+  clearAuthBootstrapCache,
+  readAuthBootstrapCache,
+  writeAuthBootstrapCache,
+} from "@/lib/auth-bootstrap-cache";
 import { getTimeoutRemaining, isUserBanned } from "@/lib/database";
 import { getAuthSessionStatus, postStudentLogin } from "@/lib/student-auth-api";
 import type { AppSettings, AppUser, BanStatus } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
-import { deferAfterFirstPaint } from "@/lib/bfcache";
+
+const SILENT_SYNC_DEBOUNCE_MS = 400;
+const SESSION_STATUS_CACHE_TTL_MS = 45_000;
+
+type SessionStatusPayload = {
+  mustSetupPin?: boolean;
+  hasPin?: boolean;
+  isAdmin?: boolean;
+  isStudentVerified?: boolean;
+  profile?: AppUser | null;
+};
+
+type SessionFlags = {
+  mustSetupPin: boolean;
+  hasPin: boolean;
+  isAdmin: boolean;
+  isStudentVerified: boolean;
+};
 
 interface AuthContextType {
   user: User | null;
@@ -41,37 +72,123 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const EMPTY_SESSION_FLAGS: SessionFlags = {
+  mustSetupPin: false,
+  hasPin: false,
+  isAdmin: false,
+  isStudentVerified: false,
+};
+
+function readInitialBootstrapCache() {
+  if (typeof window === "undefined") return null;
+  return readAuthBootstrapCache();
+}
+
+function flagsFromStatus(status: SessionStatusPayload): SessionFlags {
+  const hasPin = Boolean(status.hasPin);
+  return {
+    hasPin,
+    mustSetupPin: Boolean(status.mustSetupPin) && !hasPin,
+    isAdmin: Boolean(status.isAdmin),
+    isStudentVerified: Boolean(status.isStudentVerified),
+  };
+}
+
+function shouldSyncSilently(
+  event: AuthChangeEvent,
+  sessionUser: User,
+  lastSyncedUid: string | null,
+  bootstrapDone: boolean
+): boolean {
+  const sameUser = lastSyncedUid === sessionUser.id;
+
+  if (event === "TOKEN_REFRESHED") {
+    return bootstrapDone ? sameUser : true;
+  }
+  if (event === "USER_UPDATED") {
+    return sameUser && bootstrapDone;
+  }
+  if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+    return sameUser && bootstrapDone;
+  }
+  return false;
+}
+
+function needsBlockingUi(
+  sessionUser: User | null,
+  bootstrapDone: boolean,
+  lastSyncedUid: string | null
+): boolean {
+  if (!sessionUser) return false;
+  if (!bootstrapDone) return true;
+  return lastSyncedUid !== sessionUser.id;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const initialCache = readInitialBootstrapCache();
+
   const [user, setUser] = useState<User | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [appSettingsReady, setAppSettingsReady] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [sessionReady, setSessionReady] = useState(false);
+  const [loading, setLoading] = useState(() => !initialCache);
+  const [sessionReady, setSessionReady] = useState(() => !!initialCache);
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
-  const [sessionFlags, setSessionFlags] = useState({
-    mustSetupPin: false,
-    hasPin: false,
-    isAdmin: false,
-    isStudentVerified: false,
-  });
+  const [sessionFlags, setSessionFlags] = useState<SessionFlags>(
+    () => initialCache?.sessionFlags ?? EMPTY_SESSION_FLAGS
+  );
 
-  const applySessionStatus = (status: {
-    mustSetupPin?: boolean;
-    hasPin?: boolean;
-    isAdmin?: boolean;
-    isStudentVerified?: boolean;
-    profile?: AppUser | null;
-  }) => {
-    const hasPin = Boolean(status.hasPin);
-    setSessionFlags({
-      hasPin,
-      mustSetupPin: Boolean(status.mustSetupPin) && !hasPin,
-      isAdmin: Boolean(status.isAdmin),
-      isStudentVerified: Boolean(status.isStudentVerified),
-    });
+  const bootstrapDoneRef = useRef(!!initialCache);
+  const lastSyncedUserIdRef = useRef<string | null>(initialCache?.uid ?? null);
+  const silentSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const silentSyncInFlightRef = useRef(false);
+  const sessionStatusCacheRef = useRef<{
+    uid: string;
+    fetchedAt: number;
+    status: SessionStatusPayload;
+  } | null>(null);
+  const sessionFlagsRef = useRef(sessionFlags);
+  sessionFlagsRef.current = sessionFlags;
+
+  const persistBootstrap = (uid: string, flags: SessionFlags) => {
+    writeAuthBootstrapCache({ uid, sessionFlags: flags, fetchedAt: Date.now() });
+  };
+
+  const applySessionStatus = (status: SessionStatusPayload) => {
+    const flags = flagsFromStatus(status);
+    setSessionFlags(flags);
     if (status.profile) {
       setAppUser(status.profile);
+    }
+    const uid = auth.currentUser?.id ?? user?.id ?? lastSyncedUserIdRef.current;
+    if (uid) {
+      persistBootstrap(uid, flags);
+    }
+  };
+
+  const fetchAndApplySessionStatus = async (
+    uid: string,
+    options?: { force?: boolean }
+  ): Promise<boolean> => {
+    const force = options?.force ?? false;
+    const cached = sessionStatusCacheRef.current;
+    if (
+      !force &&
+      cached &&
+      cached.uid === uid &&
+      Date.now() - cached.fetchedAt < SESSION_STATUS_CACHE_TTL_MS
+    ) {
+      applySessionStatus(cached.status);
+      return true;
+    }
+
+    try {
+      const status = await getAuthSessionStatus();
+      sessionStatusCacheRef.current = { uid, fetchedAt: Date.now(), status };
+      applySessionStatus(status);
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -86,64 +203,146 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = async () => {
     const current = auth.currentUser ?? user;
     if (!current) return;
-    setSessionReady(false);
     await reloadCurrentUser();
     await refreshUserProfile();
-    try {
-      const status = await getAuthSessionStatus();
-      applySessionStatus(status);
-    } catch {
-      setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
-    } finally {
-      setSessionReady(true);
+    const ok = await fetchAndApplySessionStatus(current.id, { force: true });
+    if (!ok) {
+      console.error("Session refresh failed");
     }
   };
 
+  useLayoutEffect(() => {
+    void auth.refreshLocal().then(() => {
+      const localUser = auth.currentUser;
+      const cached = readAuthBootstrapCache();
+      if (!localUser || !cached || cached.uid !== localUser.id) return;
+
+      bootstrapDoneRef.current = true;
+      lastSyncedUserIdRef.current = cached.uid;
+      setUser(localUser);
+      setSessionFlags(cached.sessionFlags);
+      setSessionReady(true);
+      setLoading(false);
+    });
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
+    const isCancelled = () => cancelled;
 
-    const syncSessionForUser = async (sessionUser: User | null) => {
-      if (cancelled) return;
-      setUser(sessionUser);
-
-      if (!sessionUser) {
-        setAppUser(null);
-        setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
-        setSessionReady(true);
-        setLoading(false);
-        return;
-      }
-
-      setSessionReady(false);
-      try {
-        const status = await getAuthSessionStatus();
-        if (!cancelled) applySessionStatus(status);
-      } catch (error) {
-        console.error("Session sync error:", error);
-        if (!cancelled) setSessionFlags({ mustSetupPin: false, hasPin: false, isAdmin: false, isStudentVerified: false });
-      } finally {
-        if (!cancelled) {
-          setSessionReady(true);
-          setLoading(false);
-        }
+    const clearSilentSyncTimer = () => {
+      if (silentSyncTimerRef.current) {
+        clearTimeout(silentSyncTimerRef.current);
+        silentSyncTimerRef.current = null;
       }
     };
 
-    const unsubscribe = onAuthChange((sessionUser) => {
-      void syncSessionForUser(sessionUser);
+    const scheduleSilentSync = (uid: string) => {
+      clearSilentSyncTimer();
+      silentSyncTimerRef.current = setTimeout(() => {
+        silentSyncTimerRef.current = null;
+        if (isCancelled()) return;
+        if (silentSyncInFlightRef.current) return;
+        silentSyncInFlightRef.current = true;
+        void fetchAndApplySessionStatus(uid)
+          .catch(() => {
+            // Keep existing flags on background failure.
+          })
+          .finally(() => {
+            silentSyncInFlightRef.current = false;
+          });
+      }, SILENT_SYNC_DEBOUNCE_MS);
+    };
+
+    const blockingSync = async (sessionUser: User | null) => {
+      if (isCancelled()) return;
+      setUser(sessionUser);
+
+      if (!sessionUser) {
+        lastSyncedUserIdRef.current = null;
+        sessionStatusCacheRef.current = null;
+        clearAuthBootstrapCache();
+        setAppUser(null);
+        setSessionFlags(EMPTY_SESSION_FLAGS);
+        setSessionReady(true);
+        setLoading(false);
+        bootstrapDoneRef.current = true;
+        return;
+      }
+
+      const blocking = needsBlockingUi(
+        sessionUser,
+        bootstrapDoneRef.current,
+        lastSyncedUserIdRef.current
+      );
+
+      if (blocking) {
+        setLoading(true);
+        setSessionReady(false);
+      }
+
+      const ok = await fetchAndApplySessionStatus(sessionUser.id, { force: blocking });
+      if (!ok) {
+        console.error("Session sync error");
+        if (!isCancelled() && blocking) {
+          setSessionFlags(EMPTY_SESSION_FLAGS);
+        }
+      }
+
+      if (!isCancelled()) {
+        lastSyncedUserIdRef.current = sessionUser.id;
+        setSessionReady(true);
+        if (blocking) {
+          setLoading(false);
+        }
+        bootstrapDoneRef.current = true;
+        persistBootstrap(sessionUser.id, sessionFlagsRef.current);
+      }
+    };
+
+    const handleAuthChange = async (
+      sessionUser: User | null,
+      event: AuthChangeEvent
+    ) => {
+      if (isCancelled()) return;
+
+      if (!sessionUser) {
+        clearSilentSyncTimer();
+        await blockingSync(null);
+        return;
+      }
+
+      if (
+        shouldSyncSilently(
+          event,
+          sessionUser,
+          lastSyncedUserIdRef.current,
+          bootstrapDoneRef.current
+        )
+      ) {
+        setUser(sessionUser);
+        if (bootstrapDoneRef.current) {
+          scheduleSilentSync(sessionUser.id);
+        }
+        return;
+      }
+
+      clearSilentSyncTimer();
+      await blockingSync(sessionUser);
+    };
+
+    const unsubscribe = onAuthChange((sessionUser, event) => {
+      void handleAuthChange(sessionUser, event);
     });
 
     void reloadCurrentUser({ network: false }).then((existing) => {
-      if (cancelled || existing) return;
-      void syncSessionForUser(null);
-    });
-
-    deferAfterFirstPaint(() => {
-      void auth.refreshNetwork();
+      if (isCancelled() || existing) return;
+      void blockingSync(null);
     });
 
     return () => {
       cancelled = true;
+      clearSilentSyncTimer();
       unsubscribe();
     };
   }, []);
@@ -194,13 +393,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthActionLoading(true);
     try {
       const result = await postStudentLogin(studentId, password);
+      const uid = auth.currentUser?.id;
       try {
-        const status = await getAuthSessionStatus();
-        applySessionStatus(status);
+        if (uid) {
+          const ok = await fetchAndApplySessionStatus(uid, { force: true });
+          if (!ok) throw new Error("session status failed");
+        } else {
+          const status = await getAuthSessionStatus();
+          applySessionStatus(status);
+        }
       } catch {
         applySessionStatus({ mustSetupPin: result.mustSetupPin, hasPin: !result.mustSetupPin });
       }
+      if (uid) {
+        lastSyncedUserIdRef.current = uid;
+      }
+      bootstrapDoneRef.current = true;
       setSessionReady(true);
+      setLoading(false);
       return {
         mustChangePassword: result.mustChangePassword,
         mustSetupPin: Boolean(result.mustSetupPin),
@@ -239,7 +449,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     !mustChangePassword &&
     !isAdmin &&
     sessionFlags.mustSetupPin;
-  const authLoading = loading || (!!user && !sessionReady);
 
   return (
     <AuthContext.Provider
@@ -248,7 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         appUser,
         appSettings,
         appSettingsReady,
-        loading: authLoading,
+        loading,
         sessionReady,
         isAuthActionLoading,
         isAdmin,

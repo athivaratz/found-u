@@ -8,7 +8,6 @@ import {
   isAdminWhitelisted,
   normalizeEmail,
   promoteAdminUser,
-  reconcileStudentAuthState,
   resolveAccountForAuthUser,
 } from "@/lib/student-auth-server";
 export async function GET(request: NextRequest) {
@@ -43,11 +42,8 @@ export async function GET(request: NextRequest) {
   if (studentId) {
     const account = await getStudentAccount(studentId);
     if (account) {
-      await reconcileStudentAuthState(profile!.id, account);
-      const refreshed = await getStudentAccount(studentId);
-      const finalAccount = refreshed ?? account;
-      hasPin = !!finalAccount.pinHash;
-      mustSetupPin = accountNeedsPinSetup(finalAccount);
+      hasPin = !!account.pinHash;
+      mustSetupPin = accountNeedsPinSetup(account);
     }
   }
 

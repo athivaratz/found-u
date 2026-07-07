@@ -628,7 +628,7 @@ export default function ReportFoundPage() {
     }
   };
 
-  if (authLoading || configLoading) {
+  if ((authLoading && !user) || configLoading) {
     return (
       <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />

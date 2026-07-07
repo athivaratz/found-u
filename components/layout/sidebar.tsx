@@ -65,7 +65,7 @@ export default function Sidebar() {
 
         {/* User Section */}
         <div className="bg-bg-secondary rounded-xl p-3 min-h-[3.75rem]">
-          {authLoading ? (
+          {authLoading && !user ? (
             <div className="flex items-center gap-3" aria-hidden>
               <div className="h-10 w-10 rounded-full bg-bg-tertiary animate-pulse shrink-0" />
               <div className="flex-1 space-y-2">

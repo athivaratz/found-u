@@ -42,7 +42,7 @@ function AgentChatInner() {
 
   useAutoTitle(messages, activeSessionId);
 
-  if (authLoading || !mounted) {
+  if ((authLoading && !user) || !mounted) {
     return (
       <div className="h-full flex-1 flex items-center justify-center agent-mesh-bg min-h-0">
         <div className="w-8 h-8 rounded-full border-2 border-line-green border-t-transparent animate-spin" />

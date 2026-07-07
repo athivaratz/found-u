@@ -40,7 +40,7 @@ const actions = [
 export default function NfcHubPage() {
   const { user, loading: authLoading, appSettings } = useAuth();
 
-  if (authLoading) {
+  if (authLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5] dark:bg-[#0a0a0a]">
         <div className="w-8 h-8 border-2 border-[#06C755] border-t-transparent rounded-full animate-spin" />

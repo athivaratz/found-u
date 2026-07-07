@@ -91,7 +91,7 @@ export default function Home() {
               <div className="min-w-0">
                 <p className="text-white/80 text-sm">{greeting} 👋</p>
                 <h1 className="text-white text-xl font-semibold min-h-[1.75rem]">
-                  {authLoading ? (
+                  {authLoading && !user ? (
                     <span className="inline-block h-5 w-28 rounded bg-white/20 animate-pulse align-middle" aria-hidden />
                   ) : user ? (
                     welcomeName
@@ -119,7 +119,7 @@ export default function Home() {
                 )}
               </button>
 
-              {authLoading ? (
+              {authLoading && !user ? (
                 <div className="w-10 h-10 rounded-full bg-white/20 animate-pulse shrink-0" aria-hidden />
               ) : user ? (
                 <div className="relative">

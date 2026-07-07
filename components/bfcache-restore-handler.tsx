@@ -8,7 +8,7 @@ export function BfcacheRestoreHandler() {
   useEffect(() => {
     return subscribeToBfcacheRestore(() => {
       deferAfterFirstPaint(() => {
-        void auth.refreshNetwork();
+        void auth.refreshLocal();
       });
     });
   }, []);

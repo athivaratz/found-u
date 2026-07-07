@@ -1,4 +1,9 @@
-import type { Session, SupabaseClient, User as SupabaseUser } from "@supabase/supabase-js";
+import type {
+  AuthChangeEvent,
+  Session,
+  SupabaseClient,
+  User as SupabaseUser,
+} from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { setClientSession } from "@/lib/supabase/auth-session";
 
@@ -10,7 +15,9 @@ export type User = SupabaseUser & {
   getIdToken: (forceRefresh?: boolean) => Promise<string>;
 };
 
-type AuthChangeCallback = (user: User | null) => void;
+export type { AuthChangeEvent };
+
+type AuthChangeCallback = (user: User | null, event: AuthChangeEvent) => void;
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -126,9 +133,9 @@ export function onAuthChange(callback: AuthChangeCallback) {
   const supabase = getClient();
   const {
     data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
+  } = supabase.auth.onAuthStateChange((event, session) => {
     auth.setSession(session);
-    callback(auth.currentUser);
+    callback(auth.currentUser, event);
   });
   return () => subscription.unsubscribe();
 }

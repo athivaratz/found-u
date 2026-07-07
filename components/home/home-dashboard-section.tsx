@@ -190,7 +190,7 @@ export function HomeDashboardSection({
         : "ยังไม่มีรายการแจ้งเจอของ";
 
   const loading =
-    authLoading ||
+    (authLoading && !userId) ||
     (mainPanel === "items" ? itemsLoading : nfcLoading);
 
   return (
@@ -274,7 +274,7 @@ export function HomeDashboardSection({
         className="mb-4"
       />
 
-      {authLoading ? (
+      {authLoading && !userId ? (
         <DashboardListSkeleton rows={3} />
       ) : !userId ? (
         <div className="text-center py-8 bg-bg-secondary rounded-2xl border border-border-light">
