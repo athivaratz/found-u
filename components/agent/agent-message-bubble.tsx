@@ -13,13 +13,48 @@ import {
 import type { SerializedItem } from "@/lib/agent/item-privacy";
 import { MatchResultCard } from "@/components/agent/match-result-card";
 import { NerResultCard, type NerResultData } from "@/components/agent/ner-result-card";
+import { joinAgentTextParts } from "@/lib/agent/text-completeness";
 import { cn } from "@/lib/utils";
 
 function extractTextFromMessage(message: UIMessage): string {
-  return (message.parts || [])
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-    .map((p) => p.text)
-    .join("");
+  return joinAgentTextParts(message.parts as Array<{ type: string; text?: string }>);
+}
+
+/** Hide raw tool JSON the model sometimes echoes before the Thai summary. */
+function stripEchoedToolJson(text: string, hasArtifacts: boolean): string {
+  if (!hasArtifacts || !text.trim()) return text;
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{")) return text;
+
+  const looksLikeToolEnvelope =
+    trimmed.includes('"status"') ||
+    (trimmed.includes('"ok"') && trimmed.includes('"resultType"'));
+  if (!looksLikeToolEnvelope) return text;
+
+  const closingBrace = trimmed.indexOf("}");
+  if (closingBrace < 0 || closingBrace === trimmed.length - 1) {
+    return "";
+  }
+
+  const remainder = trimmed.slice(closingBrace + 1).trim();
+  return remainder || "";
+}
+
+function itemArtifactKey(item: SerializedItem): string {
+  if (item.id) return `${item.type}-${item.id}`;
+  return `${item.type}-${item.itemName ?? ""}-${item.location ?? ""}`;
+}
+
+function dedupeItems(items: SerializedItem[]): SerializedItem[] {
+  const seen = new Set<string>();
+  const unique: SerializedItem[] = [];
+  for (const item of items) {
+    const key = itemArtifactKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique;
 }
 
 function extractToolArtifacts(message: UIMessage) {
@@ -76,7 +111,13 @@ function extractToolArtifacts(message: UIMessage) {
     }
   }
 
-  return { items, newItems, matches, nerResults, toolErrors };
+  return {
+    items: dedupeItems(items),
+    newItems: dedupeItems(newItems),
+    matches,
+    nerResults,
+    toolErrors,
+  };
 }
 
 type AgentMessageBubbleProps = {
@@ -92,10 +133,13 @@ export function AgentMessageBubble({
 }: AgentMessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
-  const text = extractTextFromMessage(message);
+  const rawText = extractTextFromMessage(message);
   const { items, newItems, matches, nerResults, toolErrors } = isUser
     ? { items: [], newItems: [], matches: [], nerResults: [], toolErrors: [] }
     : extractToolArtifacts(message);
+  const hasArtifacts =
+    items.length > 0 || matches.length > 0 || nerResults.length > 0;
+  const text = isUser ? rawText : stripEchoedToolJson(rawText, hasArtifacts);
 
   const newItemIds = new Set(newItems.map((item) => item.id));
 
@@ -140,7 +184,7 @@ export function AgentMessageBubble({
           <div className="flex gap-3 overflow-x-auto md:overflow-visible pb-2 mb-3 -mx-1 px-1 md:grid md:grid-cols-2 md:gap-3">
             {items.map((item, index) => (
               <ItemResultCard
-                key={item.id ? `${item.type}-${item.id}` : `${item.type}-${item.itemName}-${item.location}-${index}`}
+                key={`${itemArtifactKey(item)}-${index}`}
                 item={item}
                 isNew={newItemIds.has(item.id || "")}
               />

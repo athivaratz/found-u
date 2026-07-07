@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { getAppSettingsWithMeta, updateAppSettings } from "@/lib/database";
+import { pickSettingsKeys, GEMINI_PIPELINE_SETTING_KEYS } from "@/lib/admin/ai-settings-keys";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 
 interface ModelInfo {
@@ -254,31 +255,7 @@ export default function AdminAIModelsPage() {
     setSaving(true);
     try {
       await updateAppSettings(
-        {
-          aiNerModel: settings.aiNerModel,
-          aiNerTemperature: settings.aiNerTemperature,
-          aiNerTopP: settings.aiNerTopP,
-          aiNerMaxOutputTokens: settings.aiNerMaxOutputTokens,
-          aiMatchingModel: settings.aiMatchingModel,
-          aiMatchingTemperature: settings.aiMatchingTemperature,
-          aiMatchingTopP: settings.aiMatchingTopP,
-          aiMatchingMaxOutputTokens: settings.aiMatchingMaxOutputTokens,
-          aiVisionModel: settings.aiVisionModel,
-          aiVisionTemperature: settings.aiVisionTemperature,
-          aiVisionTopP: settings.aiVisionTopP,
-          aiVisionMaxOutputTokens: settings.aiVisionMaxOutputTokens,
-          agentProvider: settings.agentProvider,
-          agentFallbackProvider: settings.agentFallbackProvider,
-          agentModel: settings.agentModel,
-          agentOpenRouterModel: settings.agentOpenRouterModel,
-          agentMaxSteps: settings.agentMaxSteps,
-          agentMaxOutputTokens: settings.agentMaxOutputTokens,
-          agentTemperature: settings.agentTemperature,
-          agentContextMaxMessages: settings.agentContextMaxMessages,
-          agentContextMaxTokens: settings.agentContextMaxTokens,
-          agentContextStrategy: settings.agentContextStrategy,
-          agentMemoryMaxFacts: settings.agentMemoryMaxFacts,
-        },
+        pickSettingsKeys(settings, GEMINI_PIPELINE_SETTING_KEYS),
         user.uid
       );
       setShowSuccess(true);
@@ -607,45 +584,15 @@ export default function AdminAIModelsPage() {
 
         <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            Agentic AI (ผู้ช่วย /assistant)
+            Gemini Agent Model
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">
-            ตั้งค่า provider, โมเดล, และขีดจำกัด agent loop
+            ตั้งค่าโมเดล Gemini สำหรับผู้ช่วย — provider, context, OpenRouter อยู่ที่{" "}
+            <Link href="/admin/ai/settings" className="text-[#06C755] hover:underline">
+              ตั้งค่า AI รวม
+            </Link>
           </p>
           <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-xs text-gray-500">Provider หลัก</label>
-              <select
-                value={settings.agentProvider || "auto"}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentProvider: e.target.value as AppSettings["agentProvider"],
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              >
-                <option value="auto">Auto (Gemini → OpenRouter)</option>
-                <option value="gemini">Gemini</option>
-                <option value="openrouter">OpenRouter</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Fallback Provider</label>
-              <select
-                value={settings.agentFallbackProvider || "openrouter"}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentFallbackProvider: e.target.value as AppSettings["agentFallbackProvider"],
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              >
-                <option value="gemini">Gemini</option>
-                <option value="openrouter">OpenRouter</option>
-              </select>
-            </div>
             <div>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs text-gray-500">Gemini Agent Model</label>
@@ -664,134 +611,6 @@ export default function AdminAIModelsPage() {
                 }
                 placeholder="models/gemini-2.5-flash"
                 className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">OpenRouter Model</label>
-              <input
-                value={settings.agentOpenRouterModel || ""}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentOpenRouterModel: e.target.value,
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Max Steps</label>
-              <input
-                type="number"
-                min={1}
-                max={8}
-                value={settings.agentMaxSteps ?? 4}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentMaxSteps: parseNumber(e.target.value),
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Context Messages (prune)</label>
-              <input
-                type="number"
-                min={4}
-                max={12}
-                value={settings.agentContextMaxMessages ?? 8}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentContextMaxMessages: parseNumber(e.target.value),
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Context Max Tokens</label>
-              <input
-                type="number"
-                min={2000}
-                max={32000}
-                step={500}
-                value={settings.agentContextMaxTokens ?? 6000}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentContextMaxTokens: parseNumber(e.target.value),
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Context Strategy</label>
-              <select
-                value={settings.agentContextStrategy ?? "hybrid"}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentContextStrategy: e.target.value as "messages" | "tokens" | "hybrid",
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              >
-                <option value="hybrid">hybrid</option>
-                <option value="messages">messages</option>
-                <option value="tokens">tokens</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Memory Facts (max inject)</label>
-              <input
-                type="number"
-                min={0}
-                max={20}
-                value={settings.agentMemoryMaxFacts ?? 5}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentMemoryMaxFacts: parseNumber(e.target.value),
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Temperature</label>
-              <input
-                type="number"
-                min={0}
-                max={1}
-                step={0.1}
-                value={settings.agentTemperature ?? 0.3}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentTemperature: parseNumber(e.target.value),
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Max Output Tokens</label>
-              <input
-                type="number"
-                min={128}
-                max={4096}
-                value={settings.agentMaxOutputTokens ?? 512}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    agentMaxOutputTokens: parseNumber(e.target.value),
-                  }))
-                }
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
               />
             </div>
           </div>

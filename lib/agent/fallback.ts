@@ -16,12 +16,22 @@ export function isProviderError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const e = error as { status?: number; message?: string; name?: string };
   if (e.status === 429 || (e.status !== undefined && e.status >= 500)) return true;
+  if (
+    e.name === "AI_APICallError" ||
+    e.name === "AI_RetryError" ||
+    e.name === "APICallError"
+  ) {
+    return true;
+  }
   const msg = (e.message || "").toLowerCase();
   return (
     msg.includes("rate limit") ||
     msg.includes("resource exhausted") ||
     msg.includes("timeout") ||
     msg.includes("overloaded") ||
+    msg.includes("provider returned error") ||
+    msg.includes("no output generated") ||
+    msg.includes("failed after") ||
     msg.includes("503") ||
     msg.includes("429")
   );

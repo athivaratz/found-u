@@ -39,8 +39,20 @@ import {
 import { dedupeFacts, extractFactsFromMessages } from "@/lib/chat/memory/extract-facts";
 import { buildTitleFromMessages } from "@/lib/chat/titles";
 import { buildAgentRequestContext } from "@/lib/chat/context/short-term";
-import { DEFAULT_APP_SETTINGS } from "@/lib/types";
+import { getAppSettings } from "@/lib/database";
+import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 import { thaiCopy } from "@/lib/copy/thai-student";
+import {
+  extractTextFromUIMessageParts,
+  looksTruncatedThai,
+  messageHadToolOutput,
+} from "@/lib/agent/text-completeness";
+
+function waitForNextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
 
 function generateSessionId(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -102,6 +114,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const memoryFactsRef = useRef<MemoryFact[]>([]);
   const switchingRef = useRef(false);
   const initRef = useRef(false);
+  const agentSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
+  const messagesRef = useRef<UIMessage[]>([]);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const prevStatusRef = useRef<string>("ready");
+  const repairedMessageIdsRef = useRef<Set<string>>(new Set());
 
   const refreshSessions = useCallback(async () => {
     if (!user) {
@@ -117,7 +134,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     transport: new DefaultChatTransport({
       api: "/api/agent/chat",
       prepareSendMessagesRequest: ({ messages: msgs, id }) => {
-        const ctx = buildAgentRequestContext(msgs, DEFAULT_APP_SETTINGS);
+        const ctx = buildAgentRequestContext(msgs, agentSettingsRef.current);
         setDroppedCount(ctx.droppedCount);
         return {
           body: {
@@ -148,6 +165,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }),
     messages: [],
   });
+
+  messagesRef.current = messages;
+  activeSessionIdRef.current = activeSessionId;
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getAppSettings()
+      .then((settings) => {
+        if (mounted) agentSettingsRef.current = settings;
+      })
+      .catch(() => {
+        agentSettingsRef.current = DEFAULT_APP_SETTINGS;
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user || initRef.current) return;
@@ -192,23 +227,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!activeSessionId || switchingRef.current || loading) return;
+    if (status === "streaming" || status === "submitted") return;
+
     const timer = setTimeout(() => {
       void (async () => {
+        if (switchingRef.current) return;
+        const sessionId = activeSessionIdRef.current;
+        if (!sessionId) return;
+        const currentMessages = messagesRef.current;
         try {
-          const size = estimateSessionSizeBytes(messages);
+          const size = estimateSessionSizeBytes(currentMessages);
           if (size > SESSION_SIZE_WARN_BYTES) {
             setStorageWarning("แชทนี้มีขนาดใหญ่ ลองลบแชทเก่าเพื่อประหยัดพื้นที่");
           } else {
             setStorageWarning(null);
           }
 
-          await saveMessagesForSession(activeSessionId, messages);
+          await saveMessagesForSession(sessionId, currentMessages);
 
-          if (user && messages.length > 0) {
+          if (user && currentMessages.length > 0) {
             const newFacts = dedupeFacts(
-              extractFactsFromMessages(messages, {
+              extractFactsFromMessages(currentMessages, {
                 userId: user.id,
-                sessionId: activeSessionId,
+                sessionId,
               })
             );
             for (const fact of newFacts) {
@@ -225,10 +266,120 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }, MESSAGE_SAVE_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [messages, activeSessionId, user, loading, refreshSessions]);
+  }, [messages, activeSessionId, user, loading, refreshSessions, status]);
+
+  useEffect(() => {
+    const wasStreaming =
+      prevStatusRef.current === "streaming" ||
+      prevStatusRef.current === "submitted";
+    prevStatusRef.current = status;
+
+    if (!wasStreaming || status === "streaming" || status === "submitted") {
+      return;
+    }
+    if (!activeSessionId || switchingRef.current || loading) return;
+
+    const sessionId = activeSessionId;
+    const last = messagesRef.current[messagesRef.current.length - 1];
+
+    const flushSave = () => {
+      void saveMessagesForSession(sessionId, messagesRef.current).catch(
+        (err) => {
+          console.error("[chat/session] flush after stream failed", err);
+        }
+      );
+    };
+
+    if (
+      !user ||
+      last?.role !== "assistant" ||
+      repairedMessageIdsRef.current.has(last.id)
+    ) {
+      flushSave();
+      return;
+    }
+
+    const clientText = extractTextFromUIMessageParts(
+      last.parts as Array<{ type: string; text?: string }>
+    );
+    const hadTools = messageHadToolOutput(
+      last.parts as Array<{ type: string; state?: string }>
+    );
+    const shouldRepair = looksTruncatedThai(clientText) || hadTools;
+
+    if (!shouldRepair) {
+      flushSave();
+      return;
+    }
+
+    void (async () => {
+      const messageId = last.id;
+      const delays = [400, 900, 1800];
+
+      for (let attempt = 0; attempt < delays.length; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+        if (activeSessionIdRef.current !== sessionId) return;
+
+        try {
+          const res = await fetch(
+            `/api/agent/chat/sync?sessionId=${encodeURIComponent(sessionId)}`
+          );
+          if (!res.ok) continue;
+          const data = (await res.json()) as { parts?: UIMessage["parts"] };
+          if (!data.parts?.length) continue;
+
+          const serverText = extractTextFromUIMessageParts(
+            data.parts as Array<{ type: string; text?: string }>
+          );
+          if (serverText.length <= clientText.length + 8) continue;
+
+          repairedMessageIdsRef.current.add(messageId);
+          setMessages((prev) => {
+            const idx = prev.length - 1;
+            if (
+              idx < 0 ||
+              prev[idx]?.role !== "assistant" ||
+              prev[idx]?.id !== messageId
+            ) {
+              return prev;
+            }
+            const next = [...prev];
+            next[idx] = {
+              ...prev[idx],
+              parts: data.parts as UIMessage["parts"],
+            };
+            return next;
+          });
+          flushSave();
+          return;
+        } catch (err) {
+          console.warn("[chat/repair] sync failed", err);
+        }
+      }
+
+      flushSave();
+    })();
+  }, [status, activeSessionId, loading, user, setMessages]);
 
   useEffect(() => {
     if (!error) return;
+
+    const last = messages[messages.length - 1];
+    if (last?.role === "assistant") {
+      const hasText = (last.parts || []).some(
+        (part) => part.type === "text" && "text" in part && part.text.trim().length > 0
+      );
+      const hasToolOutput = (last.parts || []).some(
+        (part) =>
+          part.type.startsWith("tool-") &&
+          "state" in part &&
+          part.state === "output-available"
+      );
+      if (hasText || hasToolOutput) {
+        return;
+      }
+    }
+
     if (error.message) {
       try {
         const parsed = JSON.parse(error.message) as AgentFallbackPayload;
@@ -251,35 +402,54 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         { href: "/found", labelKey: "found" },
       ],
     });
-  }, [error]);
+  }, [error, messages]);
 
   const createSession = useCallback(async () => {
     if (!user) return;
+    const outgoingId = activeSessionIdRef.current;
+    const outgoingMessages = messagesRef.current;
+    if (
+      outgoingId &&
+      outgoingMessages.length > 0 &&
+      status !== "streaming" &&
+      status !== "submitted"
+    ) {
+      await saveMessagesForSession(outgoingId, outgoingMessages);
+    }
     const session = createEmptySession(user.id);
     await createSessionRecord(session);
     switchingRef.current = true;
     setActiveSessionId(session.id);
+    await waitForNextFrame();
     setMessages([]);
     setFallback(null);
     setDroppedCount(0);
     switchingRef.current = false;
     await refreshSessions();
-  }, [user, setMessages, refreshSessions]);
+  }, [user, setMessages, refreshSessions, status]);
 
   const switchSession = useCallback(
     async (sessionId: string) => {
       if (sessionId === activeSessionId) return;
+      const outgoingId = activeSessionIdRef.current;
+      const outgoingMessages = messagesRef.current;
+      if (outgoingId && outgoingMessages.length > 0) {
+        if (status !== "streaming" && status !== "submitted") {
+          await saveMessagesForSession(outgoingId, outgoingMessages);
+        }
+      }
       switchingRef.current = true;
-      const loaded = await loadMessagesForSession(sessionId);
       setActiveSessionId(sessionId);
+      await waitForNextFrame();
+      const loaded = await loadMessagesForSession(sessionId);
       setMessages(loaded);
       setFallback(null);
-      const ctx = buildAgentRequestContext(loaded, DEFAULT_APP_SETTINGS);
+      const ctx = buildAgentRequestContext(loaded, agentSettingsRef.current);
       setDroppedCount(ctx.droppedCount);
       switchingRef.current = false;
       setSidebarOpen(false);
     },
-    [activeSessionId, setMessages]
+    [activeSessionId, setMessages, status]
   );
 
   const deleteSession = useCallback(

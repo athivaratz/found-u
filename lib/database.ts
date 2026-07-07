@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { coerceToDate, normalizeGeoPoint, normalizeGeoPolygon } from "@/lib/utils";
 import { stripUndefined } from "@/lib/strip-undefined";
+import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
 import {
   DEFAULT_APP_SETTINGS,
   type AIUsageRecord,
@@ -198,6 +199,28 @@ function mapNfcFoundReportRow(row: DbRow): NfcFoundReport {
   };
 }
 
+function normalizeStringList(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((entry): entry is string => typeof entry === "string");
+        }
+      } catch {
+        // fall through to comma split
+      }
+    }
+    return trimmed.split(",").map((entry) => entry.trim()).filter(Boolean);
+  }
+  return undefined;
+}
+
 function normalizeAppSettingsBlob(
   settingsBlob: DbRow,
   rowMeta?: DbRow | null
@@ -217,15 +240,27 @@ function normalizeAppSettingsBlob(
   const updatedBy =
     settingsBlob.updatedBy ?? settingsBlob.updated_by ?? rowMeta?.updated_by;
 
-  return {
+  const normalized: AppSettings = {
     ...base,
     mapDefaultCenter: mapCenter,
     mapSchoolBoundary: normalizeGeoPolygon(
       settingsBlob.mapSchoolBoundary ?? settingsBlob.map_school_boundary
     ),
+    agentOpenRouterProviderOrder:
+      normalizeStringList(
+        settingsBlob.agentOpenRouterProviderOrder ??
+          settingsBlob.agent_open_router_provider_order
+      ) ?? base.agentOpenRouterProviderOrder,
+    agentOpenRouterProviderIgnore:
+      normalizeStringList(
+        settingsBlob.agentOpenRouterProviderIgnore ??
+          settingsBlob.agent_open_router_provider_ignore
+      ) ?? base.agentOpenRouterProviderIgnore,
     updatedAt: updatedAt ? timestampToDate(updatedAt) : undefined,
     updatedBy: typeof updatedBy === "string" ? updatedBy : undefined,
   };
+
+  return normalizeAgentSettings(normalized);
 }
 
 function mapAppSettingsFromRow(row: DbRow | null): AppSettings {
@@ -235,6 +270,12 @@ function mapAppSettingsFromRow(row: DbRow | null): AppSettings {
     row.settings && typeof row.settings === "object" ? (row.settings as DbRow) : {};
 
   return normalizeAppSettingsBlob(settingsBlob, row);
+}
+
+export function coerceAppSettings(
+  settingsBlob: Record<string, unknown> | null | undefined
+): AppSettings {
+  return normalizeAppSettingsBlob(settingsBlob ?? {});
 }
 
 function applyConstraints<T>(query: T, constraints: SupabaseConstraint<T>[]): T {

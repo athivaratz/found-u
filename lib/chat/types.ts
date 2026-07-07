@@ -15,6 +15,8 @@ export type StoredChatMessage = {
   role: "user" | "assistant" | "system";
   parts: unknown;
   createdAt: string;
+  /** Stable conversation order within a session (0-based). */
+  sortOrder?: number;
   metadata?: {
     hasReportSuccess?: boolean;
     trackingCodes?: string[];

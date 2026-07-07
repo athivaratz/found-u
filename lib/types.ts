@@ -41,6 +41,18 @@ export interface AppSettings {
   agentFallbackProvider?: "gemini" | "openrouter";
   agentModel?: string;
   agentOpenRouterModel?: string;
+  /** Lock OpenRouter to specific upstream providers (provider.order / only) */
+  agentOpenRouterLockProvider?: boolean;
+  /** OpenRouter provider slugs in priority order */
+  agentOpenRouterProviderOrder?: string[];
+  /** Allow OpenRouter to fail over to other providers for the same model */
+  agentOpenRouterAllowFallbacks?: boolean;
+  /** OpenRouter provider slugs to skip */
+  agentOpenRouterProviderIgnore?: string[];
+  /** OpenRouter reasoning effort; prefer none/minimal for agent chat */
+  agentOpenRouterReasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  /** When not locking provider: route by price, throughput, or latency */
+  agentOpenRouterProviderSort?: "price" | "throughput" | "latency";
   agentMaxSteps?: number;
   agentMaxOutputTokens?: number;
   agentTemperature?: number;
@@ -90,6 +102,9 @@ export interface AppSettings {
   updatedBy?: string;
 }
 
+/** Verified minimum for multi-step agent replies (512 truncates Thai summaries). */
+export const AGENT_DEFAULT_MAX_OUTPUT_TOKENS = 2048;
+
 // Default settings
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   ogTitle: "Found-U | ระบบแจ้งของหาย-ของเจอ",
@@ -117,8 +132,14 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   agentFallbackProvider: "openrouter",
   agentModel: "gemini-2.0-flash",
   agentOpenRouterModel: "google/gemini-2.0-flash-exp:free",
+  agentOpenRouterLockProvider: false,
+  agentOpenRouterProviderOrder: [],
+  agentOpenRouterAllowFallbacks: false,
+  agentOpenRouterProviderIgnore: [],
+  agentOpenRouterReasoningEffort: "none",
+  agentOpenRouterProviderSort: "latency",
   agentMaxSteps: 4,
-  agentMaxOutputTokens: 512,
+  agentMaxOutputTokens: 2048,
   agentTemperature: 0.3,
   agentContextMaxMessages: 8,
   agentContextMaxTokens: 6000,

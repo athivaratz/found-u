@@ -1,7 +1,12 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
-import type { AppSettings } from "@/lib/types";
+import { createOpenRouterInjectingFetch } from "@/lib/agent/openrouter-routing";
+import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
+import {
+  AGENT_DEFAULT_MAX_OUTPUT_TOKENS,
+  type AppSettings,
+} from "@/lib/types";
 
 export type AgentProviderName = "gemini" | "openrouter";
 
@@ -17,7 +22,7 @@ const DEFAULT_AGENT_MODEL = "gemini-2.0-flash";
 const DEFAULT_OPENROUTER_MODEL =
   process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
 
-function resolveAgentSettings(settings: AppSettings): {
+function resolveAgentSettings(raw: AppSettings): {
   primary: AgentProviderName;
   fallback: AgentProviderName;
   model: string;
@@ -26,6 +31,7 @@ function resolveAgentSettings(settings: AppSettings): {
   maxOutputTokens: number;
   temperature: number;
 } {
+  const settings = normalizeAgentSettings(raw);
   const mode = settings.agentProvider || "auto";
   const primary: AgentProviderName =
     mode === "openrouter" ? "openrouter" : "gemini";
@@ -38,7 +44,8 @@ function resolveAgentSettings(settings: AppSettings): {
     model: settings.agentModel || DEFAULT_AGENT_MODEL,
     openRouterModel: settings.agentOpenRouterModel || DEFAULT_OPENROUTER_MODEL,
     maxSteps: settings.agentMaxSteps ?? 4,
-    maxOutputTokens: settings.agentMaxOutputTokens ?? 512,
+    maxOutputTokens:
+      settings.agentMaxOutputTokens ?? AGENT_DEFAULT_MAX_OUTPUT_TOKENS,
     temperature: settings.agentTemperature ?? 0.3,
   };
 }
@@ -50,7 +57,7 @@ function createGeminiModel(modelId: string): LanguageModel {
   return google(modelId.replace(/^models\//, ""));
 }
 
-function createOpenRouterModel(modelId: string): LanguageModel {
+function createOpenRouterModel(modelId: string, settings: AppSettings): LanguageModel {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
   const openrouter = createOpenAI({
@@ -60,6 +67,7 @@ function createOpenRouterModel(modelId: string): LanguageModel {
       "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
       "X-Title": "Found-U Agent",
     },
+    fetch: createOpenRouterInjectingFetch(settings),
   });
   return openrouter.chat(modelId);
 }
@@ -68,9 +76,10 @@ export function getAgentModel(
   provider: AgentProviderName,
   settings: AppSettings
 ): LanguageModel {
-  const resolved = resolveAgentSettings(settings);
+  const normalized = normalizeAgentSettings(settings);
+  const resolved = resolveAgentSettings(normalized);
   if (provider === "openrouter") {
-    return createOpenRouterModel(resolved.openRouterModel);
+    return createOpenRouterModel(resolved.openRouterModel, normalized);
   }
   return createGeminiModel(resolved.model);
 }

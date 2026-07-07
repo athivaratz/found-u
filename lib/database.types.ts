@@ -97,6 +97,31 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["ai_usage"]["Row"]>;
         Relationships: [];
       };
+      agent_chat_logs: {
+        Row: {
+          id: string;
+          user_id: string;
+          session_id: string | null;
+          provider: string;
+          model: string | null;
+          settings_snapshot: Json | null;
+          routing: Json | null;
+          request_messages: Json | null;
+          response_parts: Json | null;
+          steps: Json | null;
+          truncated: boolean;
+          finish_reason: string | null;
+          error: string | null;
+          duration_ms: number | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["agent_chat_logs"]["Row"]> & {
+          user_id: string;
+          provider: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["agent_chat_logs"]["Row"]>;
+        Relationships: [];
+      };
       error_logs: {
         Row: Record<string, Json | undefined>;
         Insert: Record<string, Json | undefined>;

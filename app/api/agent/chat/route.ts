@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { createAgentUIStreamResponse, type UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import {
   checkAndRecordRateLimitAtomic,
@@ -8,17 +8,23 @@ import {
 import { buildAgentRequestContext } from "@/lib/agent/context-pruner";
 import { createFoundUAgent } from "@/lib/agent/create-agent";
 import {
+  createFoundUAgentUIStreamResponse,
+  type AgentStreamCollector,
+} from "@/lib/agent/agent-ui-stream";
+import {
   buildFallbackPayload,
   isProviderError,
 } from "@/lib/agent/fallback";
-import { withProviderFallback } from "@/lib/agent/provider-router";
+import { withProviderFallback, getAgentConfig } from "@/lib/agent/provider-router";
+import { buildOpenRouterRequestExtras } from "@/lib/agent/openrouter-routing";
+import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
 import { warnHallucinatedTrackingCodes } from "@/lib/agent/hallucination-guard";
 import { isAdminUser } from "@/lib/nfc-server";
 import type { MemoryFact } from "@/lib/chat/types";
 import { thaiCopy } from "@/lib/copy/thai-student";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,7 +43,10 @@ export async function POST(request: NextRequest) {
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
 
     const settings = await getAppSettingsAdmin();
-    const mergedSettings = { ...DEFAULT_APP_SETTINGS, ...settings };
+    const mergedSettings = normalizeAgentSettings({
+      ...DEFAULT_APP_SETTINGS,
+      ...settings,
+    });
 
     const ctx = buildAgentRequestContext(messages, mergedSettings);
     const pruned = ctx.modelMessages;
@@ -53,6 +62,13 @@ export async function POST(request: NextRequest) {
     }
 
     warnHallucinatedTrackingCodes(pruned);
+
+    if (
+      mergedSettings.agentProvider === "openrouter" ||
+      mergedSettings.agentProvider === "auto"
+    ) {
+      console.info("[openrouter/routing]", buildOpenRouterRequestExtras(mergedSettings));
+    }
 
     const rateLimit = await checkAndRecordRateLimitAtomic(
       user.id,
@@ -75,28 +91,58 @@ export async function POST(request: NextRequest) {
       .filter((f) => f.userId === user.id)
       .slice(0, maxFacts);
 
-    const { result: streamResponse } = await withProviderFallback(
+    const agentConfig = getAgentConfig(mergedSettings);
+
+    const { result: streamResponse, providerUsed } = await withProviderFallback(
       mergedSettings,
       async (provider, model) => {
         const isAdmin = await isAdminUser(user.id);
+        const collector: AgentStreamCollector = {
+          steps: [],
+          requestMessages: pruned,
+          settingsSnapshot: mergedSettings,
+          routing: buildOpenRouterRequestExtras(mergedSettings) as
+            | Record<string, unknown>
+            | undefined,
+          provider,
+          modelId:
+            provider === "openrouter"
+              ? mergedSettings.agentOpenRouterModel ?? agentConfig.model
+              : mergedSettings.agentModel ?? agentConfig.model,
+          sessionId,
+          userId: user.id,
+          startedAt: Date.now(),
+        };
+
         const agent = createFoundUAgent({
           model,
           settings: mergedSettings,
           userId: user.id,
           isAdmin,
           memoryFacts: safeFacts,
+          onStepLog: (step) => {
+            collector.steps.push(step);
+          },
         });
 
-        return createAgentUIStreamResponse({
+        const response = await createFoundUAgentUIStreamResponse({
           agent,
           uiMessages: pruned,
+          originalMessages: messages,
+          model,
+          settings: mergedSettings,
           headers: {
             "X-Agent-Provider": provider,
             ...(sessionId ? { "X-Chat-Session-Id": sessionId } : {}),
           },
+          collector,
         });
+
+        return response;
       }
     );
+
+    streamResponse.headers.set("X-Agent-Provider", providerUsed);
 
     return streamResponse;
   } catch (error) {
