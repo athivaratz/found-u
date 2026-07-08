@@ -1,4 +1,5 @@
 import { DEFAULT_APP_SETTINGS, type ItemCategory } from "@/lib/types";
+import { resolveAiCredentials, getGeminiApiKey } from "@/lib/ai/credentials-resolver";
 
 export interface VisionExtractedData {
   itemName: string;
@@ -55,7 +56,6 @@ export const VISION_CATEGORY_LABELS: Record<ItemCategory, string> = {
 };
 
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
 
 const DEFAULT_VISION_MODEL = DEFAULT_APP_SETTINGS.aiVisionModel || "gemini-1.5-flash";
 
@@ -145,8 +145,10 @@ export async function extractVisionData(
   config?: AIVisionConfig,
   options?: { includeDebug?: boolean }
 ): Promise<VisionExtractedData | VisionExtractResult | null> {
-  if (!GEMINI_API_KEY) {
-    console.error("GEMMA_API_KEY not found");
+  const credentials = await resolveAiCredentials();
+  const geminiApiKey = getGeminiApiKey(credentials);
+  if (!geminiApiKey) {
+    console.error("Gemini API key not configured");
     return null;
   }
 
@@ -159,7 +161,7 @@ export async function extractVisionData(
       responseMimeType: "application/json",
     };
 
-    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${geminiApiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

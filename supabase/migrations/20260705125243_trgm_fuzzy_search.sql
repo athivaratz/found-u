@@ -1,7 +1,6 @@
 -- TRGM fuzzy search: indexes + RPC functions
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
--- Additional GIN indexes for columns used in fuzzy search
 CREATE INDEX IF NOT EXISTS idx_lost_items_description_trgm
   ON lost_items USING gin (description gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_lost_items_location_lost_trgm
@@ -121,4 +120,4 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION search_lost_items_fuzzy(text, text, text, int, real) TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION search_found_items_fuzzy(text, text, text, int, real) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION search_found_items_fuzzy(text, text, text, int, real) TO authenticated, anon;;

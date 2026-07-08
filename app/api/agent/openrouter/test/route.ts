@@ -3,6 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { probeOpenRouterChat } from "@/lib/agent/openrouter-api";
 import {
+  resolveAiCredentials,
+  getOpenRouterApiKey,
+  getOpenRouterModel,
+} from "@/lib/ai/credentials-resolver";
+import {
   buildOpenRouterRequestExtras,
   type OpenRouterRequestExtras,
 } from "@/lib/agent/openrouter-routing";
@@ -50,9 +55,11 @@ export async function POST(request: Request) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
-  if (!process.env.OPENROUTER_API_KEY) {
+  const credentials = await resolveAiCredentials();
+  const openRouterKey = getOpenRouterApiKey(credentials);
+  if (!openRouterKey) {
     return NextResponse.json(
-      { ok: false, error: "OPENROUTER_API_KEY is not configured" },
+      { ok: false, error: "OpenRouter API key is not configured" },
       { status: 503 }
     );
   }
@@ -74,7 +81,7 @@ export async function POST(request: Request) {
   const modelId =
     (typeof body?.model === "string" ? body.model : null) ||
     settings.agentOpenRouterModel ||
-    process.env.OPENROUTER_MODEL ||
+    getOpenRouterModel(credentials) ||
     DEFAULT_APP_SETTINGS.agentOpenRouterModel!;
 
   const prompt =
@@ -92,6 +99,7 @@ export async function POST(request: Request) {
     prompt,
     maxTokens: settings.agentMaxOutputTokens ?? AGENT_DEFAULT_MAX_OUTPUT_TOKENS,
     extras,
+    apiKey: openRouterKey,
   });
 
   return NextResponse.json(result);

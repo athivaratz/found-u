@@ -3,11 +3,13 @@ const KNOWN_ROUTE_PREFIXES = [
   "/admin",
   "/nfc",
   "/home",
+  "/assistant",
   "/found",
   "/lost",
   "/list",
   "/tracking",
   "/settings",
+  "/setup",
   "/banned",
 ] as const;
 

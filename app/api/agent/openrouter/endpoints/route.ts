@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchOpenRouterEndpoints } from "@/lib/agent/openrouter-api";
+import {
+  resolveAiCredentials,
+  getOpenRouterApiKey,
+  getOpenRouterModel,
+} from "@/lib/ai/credentials-resolver";
 import { getAppSettingsAdmin } from "@/lib/ai-rate-limit";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
@@ -34,22 +39,24 @@ export async function GET(request: Request) {
   if (auth.error) return auth.error;
 
   const { searchParams } = new URL(request.url);
+  const credentials = await resolveAiCredentials();
   const settings = { ...DEFAULT_APP_SETTINGS, ...(await getAppSettingsAdmin()) };
   const modelId =
     searchParams.get("model")?.trim() ||
     settings.agentOpenRouterModel ||
-    process.env.OPENROUTER_MODEL ||
+    getOpenRouterModel(credentials) ||
     DEFAULT_APP_SETTINGS.agentOpenRouterModel!;
 
-  if (!process.env.OPENROUTER_API_KEY) {
+  const openRouterKey = getOpenRouterApiKey(credentials);
+  if (!openRouterKey) {
     return NextResponse.json(
-      { error: "OPENROUTER_API_KEY is not configured", modelId, endpoints: [] },
+      { error: "OpenRouter API key is not configured", modelId, endpoints: [] },
       { status: 503 }
     );
   }
 
   try {
-    const result = await fetchOpenRouterEndpoints(modelId);
+    const result = await fetchOpenRouterEndpoints(modelId, openRouterKey);
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

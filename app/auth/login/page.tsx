@@ -235,6 +235,11 @@ function LoginPageContent() {
       />
 
       <main className="flex-1 max-w-md mx-auto w-full px-4 py-4 sm:py-6">
+        {searchParams.get("setup") === "done" ? (
+          <div className="mb-4 rounded-xl border border-line-green/30 bg-line-green/10 px-4 py-3 text-sm text-text-primary">
+            ตั้งค่าระบบเสร็จสิ้น — เข้าสู่ระบบด้วยเลขแอดมินที่สร้างไว้
+          </div>
+        ) : null}
         <div className="bg-bg-primary rounded-2xl border border-border-light shadow-card p-5 sm:p-6">
           {view === "quick" ? (
             <>

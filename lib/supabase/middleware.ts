@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/database.types";
+import { applySetupOkCookie } from "@/lib/setup/middleware-guard";
+import { SETUP_OK_COOKIE } from "@/lib/setup/constants";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -34,7 +36,15 @@ export async function updateSession(request: NextRequest) {
   if (user && pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/home";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    if (request.cookies.get(SETUP_OK_COOKIE)?.value !== "1") {
+      applySetupOkCookie(redirect);
+    }
+    return redirect;
+  }
+
+  if (request.cookies.get(SETUP_OK_COOKIE)?.value !== "1") {
+    applySetupOkCookie(supabaseResponse);
   }
 
   return supabaseResponse;

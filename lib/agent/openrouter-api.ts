@@ -17,13 +17,13 @@ export type OpenRouterEndpointInfo = {
   supportedParameters?: string[];
 };
 
-function openRouterHeaders(): HeadersInit {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
+function openRouterHeaders(apiKey?: string): HeadersInit {
+  const resolvedKey = apiKey ?? process.env.OPENROUTER_API_KEY;
+  if (!resolvedKey) {
     throw new Error("OPENROUTER_API_KEY is not configured");
   }
   return {
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: `Bearer ${resolvedKey}`,
     "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     "X-Title": "Found-U Agent",
   };
@@ -93,7 +93,8 @@ export function mapEndpointRow(endpoint: Record<string, unknown>): OpenRouterEnd
 }
 
 export async function fetchOpenRouterEndpoints(
-  modelId: string
+  modelId: string,
+  apiKey?: string
 ): Promise<{ modelId: string; endpoints: OpenRouterEndpointInfo[] }> {
   const parsed = parseOpenRouterModelId(modelId);
   if (!parsed) {
@@ -101,7 +102,7 @@ export async function fetchOpenRouterEndpoints(
   }
 
   const url = `${OPENROUTER_API_BASE}/models/${encodeURIComponent(parsed.author)}/${encodeURIComponent(parsed.slug)}/endpoints`;
-  const res = await fetch(url, { headers: openRouterHeaders(), cache: "no-store" });
+  const res = await fetch(url, { headers: openRouterHeaders(apiKey), cache: "no-store" });
 
   if (!res.ok) {
     const text = await res.text();
@@ -139,6 +140,7 @@ export async function probeOpenRouterChat(options: {
   prompt: string;
   maxTokens?: number;
   extras?: OpenRouterRequestExtras;
+  apiKey?: string;
 }): Promise<OpenRouterProbeResult> {
   const body: Record<string, unknown> = {
     model: options.modelId,
@@ -153,7 +155,7 @@ export async function probeOpenRouterChat(options: {
   const res = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
     method: "POST",
     headers: {
-      ...openRouterHeaders(),
+      ...openRouterHeaders(options.apiKey),
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),

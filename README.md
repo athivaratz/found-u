@@ -110,13 +110,30 @@ lib/
   validations/    Zod schemas
 ```
 
+## Deploy โรงเรียนใหม่ (1-Click)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D&env=NEXT_PUBLIC_APP_URL%2CSCHOOL_AUTH_DOMAIN&envDescription=NEXT_PUBLIC_APP_URL%3A%20URL%20%E0%B9%82%E0%B8%94%E0%B9%80%E0%B8%A1%E0%B8%99%E0%B8%AB%E0%B8%A5%E0%B8%B1%E0%B8%81%E0%B8%82%E0%B8%AD%E0%B8%87%E0%B9%82%E0%B8%A3%E0%B8%87%E0%B9%80%E0%B8%A3%E0%B8%B5%E0%B8%A2%E0%B8%99%20(e.g.%20https%3A%2F%2Fyour-school.example.com)&envLink=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u%2Fblob%2Fmain%2F.env.example)
+
+ขั้นตอนสำหรับแอดมินโรงเรียน:
+
+1. กดปุ่ม **Deploy with Vercel** → เชื่อม GitHub → ติดตั้ง **Supabase** integration (สร้างโปรเจกต์ DB อัตโนมัติ)
+2. กรอก `NEXT_PUBLIC_APP_URL` — URL หลักของโรงเรียน (เช่น `https://your-school.vercel.app` หรือ custom domain)
+3. กรอก `SCHOOL_AUTH_DOMAIN` — โดเมนสังเคราะห์สำหรับอีเมลล็อกอิน (เช่น `your-school.ac.th`)
+4. รอ deploy เสร็จ → เปิด URL → ทำ **Setup Wizard** 3 ขั้น (โลโก้โรงเรียน, AI ไม่บังคับ, สร้างแอดมิน)
+5. ล็อกอินด้วยเลขแอดมินที่สร้าง → ใช้งานได้ทันที
+
+Supabase integration จะ inject `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, และ `POSTGRES_URL_NON_POOLING` ให้อัตโนมัติ — ไม่ต้อง copy เอง
+
+**ไม่บังคับตอน deploy:** `GEMMA_API_KEY`, `OPENROUTER_*`, `R2_*` — ตั้งผ่าน Setup Wizard หรือเพิ่มทีหลังใน Vercel env
+
 ## ตัวแปรสภาพแวดล้อม (สำคัญ)
 
-ดูตัวอย่างครบใน [`.env.example`](.env.example) — รวมถึง:
+ดูตัวอย่างครบใน [`.env.example`](.env.example) — จัดกลุ่ม Required / Optional แล้ว
 
-- `GEMMA_API_KEY` — Gemini สำหรับ Vision / NER / Matching / Agent
-- `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` — Agent fallback หรือ provider หลัก
-- `SEARCH_USE_TRGM`, `SEARCH_SIMILARITY_THRESHOLD`, `AGENT_SEARCH_SIMILARITY_THRESHOLD` — fuzzy search
+- **Required (Vercel + Supabase):** `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`, `NEXT_PUBLIC_APP_URL`, `SCHOOL_AUTH_DOMAIN`
+- **Optional — AI:** `GEMMA_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` (หรือตั้งใน Setup Wizard)
+- **Optional — Storage:** `R2_*` (production เดิมใช้ R2; deploy ใหม่ใช้ Supabase Storage อัตโนมัติถ้าไม่มี R2)
+- **Search:** `SEARCH_USE_TRGM`, `SEARCH_SIMILARITY_THRESHOLD`, `AGENT_SEARCH_SIMILARITY_THRESHOLD`
 
 ## ทีมของเรา
 
@@ -180,9 +197,20 @@ Traditional school lost-and-found workflows are slow, fragmented, and hard to tr
 - **Admin dashboard** for items, users, settings, moderation, AI testing, and agent debug logs
 - **NFC tags** for register, scan/QR found reports, and owner messaging
 
+## Deploy a New School (1-Click)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D&env=NEXT_PUBLIC_APP_URL%2CSCHOOL_AUTH_DOMAIN&envDescription=NEXT_PUBLIC_APP_URL%3A%20Your%20school%27s%20primary%20URL&envLink=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u%2Fblob%2Fmain%2F.env.example)
+
+1. Click **Deploy with Vercel** → connect GitHub → install **Supabase** integration
+2. Set `NEXT_PUBLIC_APP_URL` and `SCHOOL_AUTH_DOMAIN`
+3. Wait for deploy → open the URL → complete the **3-step Setup Wizard**
+4. Log in with the admin account you created
+
+Supabase env vars and `POSTGRES_URL_NON_POOLING` are injected automatically.
+
 ## Tech Stack
 
-See the table in the Thai section above. Core: **Next.js 16**, **React 19**, **TypeScript 5.9**, **Tailwind CSS 4**, **Supabase**, **Vercel AI SDK**, **Gemini + OpenRouter**, **Dexie**, **Leaflet**, **Cloudflare R2**, **Bun**.
+See the table in the Thai section above. Core: **Next.js 16**, **React 19**, **TypeScript 5.9**, **Tailwind CSS 4**, **Supabase**, **Vercel AI SDK**, **Gemini + OpenRouter**, **Dexie**, **Leaflet**, **Cloudflare R2** (or Supabase Storage on new deploys), **Bun**.
 
 ## Our Team
 

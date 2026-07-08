@@ -29,22 +29,15 @@ CREATE INDEX IF NOT EXISTS agent_chat_logs_session_id_idx
 
 ALTER TABLE public.agent_chat_logs ENABLE ROW LEVEL SECURITY;
 
--- PostgREST roles need explicit grants (Supabase default grants for new tables)
-GRANT SELECT, INSERT, DELETE ON public.agent_chat_logs TO service_role;
-GRANT SELECT ON public.agent_chat_logs TO authenticated;
-
--- Admins can read logs (matches accounts.role = 'admin')
+DROP POLICY IF EXISTS agent_chat_logs_admin_select ON public.agent_chat_logs;
 CREATE POLICY agent_chat_logs_admin_select ON public.agent_chat_logs
   FOR SELECT
-  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.accounts a
       WHERE a.id = auth.uid() AND a.role = 'admin'
     )
   );
-
--- Service role inserts from API route (bypasses RLS)
 
 CREATE OR REPLACE FUNCTION public.cleanup_agent_chat_logs()
 RETURNS integer
@@ -62,4 +55,4 @@ BEGIN
 END;
 $$;
 
-COMMENT ON TABLE public.agent_chat_logs IS 'Raw agent chat request/response logs for admin debug (retain 7 days)';
+COMMENT ON TABLE public.agent_chat_logs IS 'Raw agent chat request/response logs for admin debug (retain 7 days)';;

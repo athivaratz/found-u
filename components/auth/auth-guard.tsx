@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { LoadingModal } from "@/components/ui/loading-modal";
 import { TutorialSystem } from "@/components/ui/tutorial-system";
 import { StudentRegistrationModal } from "@/components/auth/student-registration-modal";
-import { AUTH_ROUTES, isAuthPublicPath } from "@/lib/auth-routes";
+import { AUTH_ROUTES, isAuthPublicPath, isSetupPublicPath } from "@/lib/auth-routes";
 import { isKnownRoute } from "@/lib/known-routes";
 
 const PUBLIC_PATHS = ["/", "/banned"];
@@ -15,6 +15,7 @@ function isPublicPath(pathname: string) {
   return (
     PUBLIC_PATHS.includes(pathname) ||
     isAuthPublicPath(pathname) ||
+    isSetupPublicPath(pathname) ||
     !isKnownRoute(pathname)
   );
 }

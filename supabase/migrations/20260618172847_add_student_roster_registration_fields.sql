@@ -5,4 +5,4 @@ ALTER TABLE accounts
 
 UPDATE accounts
 SET is_registered = true
-WHERE has_logged_in_once = true OR current_password_hash IS NOT NULL;
+WHERE has_logged_in_once = true OR current_password_hash IS NOT NULL;;

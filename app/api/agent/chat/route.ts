@@ -16,6 +16,7 @@ import {
   isProviderError,
 } from "@/lib/agent/fallback";
 import { withProviderFallback, getAgentConfig } from "@/lib/agent/provider-router";
+import { resolveAiCredentials } from "@/lib/ai/credentials-resolver";
 import { buildOpenRouterRequestExtras } from "@/lib/agent/openrouter-routing";
 import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
 import { warnHallucinatedTrackingCodes } from "@/lib/agent/hallucination-guard";
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
       .slice(0, maxFacts);
 
     const agentConfig = getAgentConfig(mergedSettings);
+    const aiCredentials = await resolveAiCredentials();
 
     const { result: streamResponse, providerUsed } = await withProviderFallback(
       mergedSettings,
@@ -139,7 +141,8 @@ export async function POST(request: NextRequest) {
         });
 
         return response;
-      }
+      },
+      aiCredentials
     );
 
     streamResponse.headers.set("X-Agent-Provider", providerUsed);

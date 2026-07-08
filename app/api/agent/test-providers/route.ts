@@ -6,6 +6,7 @@ import {
   isProviderConfigured,
   type AgentProviderName,
 } from "@/lib/agent/provider-router";
+import { resolveAiCredentials } from "@/lib/ai/credentials-resolver";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
@@ -19,12 +20,13 @@ type ProviderTestResult = {
 
 function resolveModelLabel(
   provider: AgentProviderName,
-  settings: typeof DEFAULT_APP_SETTINGS
+  settings: typeof DEFAULT_APP_SETTINGS,
+  credentials: Awaited<ReturnType<typeof resolveAiCredentials>>
 ) {
   if (provider === "openrouter") {
     return (
       settings.agentOpenRouterModel ||
-      process.env.OPENROUTER_MODEL ||
+      credentials.openrouterModel ||
       "google/gemini-2.0-flash-exp:free"
     );
   }
@@ -53,11 +55,12 @@ async function requireAdmin() {
 
 async function testSingleProvider(
   provider: AgentProviderName,
-  mergedSettings: typeof DEFAULT_APP_SETTINGS
+  mergedSettings: typeof DEFAULT_APP_SETTINGS,
+  credentials: Awaited<ReturnType<typeof resolveAiCredentials>>
 ): Promise<ProviderTestResult> {
-  const modelLabel = resolveModelLabel(provider, mergedSettings);
+  const modelLabel = resolveModelLabel(provider, mergedSettings, credentials);
   const result: ProviderTestResult = {
-    configured: isProviderConfigured(provider),
+    configured: isProviderConfigured(provider, credentials),
     ok: false,
     model: modelLabel,
   };
@@ -68,7 +71,7 @@ async function testSingleProvider(
   }
 
   try {
-    const model = getAgentModel(provider, mergedSettings);
+    const model = getAgentModel(provider, mergedSettings, credentials);
     await generateText({
       model,
       prompt: "Reply with OK only.",
@@ -123,6 +126,7 @@ async function runProviderTests(
   mergedSettings: typeof DEFAULT_APP_SETTINGS,
   providerFilter?: AgentProviderName
 ) {
+  const credentials = await resolveAiCredentials();
   const providers: AgentProviderName[] = providerFilter
     ? [providerFilter]
     : ["gemini", "openrouter"];
@@ -130,11 +134,11 @@ async function runProviderTests(
   const results: Record<string, ProviderTestResult> = {};
 
   for (const provider of providers) {
-    results[provider] = await testSingleProvider(provider, mergedSettings);
+    results[provider] = await testSingleProvider(provider, mergedSettings, credentials);
   }
 
   return NextResponse.json({
     providers: results,
-    settingsSource: "database",
+    settingsSource: credentials.source,
   });
 }

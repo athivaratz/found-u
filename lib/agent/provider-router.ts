@@ -4,6 +4,12 @@ import type { LanguageModel } from "ai";
 import { createOpenRouterInjectingFetch } from "@/lib/agent/openrouter-routing";
 import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
 import {
+  getGeminiApiKey,
+  getOpenRouterApiKey,
+  getOpenRouterModel,
+  type ResolvedAiCredentials,
+} from "@/lib/ai/credentials-resolver";
+import {
   AGENT_DEFAULT_MAX_OUTPUT_TOKENS,
   type AppSettings,
 } from "@/lib/types";
@@ -19,10 +25,8 @@ export interface AgentModelConfig {
 }
 
 const DEFAULT_AGENT_MODEL = "gemini-2.0-flash";
-const DEFAULT_OPENROUTER_MODEL =
-  process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
 
-function resolveAgentSettings(raw: AppSettings): {
+function resolveAgentSettings(raw: AppSettings, credentials?: ResolvedAiCredentials): {
   primary: AgentProviderName;
   fallback: AgentProviderName;
   model: string;
@@ -38,11 +42,15 @@ function resolveAgentSettings(raw: AppSettings): {
   const fallback: AgentProviderName =
     settings.agentFallbackProvider === "openrouter" ? "openrouter" : "gemini";
 
+  const defaultOpenRouterModel = credentials
+    ? getOpenRouterModel(credentials)
+    : process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
+
   return {
     primary: mode === "auto" ? "gemini" : primary,
     fallback: mode === "auto" ? "openrouter" : fallback === primary ? (primary === "gemini" ? "openrouter" : "gemini") : fallback,
     model: settings.agentModel || DEFAULT_AGENT_MODEL,
-    openRouterModel: settings.agentOpenRouterModel || DEFAULT_OPENROUTER_MODEL,
+    openRouterModel: settings.agentOpenRouterModel || defaultOpenRouterModel,
     maxSteps: settings.agentMaxSteps ?? 4,
     maxOutputTokens:
       settings.agentMaxOutputTokens ?? AGENT_DEFAULT_MAX_OUTPUT_TOKENS,
@@ -50,16 +58,16 @@ function resolveAgentSettings(raw: AppSettings): {
   };
 }
 
-function createGeminiModel(modelId: string): LanguageModel {
-  const apiKey = process.env.GEMMA_API_KEY;
-  if (!apiKey) throw new Error("GEMMA_API_KEY is not configured");
+function createGeminiModel(modelId: string, apiKey: string): LanguageModel {
   const google = createGoogleGenerativeAI({ apiKey });
   return google(modelId.replace(/^models\//, ""));
 }
 
-function createOpenRouterModel(modelId: string, settings: AppSettings): LanguageModel {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
+function createOpenRouterModel(
+  modelId: string,
+  settings: AppSettings,
+  apiKey: string
+): LanguageModel {
   const openrouter = createOpenAI({
     apiKey,
     baseURL: "https://openrouter.ai/api/v1",
@@ -74,21 +82,29 @@ function createOpenRouterModel(modelId: string, settings: AppSettings): Language
 
 export function getAgentModel(
   provider: AgentProviderName,
-  settings: AppSettings
+  settings: AppSettings,
+  credentials?: ResolvedAiCredentials
 ): LanguageModel {
   const normalized = normalizeAgentSettings(settings);
-  const resolved = resolveAgentSettings(normalized);
+  const resolved = resolveAgentSettings(normalized, credentials);
   if (provider === "openrouter") {
-    return createOpenRouterModel(resolved.openRouterModel, normalized);
+    const apiKey = credentials ? getOpenRouterApiKey(credentials) : process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
+    return createOpenRouterModel(resolved.openRouterModel, normalized, apiKey);
   }
-  return createGeminiModel(resolved.model);
+  const apiKey = credentials ? getGeminiApiKey(credentials) : process.env.GEMMA_API_KEY;
+  if (!apiKey) throw new Error("GEMMA_API_KEY is not configured");
+  return createGeminiModel(resolved.model, apiKey);
 }
 
-export function getAgentConfig(settings: AppSettings): AgentModelConfig & {
+export function getAgentConfig(
+  settings: AppSettings,
+  credentials?: ResolvedAiCredentials
+): AgentModelConfig & {
   primaryProvider: AgentProviderName;
   fallbackProvider: AgentProviderName;
 } {
-  const resolved = resolveAgentSettings(settings);
+  const resolved = resolveAgentSettings(settings, credentials);
   return {
     provider: resolved.primary,
     primaryProvider: resolved.primary,
@@ -103,9 +119,10 @@ export function getAgentConfig(settings: AppSettings): AgentModelConfig & {
 
 export async function withProviderFallback<T>(
   settings: AppSettings,
-  run: (provider: AgentProviderName, model: LanguageModel) => Promise<T>
+  run: (provider: AgentProviderName, model: LanguageModel) => Promise<T>,
+  credentials?: ResolvedAiCredentials
 ): Promise<{ result: T; providerUsed: AgentProviderName }> {
-  const config = getAgentConfig(settings);
+  const config = getAgentConfig(settings, credentials);
   const providers: AgentProviderName[] = [
     config.primaryProvider,
     config.fallbackProvider,
@@ -115,7 +132,8 @@ export async function withProviderFallback<T>(
   let lastError: unknown;
   for (const provider of unique) {
     try {
-      const model = getAgentModel(provider, settings);
+      if (!isProviderConfigured(provider, credentials)) continue;
+      const model = getAgentModel(provider, settings, credentials);
       const result = await run(provider, model);
       return { result, providerUsed: provider };
     } catch (error) {
@@ -126,7 +144,12 @@ export async function withProviderFallback<T>(
   throw lastError;
 }
 
-export function isProviderConfigured(provider: AgentProviderName): boolean {
-  if (provider === "gemini") return Boolean(process.env.GEMMA_API_KEY);
-  return Boolean(process.env.OPENROUTER_API_KEY);
+export function isProviderConfigured(
+  provider: AgentProviderName,
+  credentials?: ResolvedAiCredentials
+): boolean {
+  if (provider === "gemini") {
+    return Boolean(credentials ? getGeminiApiKey(credentials) : process.env.GEMMA_API_KEY);
+  }
+  return Boolean(credentials ? getOpenRouterApiKey(credentials) : process.env.OPENROUTER_API_KEY);
 }

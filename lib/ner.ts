@@ -1,6 +1,7 @@
 import { DEFAULT_APP_SETTINGS } from "./types";
 import { extractNERFallback } from "./ner-fallback";
 import { NER_NO_INVENT_RULE } from "@/lib/agent/ner-field-hints";
+import { resolveAiCredentials, getGeminiApiKey } from "@/lib/ai/credentials-resolver";
 
 // NER Service using Gemini models for extracting structured data from text
 // Optimized for speed: ~2-3 seconds response
@@ -26,7 +27,6 @@ export interface AIGenerationConfig {
 
 // Use Gemini models for faster response
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
 
 const DEFAULT_NER_MODEL = DEFAULT_APP_SETTINGS.aiNerModel || "gemini-1.5-flash";
 
@@ -135,14 +135,16 @@ export async function extractNERData(
   type: "lost" | "found",
   config?: AIGenerationConfig
 ): Promise<NERExtractedData | null> {
-  if (!GEMINI_API_KEY) {
-    console.error("GEMMA_API_KEY not found — using rule-based NER fallback");
+  const credentials = await resolveAiCredentials();
+  const geminiApiKey = getGeminiApiKey(credentials);
+  if (!geminiApiKey) {
+    console.error("Gemini API key not found — using rule-based NER fallback");
     return extractNERFallback(text, type);
   }
 
   try {
     const resolvedConfig = resolveNerConfig(config);
-    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${geminiApiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

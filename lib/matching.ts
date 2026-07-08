@@ -4,6 +4,7 @@
 import { DEFAULT_APP_SETTINGS } from './types';
 import type { LostItem, FoundItem, ItemCategory } from './types';
 import { calculateSimilarity } from './ner';
+import { resolveAiCredentials, getGeminiApiKey } from '@/lib/ai/credentials-resolver';
 
 // Helper to convert Firestore Timestamp or Date to Date
 function toDate(date: any): Date {
@@ -407,7 +408,6 @@ export function getTopMatches(matches: MatchScore[], limit: number = 5): MatchSc
 // ============ AI-BASED MATCHING ============
 
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
 
 interface AIGenerationConfig {
   model?: string;
@@ -473,8 +473,10 @@ async function aiCompareItems(
   foundItem: FoundItem,
   config?: AIGenerationConfig
 ): Promise<AIMatchResult | null> {
-  if (!GEMINI_API_KEY) {
-    console.error("GEMMA_API_KEY not found for AI matching");
+  const credentials = await resolveAiCredentials();
+  const geminiApiKey = getGeminiApiKey(credentials);
+  if (!geminiApiKey) {
+    console.error("Gemini API key not found for AI matching");
     return null;
   }
 
@@ -487,7 +489,7 @@ async function aiCompareItems(
 
   try {
     const resolvedConfig = resolveMatchConfig(config);
-    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${geminiApiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

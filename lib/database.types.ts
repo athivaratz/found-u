@@ -164,6 +164,31 @@ export interface Database {
         Update: Record<string, Json | undefined>;
         Relationships: [];
       };
+      drop_off_locations: {
+        Row: {
+          id: string;
+          value: string;
+          label: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["drop_off_locations"]["Row"]> & {
+          value: string;
+          label: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["drop_off_locations"]["Row"]>;
+        Relationships: [];
+      };
+      system_config: {
+        Row: {
+          id: string;
+          config_data: Json;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["system_config"]["Row"]> & { id: string };
+        Update: Partial<Database["public"]["Tables"]["system_config"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
