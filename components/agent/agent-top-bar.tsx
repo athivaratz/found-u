@@ -1,6 +1,6 @@
 "use client";
 
-import { History, RotateCcw } from "lucide-react";
+import { History, RotateCcw, Search } from "lucide-react";
 import { ModeSwitcher } from "@/components/agent/mode-switcher";
 import { cn } from "@/lib/utils";
 import { thaiCopy } from "@/lib/copy/thai-student";
@@ -14,8 +14,8 @@ type AgentTopBarProps = {
 
 function getSubtitle(status?: string): string {
   if (status === "submitted") return thaiCopy.agent.thinking;
-  if (status === "streaming") return "ขั้นตอนการทำงาน";
-  return "ผู้ช่วย Lost & Found";
+  if (status === "streaming") return thaiCopy.agent.subtitleStreaming;
+  return thaiCopy.agent.subtitleIdle;
 }
 
 export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: AgentTopBarProps) {
@@ -26,20 +26,27 @@ export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: Age
     <header
       className={cn(
         "sticky top-0 z-20 flex items-center justify-between gap-3 px-4 py-3 shrink-0",
-        "agent-glass bg-bg-primary/80 dark:bg-bg-primary/60 border-b border-border-light/60 dark:border-white/10",
+        "bg-bg-primary border-b border-border-light",
         className
       )}
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <div className="relative shrink-0">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-line-green to-emerald-500" />
+          <div className="agent-avatar w-9 h-9" aria-hidden>
+            <Search className="w-4 h-4" strokeWidth={2.25} />
+          </div>
           {isActive ? (
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-line-green border-2 border-bg-primary animate-pulse" />
+            <span
+              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-line-green border-2 border-bg-primary"
+              aria-hidden
+            />
           ) : null}
         </div>
         <div className="min-w-0">
-          <h1 className="text-sm font-semibold text-text-primary truncate">Found-U Agent</h1>
-          <p className="text-[10px] text-text-tertiary truncate">{subtitle}</p>
+          <h1 className="text-sm font-semibold text-text-primary truncate">
+            {thaiCopy.agent.title}
+          </h1>
+          <p className="text-xs text-text-secondary truncate">{subtitle}</p>
         </div>
       </div>
 
@@ -50,7 +57,7 @@ export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: Age
           <button
             type="button"
             onClick={onOpenHistory}
-            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors lg:hidden"
+            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label="ประวัติแชท"
           >
             <History className="w-5 h-5" />
@@ -60,7 +67,7 @@ export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: Age
           <button
             type="button"
             onClick={onNewChat}
-            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors shrink-0"
+            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label={thaiCopy.agent.newChat}
           >
             <RotateCcw className="w-5 h-5" />

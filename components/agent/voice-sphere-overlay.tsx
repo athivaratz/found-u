@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { X } from "lucide-react";
+import { useEffect, useCallback } from "react";
+import { X, Mic } from "lucide-react";
 import { m, AnimatePresence } from "framer-motion";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { thaiCopy } from "@/lib/copy/thai-student";
+import { cn } from "@/lib/utils";
 
 type VoiceSphereOverlayProps = {
   open: boolean;
@@ -13,9 +14,6 @@ type VoiceSphereOverlayProps = {
 };
 
 export function VoiceSphereOverlay({ open, onClose, onTranscript }: VoiceSphereOverlayProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [amplitude, setAmplitude] = useState(0);
-
   const handleFinalTranscript = useCallback(
     (text: string) => {
       if (text.trim()) onTranscript(text.trim());
@@ -25,7 +23,6 @@ export function VoiceSphereOverlay({ open, onClose, onTranscript }: VoiceSphereO
 
   const { isListening, transcript, isSupported, start, stop, error } = useVoiceInput({
     onFinalTranscript: handleFinalTranscript,
-    onAmplitude: setAmplitude,
   });
 
   useEffect(() => {
@@ -37,71 +34,92 @@ export function VoiceSphereOverlay({ open, onClose, onTranscript }: VoiceSphereO
     return () => stop();
   }, [open, isSupported, start, stop]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !open) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let frame: number;
-    const draw = () => {
-      const { width, height } = canvas;
-      ctx.clearRect(0, 0, width, height);
-      const cx = width / 2;
-      const cy = height / 2;
-      const baseR = Math.min(width, height) * 0.22;
-      const r = baseR + amplitude * 40;
-
-      const grad = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
-      grad.addColorStop(0, "rgba(6, 199, 85, 0.9)");
-      grad.addColorStop(0.6, "rgba(16, 185, 129, 0.4)");
-      grad.addColorStop(1, "rgba(6, 199, 85, 0)");
-
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-
-      frame = requestAnimationFrame(draw);
-    };
-    draw();
-    return () => cancelAnimationFrame(frame);
-  }, [open, amplitude]);
-
   return (
     <AnimatePresence>
-      {open && (
+      {open ? (
         <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] bg-gradient-to-b from-[#0a0a0a] via-[#111] to-[#0a0a0a] flex flex-col items-center justify-center"
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="โหมดเสียง"
         >
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-4 right-4 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors z-10"
-            aria-label={thaiCopy.voice.close}
+          <m.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full max-w-md rounded-2xl bg-bg-primary border border-border-light p-5 shadow-md"
           >
-            <X className="w-6 h-6" />
-          </button>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-text-primary">พูดถามได้เลย</h2>
+                <p className="text-sm text-text-secondary mt-0.5">
+                  {isSupported
+                    ? isListening
+                      ? thaiCopy.voice.listening
+                      : thaiCopy.voice.tapToSpeak
+                    : thaiCopy.voice.notSupported}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
+                aria-label={thaiCopy.voice.close}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-          {!isSupported ? (
-            <p className="text-white/70 px-6 text-center">{thaiCopy.voice.notSupported}</p>
-          ) : (
-            <>
-              <canvas ref={canvasRef} width={320} height={320} className="w-80 h-80" />
-              <p className="mt-6 text-white/50 text-sm">
-                {isListening ? thaiCopy.voice.listening : thaiCopy.voice.tapToSpeak}
-              </p>
-              {transcript ? (
-                <p className="mt-4 text-white/90 text-center max-w-md px-6 text-lg">{transcript}</p>
-              ) : null}
-              {error ? <p className="mt-2 text-status-error text-sm">{error}</p> : null}
-            </>
-          )}
+            {isSupported ? (
+              <>
+                <div className="flex flex-col items-center py-4">
+                  <div
+                    className={cn(
+                      "agent-avatar w-20 h-20 mb-4",
+                      isListening && "ring-2 ring-line-green/40 ring-offset-2 ring-offset-bg-primary"
+                    )}
+                    aria-hidden
+                  >
+                    <Mic className="w-9 h-9" strokeWidth={2} />
+                  </div>
+                  {transcript ? (
+                    <p className="text-center text-text-primary text-base leading-relaxed px-2">
+                      {transcript}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-text-tertiary text-center">
+                      พูดชื่อสิ่งของ สถานที่ หรือรหัสติดตาม
+                    </p>
+                  )}
+                  {error ? (
+                    <p className="mt-3 text-sm text-status-error text-center">{error}</p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full py-3 rounded-full bg-bg-tertiary text-text-primary font-medium hover:bg-border-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
+                >
+                  ปิด
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-3 rounded-full bg-line-green text-white font-medium hover:bg-line-green-hover transition-colors"
+              >
+                ปิด
+              </button>
+            )}
+          </m.div>
         </m.div>
-      )}
+      ) : null}
     </AnimatePresence>
   );
 }

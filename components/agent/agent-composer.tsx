@@ -42,9 +42,9 @@ export function AgentComposer({
     <div className={cn("px-4 pb-4 pt-2 max-md:safe-bottom md:px-5 md:pb-5", className)}>
       <div
         className={cn(
-          "flex items-end gap-2 p-2 rounded-3xl bg-bg-card agent-glass agent-composer-shadow",
-          "border border-border-light/80 dark:border-white/10",
-          "focus-within:ring-2 focus-within:ring-line-green/20"
+          "flex items-end gap-2 p-2 rounded-2xl bg-bg-card",
+          "border border-border-light",
+          "focus-within:ring-2 focus-within:ring-line-green/25"
         )}
       >
         <textarea
@@ -62,7 +62,7 @@ export function AgentComposer({
             type="button"
             onClick={onVoiceClick}
             disabled={disabled}
-            className="p-2.5 rounded-full text-text-secondary hover:text-line-green hover:bg-line-green-light transition-colors disabled:opacity-40"
+            className="p-2.5 rounded-full text-text-secondary hover:text-line-green hover:bg-line-green-light transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label="โหมดเสียง"
           >
             <Mic className="w-5 h-5" />
@@ -72,7 +72,7 @@ export function AgentComposer({
           type="button"
           onClick={onSubmit}
           disabled={disabled || !value.trim()}
-          className="p-2.5 rounded-full bg-gradient-to-br from-line-green to-emerald-500 text-white shadow-md disabled:opacity-40 disabled:shadow-none hover:from-line-green-hover transition-all"
+          className="p-2.5 rounded-full bg-line-green text-white hover:bg-line-green-hover transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/40 focus-visible:ring-offset-2"
           aria-label="ส่งข้อความ"
         >
           <Send className="w-5 h-5" />

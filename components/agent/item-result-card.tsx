@@ -32,8 +32,7 @@ export function ItemResultCard({ item, className, isNew }: ItemResultCardProps) 
   return (
     <div
       className={cn(
-        "rounded-2xl p-4 agent-glass",
-        "bg-white/70 dark:bg-white/5 border border-white/30 dark:border-white/10",
+        "rounded-2xl p-4 bg-bg-card border border-border-light",
         "min-w-[260px] max-w-sm shrink-0 md:min-w-0 md:max-w-none md:shrink",
         isNew && "ring-2 ring-line-green/40",
         className

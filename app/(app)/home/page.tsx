@@ -46,6 +46,41 @@ function UserNameSlot({
   );
 }
 
+function HomeQuickMenu({ className }: { className?: string }) {
+  return (
+    <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-3", className)}>
+      {menuItems
+        .filter((m) => m.href !== "/home")
+        .map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link key={item.href} href={item.href}>
+              <div className="bg-bg-card rounded-2xl p-4 shadow-card border border-border-light hover:shadow-md hover:border-border-medium transition-all duration-200 active:scale-[0.98]">
+                <div className="flex items-center gap-4">
+                  <div
+                    className={cn(
+                      "w-14 h-14 rounded-2xl flex items-center justify-center",
+                      item.color
+                    )}
+                  >
+                    <Icon className={cn("w-7 h-7", item.iconColor)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-text-primary">
+                      {item.title}
+                    </h3>
+                    <p className="text-sm text-text-secondary">{item.subtitle}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-text-tertiary shrink-0" />
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+    </div>
+  );
+}
+
 export default function Home() {
   const { user, appUser, loading: authLoading, isAdmin, logout, appSettings } = useAuth();
   const welcomeName = getUserShownName(appUser, user);
@@ -76,13 +111,20 @@ export default function Home() {
     }
   };
 
+  const dashboardProps = {
+    userId: user?.uid,
+    authLoading,
+    nfcEnabled: appSettings.nfcEnabled !== false,
+    onSignIn: handleSignIn,
+  };
+
   return (
-    <div className="min-h-screen bg-bg-primary transition-colors">
-      {/* ========================================
-          MOBILE LAYOUT
-          ======================================== */}
-      <div className="md:hidden pb-24 min-h-screen bg-bg-primary transition-colors">
-        <header className="px-5 pt-6 pb-6 bg-gradient-to-br from-line-green to-line-green">
+    <div className="min-h-screen bg-bg-primary transition-colors md:flex">
+      <Sidebar />
+
+      <div className="flex min-h-screen flex-1 flex-col md:ml-72">
+        {/* Mobile header */}
+        <header className="px-5 pt-6 pb-6 bg-gradient-to-br from-line-green to-line-green md:hidden">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
@@ -92,7 +134,10 @@ export default function Home() {
                 <p className="text-white/80 text-sm">{greeting} 👋</p>
                 <h1 className="text-white text-xl font-semibold min-h-[1.75rem]">
                   {authLoading && !user ? (
-                    <span className="inline-block h-5 w-28 rounded bg-white/20 animate-pulse align-middle" aria-hidden />
+                    <span
+                      className="inline-block h-5 w-28 rounded bg-white/20 animate-pulse align-middle"
+                      aria-hidden
+                    />
                   ) : user ? (
                     welcomeName
                   ) : (
@@ -150,9 +195,7 @@ export default function Home() {
                               {getUserPublicEmail(appUser, user)}
                             </p>
                           ) : (
-                            <p className="text-xs text-text-tertiary">
-                              ยังไม่มีอีเมล
-                            </p>
+                            <p className="text-xs text-text-tertiary">ยังไม่มีอีเมล</p>
                           )}
                         </div>
                         <Link
@@ -195,83 +238,39 @@ export default function Home() {
               )}
             </div>
           </div>
-          <p className="text-white/90 text-sm">
-            ยินดีต้อนรับ!
-          </p>
+          <p className="text-white/90 text-sm">ยินดีต้อนรับ!</p>
         </header>
 
-        <main className="px-5 -mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {menuItems
-              .filter((m) => m.href !== "/home")
-              .map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link key={item.href} href={item.href}>
-                    <div className="bg-bg-card rounded-2xl p-4 shadow-card border border-border-light hover:shadow-md hover:border-border-medium transition-all duration-200 active:scale-[0.98]">
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={cn(
-                            "w-14 h-14 rounded-2xl flex items-center justify-center",
-                            item.color
-                          )}
-                        >
-                          <Icon className={cn("w-7 h-7", item.iconColor)} />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-text-primary">
-                            {item.title}
-                          </h3>
-                          <p className="text-sm text-text-secondary">{item.subtitle}</p>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-text-tertiary" />
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+        {/* Desktop header */}
+        <header className="hidden md:block bg-bg-card border-b border-border-light sticky top-0 z-10">
+          <div className="px-8 xl:px-12 pt-5 pb-4">
+            <h1 className="text-2xl font-bold text-text-primary min-h-[2rem]">
+              {authLoading && !user ? (
+                <span
+                  className="inline-block h-7 w-48 max-w-full rounded bg-bg-tertiary animate-pulse align-middle"
+                  aria-hidden
+                />
+              ) : (
+                <>
+                  {greeting}
+                  <UserNameSlot user={user} welcomeName={welcomeName} />
+                </>
+              )}
+            </h1>
+            <p className="text-text-secondary text-sm mt-0.5">ยินดีต้อนรับ!</p>
           </div>
+        </header>
+
+        <main className="flex-1 bg-bg-secondary px-5 pb-24 -mt-4 md:mt-0 md:px-8 md:pb-8 xl:px-12 xl:pb-12">
+          <HomeQuickMenu className="md:hidden" />
 
           <HomeDashboardSection
-            userId={user?.uid}
-            authLoading={authLoading}
-            nfcEnabled={appSettings.nfcEnabled !== false}
-            onSignIn={handleSignIn}
+            {...dashboardProps}
+            className="md:mt-6"
           />
         </main>
 
         <BottomNav />
-      </div>
-
-      {/* ========================================
-          DESKTOP LAYOUT - Sidebar + Main Content
-          ======================================== */}
-      <div className="hidden md:flex min-h-screen bg-bg-primary">
-        <Sidebar />
-
-        <main className="flex-1 ml-72 bg-bg-secondary px-0 pb-6 pt-0 md:px-8 md:pb-8 xl:px-12 xl:pb-12">
-          <header className="bg-bg-card border-b border-border-light sticky top-0 z-10 -mx-6 lg:-mx-8 xl:-mx-12 px-6 lg:px-8 xl:px-12">
-            <div className="pt-5 pb-4">
-              <h1 className="text-2xl font-bold text-text-primary min-h-[2rem]">
-                {greeting}
-                <UserNameSlot user={user} welcomeName={welcomeName} />
-              </h1>
-              <p className="text-text-secondary text-sm mt-0.5">
-                ยินดีต้อนรับ!
-              </p>
-            </div>
-          </header>
-
-          <div>
-            <HomeDashboardSection
-              userId={user?.uid}
-              authLoading={authLoading}
-              nfcEnabled={appSettings.nfcEnabled !== false}
-              onSignIn={handleSignIn}
-              className="w-full mt-0"
-            />
-          </div>
-        </main>
       </div>
     </div>
   );

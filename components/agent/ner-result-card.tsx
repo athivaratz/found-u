@@ -23,8 +23,7 @@ export function NerResultCard({ data, className }: NerResultCardProps) {
   return (
     <div
       className={cn(
-        "rounded-2xl p-4 mb-3 agent-glass",
-        "bg-white/70 dark:bg-white/5 border border-white/30 dark:border-white/10",
+        "rounded-2xl p-4 mb-3 bg-bg-card border border-border-light",
         className
       )}
     >

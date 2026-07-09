@@ -1,18 +1,16 @@
 @import "./globals.css";
 
-/* Agent workspace utilities */
-.agent-mesh-bg {
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(6, 199, 85, 0.12), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(59, 130, 246, 0.06), transparent),
-    var(--bg-secondary);
+/* Agent workspace — tonal surfaces only (no mesh / glass) */
+.agent-surface-bg {
+  background: var(--bg-secondary);
 }
 
-.dark .agent-mesh-bg {
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(6, 199, 85, 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(59, 130, 246, 0.04), transparent),
-    var(--bg-secondary);
+.dark .agent-surface-bg {
+  background: var(--bg-secondary);
+}
+
+.agent-chat-pane {
+  background: var(--bg-primary);
 }
 
 .agent-stream-cursor {
@@ -35,29 +33,22 @@
   }
 }
 
-.agent-glass {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.agent-composer-shadow {
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(6, 199, 85, 0.08);
-}
-
-.dark .agent-composer-shadow {
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.06);
-}
-
 .agent-thinking-panel {
   background: var(--agent-thinking-bg, rgba(0, 0, 0, 0.03));
 }
 
 .dark .agent-thinking-panel {
   --agent-thinking-bg: rgba(255, 255, 255, 0.04);
+}
+
+.agent-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--line-green-light);
+  color: var(--line-green);
 }
 
 @media (prefers-reduced-motion: reduce) {

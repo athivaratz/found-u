@@ -27,7 +27,7 @@ export function TraditionalFallbackPanel({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-status-warning/30 bg-status-warning-light/80 p-4 agent-glass",
+        "rounded-2xl border border-status-warning/30 bg-status-warning-light p-4",
         className
       )}
     >

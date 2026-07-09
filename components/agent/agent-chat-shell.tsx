@@ -44,7 +44,7 @@ function AgentChatInner() {
 
   if ((authLoading && !user) || !mounted) {
     return (
-      <div className="h-full flex-1 flex items-center justify-center agent-mesh-bg min-h-0">
+      <div className="h-full flex-1 flex items-center justify-center agent-surface-bg min-h-0">
         <div className="w-8 h-8 rounded-full border-2 border-line-green border-t-transparent animate-spin" />
       </div>
     );
@@ -52,7 +52,7 @@ function AgentChatInner() {
 
   if (!user) {
     return (
-      <div className="h-full flex-1 flex flex-col agent-mesh-bg min-h-0">
+      <div className="h-full flex-1 flex flex-col agent-surface-bg min-h-0">
         <AgentTopBar />
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           <p className="text-text-secondary mb-4">{thaiCopy.agent.loginRequired}</p>
@@ -70,7 +70,7 @@ function AgentChatInner() {
 
   if (chatLoading) {
     return (
-      <div className="h-full flex-1 flex items-center justify-center agent-mesh-bg min-h-0">
+      <div className="h-full flex-1 flex items-center justify-center agent-surface-bg min-h-0">
         <div className="w-8 h-8 rounded-full border-2 border-line-green border-t-transparent animate-spin" />
       </div>
     );
@@ -88,9 +88,9 @@ function AgentChatInner() {
 
       <div
         className={cn(
-          "flex flex-col min-h-0 flex-1 agent-mesh-bg",
-          "md:rounded-2xl md:border md:border-border-light/70 md:bg-bg-primary/70",
-          "md:shadow-sm md:overflow-hidden md:h-full"
+          "flex flex-col min-h-0 flex-1 agent-surface-bg agent-chat-pane",
+          "md:rounded-2xl md:border md:border-border-light",
+          "md:overflow-hidden md:h-full"
         )}
       >
         <AgentTopBar
@@ -101,7 +101,7 @@ function AgentChatInner() {
 
         {droppedCount > 0 ? (
           <div className="mx-4 mt-2 px-3 py-2 text-xs text-text-secondary bg-bg-tertiary/80 rounded-xl border border-border-light/60 shrink-0">
-            แชทยาว — Agent จำเฉพาะข้อความล่าสุด ({droppedCount} ข้อความเก่าไม่ส่งให้ AI)
+            แชทยาว — จำเฉพาะข้อความล่าสุด ({droppedCount} ข้อความเก่าไม่ส่งให้ผู้ช่วย)
           </div>
         ) : null}
 

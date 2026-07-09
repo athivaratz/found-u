@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { LoadingModal } from "@/components/ui/loading-modal";
@@ -35,8 +35,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     isBanned,
   } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const [showTutorial, setShowTutorial] = useState(false);
+
+  const isProtected = pathname.length > 0 && !isPublicPath(pathname);
 
   const needsStudentVerification =
     !!user &&
@@ -48,53 +50,55 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     !isStudentVerified &&
     !isAdmin;
 
-  useEffect(() => {
+  // Redirect before paint to avoid stacking the previous page with /auth.
+  useLayoutEffect(() => {
     if (user && pathname === "/") {
       router.replace("/home");
       return;
     }
 
-    if (loading) return;
-
-    if (!user && !isPublicPath(pathname)) {
-      router.push(AUTH_ROUTES.hub);
+    if (!user && isProtected) {
+      router.replace(AUTH_ROUTES.hub);
       return;
     }
 
+    if (loading) return;
+
     if (user && (pathname === AUTH_ROUTES.hub || pathname === AUTH_ROUTES.login)) {
       if (mustChangePassword) {
-        router.push(AUTH_ROUTES.changePassword);
+        router.replace(AUTH_ROUTES.changePassword);
       } else if (mustSetupPin) {
-        router.push(AUTH_ROUTES.setupPin);
+        router.replace(AUTH_ROUTES.setupPin);
       } else if (isStudentVerified || isAdmin) {
-        router.push("/home");
+        router.replace("/home");
       }
       return;
     }
 
     if (user && mustChangePassword && pathname !== AUTH_ROUTES.changePassword) {
-      router.push(AUTH_ROUTES.changePassword);
+      router.replace(AUTH_ROUTES.changePassword);
       return;
     }
 
     if (user && mustSetupPin && !isAdmin && pathname !== AUTH_ROUTES.setupPin) {
-      router.push(AUTH_ROUTES.setupPin);
+      router.replace(AUTH_ROUTES.setupPin);
       return;
     }
 
     if (user && isBanned && pathname !== "/banned") {
-      router.push("/banned");
+      router.replace("/banned");
       return;
     }
 
     if (user && !isBanned && pathname === "/banned") {
-      router.push("/home");
+      router.replace("/home");
     }
   }, [
     user,
     loading,
     pathname,
     router,
+    isProtected,
     mustChangePassword,
     mustSetupPin,
     isStudentVerified,
@@ -118,7 +122,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  if (!loading && !user && !isPublicPath(pathname)) {
+  // Never keep rendering a protected page without a session (even while loading).
+  if (isProtected && !user) {
     return null;
   }
 

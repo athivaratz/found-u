@@ -180,8 +180,6 @@ export function HomeDashboardSection({
   const seeAllHref =
     mainPanel === "items" ? "/tracking" : "/nfc/my-tags";
 
-  const sectionTitle = mainPanel === "items" ? "รายการของฉัน" : "NFC ของฉัน";
-
   const emptyMessage =
     itemFilter === "all"
       ? "ยังไม่มีรายการของคุณ"
@@ -195,12 +193,15 @@ export function HomeDashboardSection({
 
   return (
     <section className={cn("mt-8 min-h-[16rem]", className)}>
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="text-lg font-semibold text-text-primary md:text-2xl min-w-0 truncate">
-          {sectionTitle}
-        </h2>
+      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
+        <SegmentedTabs
+          value={mainPanel}
+          onChange={setMainPanel}
+          items={mainTabs}
+          className="mb-0 sm:flex-1 sm:max-w-md"
+        />
         {userId && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
             {mainPanel === "items" && (
               <div className="relative" ref={filterRef}>
                 <button
@@ -266,13 +267,6 @@ export function HomeDashboardSection({
           </div>
         )}
       </div>
-
-      <SegmentedTabs
-        value={mainPanel}
-        onChange={setMainPanel}
-        items={mainTabs}
-        className="mb-4"
-      />
 
       {authLoading && !userId ? (
         <DashboardListSkeleton rows={3} />
