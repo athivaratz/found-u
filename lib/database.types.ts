@@ -1,3 +1,5 @@
+// Supabase JSON columns store heterogeneous app payloads at the DB boundary.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches generated Supabase client expectations
 export type Json = any;
 
 export interface Database {

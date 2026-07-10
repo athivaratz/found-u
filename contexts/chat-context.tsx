@@ -582,5 +582,7 @@ export function useAutoTitle(messages: UIMessage[], activeSessionId: string | nu
         await updateSessionRecord(activeSessionId, { title });
       }
     })();
+    // Title sync is keyed on message count, not full messages array reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, activeSessionId]);
 }

@@ -4,9 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -25,10 +25,24 @@ function readStoredMode(): AppMode {
   return stored === "agent" ? "agent" : "classic";
 }
 
+function readStoredClassicRoute(): string {
+  if (typeof window === "undefined") return "/home";
+  return sessionStorage.getItem(STORAGE_CLASSIC_ROUTE_KEY) || "/home";
+}
+
 function isClassicPath(pathname: string): boolean {
   return CLASSIC_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
+}
+
+function getRouteMode(pathname: string | null): AppMode | null {
+  if (!pathname) return null;
+  if (pathname === AGENT_ROUTE || pathname.startsWith(`${AGENT_ROUTE}/`)) {
+    return "agent";
+  }
+  if (isClassicPath(pathname)) return "classic";
+  return null;
 }
 
 type AppModeContextValue = {
@@ -41,76 +55,79 @@ type AppModeContextValue = {
 
 const AppModeContext = createContext<AppModeContextValue | null>(null);
 
+function subscribeToAppModeStorage() {
+  return () => {};
+}
+
 export function AppModeProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [mode, setModeState] = useState<AppMode>("classic");
-  const [lastClassicRoute, setLastClassicRoute] = useState("/home");
-  const [hydrated, setHydrated] = useState(false);
+  const storedMode = useSyncExternalStore(
+    subscribeToAppModeStorage,
+    readStoredMode,
+    () => "classic" as AppMode
+  );
+  const storedClassicRoute = useSyncExternalStore(
+    subscribeToAppModeStorage,
+    readStoredClassicRoute,
+    () => "/home"
+  );
+  const [modeOverride, setModeOverride] = useState<AppMode | null>(null);
+  const [classicRouteOverride, setClassicRouteOverride] = useState<string | null>(null);
 
-  useEffect(() => {
-    setModeState(readStoredMode());
-    const storedRoute = sessionStorage.getItem(STORAGE_CLASSIC_ROUTE_KEY);
-    if (storedRoute) setLastClassicRoute(storedRoute);
-    setHydrated(true);
+  const routeMode = getRouteMode(pathname);
+  const mode = routeMode ?? modeOverride ?? storedMode;
+  const lastClassicRoute =
+    (pathname && isClassicPath(pathname) ? pathname : null) ??
+    classicRouteOverride ??
+    storedClassicRoute;
+
+  const persistMode = useCallback((next: AppMode) => {
+    localStorage.setItem(STORAGE_MODE_KEY, next);
   }, []);
 
-  useEffect(() => {
-    if (!hydrated || !pathname) return;
-
-    if (pathname === AGENT_ROUTE || pathname.startsWith(`${AGENT_ROUTE}/`)) {
-      if (mode !== "agent") {
-        setModeState("agent");
-        localStorage.setItem(STORAGE_MODE_KEY, "agent");
-      }
-      return;
-    }
-
-    if (isClassicPath(pathname)) {
-      sessionStorage.setItem(STORAGE_CLASSIC_ROUTE_KEY, pathname);
-      setLastClassicRoute(pathname);
-      if (mode !== "classic") {
-        setModeState("classic");
-        localStorage.setItem(STORAGE_MODE_KEY, "classic");
-      }
-    }
-  }, [pathname, hydrated, mode]);
+  const persistClassicRoute = useCallback((route: string) => {
+    sessionStorage.setItem(STORAGE_CLASSIC_ROUTE_KEY, route);
+  }, []);
 
   const setMode = useCallback(
     (next: AppMode, options?: { navigate?: boolean }) => {
-      setModeState(next);
-      localStorage.setItem(STORAGE_MODE_KEY, next);
+      if (options?.navigate === false) {
+        setModeOverride(next);
+      } else {
+        setModeOverride(null);
+      }
+      persistMode(next);
 
       if (options?.navigate === false) return;
 
       if (next === "agent") {
         router.push(AGENT_ROUTE);
       } else {
-        const target =
-          sessionStorage.getItem(STORAGE_CLASSIC_ROUTE_KEY) || lastClassicRoute || "/home";
+        const target = classicRouteOverride ?? storedClassicRoute ?? "/home";
         router.push(target);
       }
     },
-    [router, lastClassicRoute]
+    [router, classicRouteOverride, storedClassicRoute, persistMode]
   );
 
   const switchToClassic = useCallback(
     (targetPath?: string) => {
       const target = targetPath || lastClassicRoute || "/home";
-      sessionStorage.setItem(STORAGE_CLASSIC_ROUTE_KEY, target);
-      setLastClassicRoute(target);
-      setModeState("classic");
-      localStorage.setItem(STORAGE_MODE_KEY, "classic");
+      persistClassicRoute(target);
+      setClassicRouteOverride(target);
+      setModeOverride(null);
+      persistMode("classic");
       router.push(target);
     },
-    [router, lastClassicRoute]
+    [router, lastClassicRoute, persistClassicRoute, persistMode]
   );
 
   const switchToAgent = useCallback(() => {
-    setModeState("agent");
-    localStorage.setItem(STORAGE_MODE_KEY, "agent");
+    setModeOverride(null);
+    persistMode("agent");
     router.push(AGENT_ROUTE);
-  }, [router]);
+  }, [router, persistMode]);
 
   const value = useMemo(
     () => ({

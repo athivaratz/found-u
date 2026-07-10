@@ -10,9 +10,9 @@ import {
   type LocationConfig,
 } from "@/lib/database";
 
-export interface Category extends CategoryConfig {}
-export interface Location extends LocationConfig {}
-export interface ContactType extends ContactTypeConfig {}
+export type Category = CategoryConfig;
+export type Location = LocationConfig;
+export type ContactType = ContactTypeConfig;
 
 const DEFAULT_CATEGORIES: Category[] = [
   { id: "d-1", value: "wallet", label: "กระเป๋าสตางค์", icon: "💰", order: 1 },

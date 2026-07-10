@@ -14,7 +14,6 @@ import type { SerializedItem } from "@/lib/agent/item-privacy";
 import { MatchResultCard } from "@/components/agent/match-result-card";
 import { NerResultCard, type NerResultData } from "@/components/agent/ner-result-card";
 import { joinAgentTextParts } from "@/lib/agent/text-completeness";
-import { cn } from "@/lib/utils";
 
 function extractTextFromMessage(message: UIMessage): string {
   return joinAgentTextParts(message.parts as Array<{ type: string; text?: string }>);

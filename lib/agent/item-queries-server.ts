@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { FoundItem, ItemStatus, LostItem } from "@/lib/types";
+import type { FoundItem, LostItem } from "@/lib/types";
 import { mapFoundItemRow, mapLostItemRow } from "@/lib/agent/row-mappers";
 import {
   searchItemsFuzzy,

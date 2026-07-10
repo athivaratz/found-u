@@ -75,18 +75,37 @@ export function HomeDashboardSection({
   const [foundItems, setFoundItems] = useState<FoundItem[]>([]);
   const [nfcTags, setNfcTags] = useState<NfcTag[]>([]);
 
-  const [itemsLoading, setItemsLoading] = useState(true);
+  const [itemsLoading, setItemsLoading] = useState(false);
   const [nfcLoading, setNfcLoading] = useState(false);
+  const [trackedUserId, setTrackedUserId] = useState(userId);
+  const [nfcSession, setNfcSession] = useState<string | null>(null);
 
-  useEffect(() => {
+  if (userId !== trackedUserId) {
+    setTrackedUserId(userId);
     if (!userId) {
       setLostItems([]);
       setFoundItems([]);
       setItemsLoading(false);
-      return;
+    } else {
+      setItemsLoading(true);
     }
+  }
 
-    setItemsLoading(true);
+  const effectiveMainPanel =
+    !nfcEnabled && mainPanel === "nfc" ? "items" : mainPanel;
+  const nfcSessionKey =
+    userId && effectiveMainPanel === "nfc" && nfcEnabled
+      ? `${userId}:${effectiveMainPanel}`
+      : null;
+
+  if (nfcSessionKey !== nfcSession) {
+    setNfcSession(nfcSessionKey);
+    setNfcLoading(nfcSessionKey !== null);
+  }
+
+  useEffect(() => {
+    if (!userId) return;
+
     const unsubLost = subscribeToLostItemsByUserId(userId, (items) => {
       setLostItems(items);
       setItemsLoading(false);
@@ -102,11 +121,10 @@ export function HomeDashboardSection({
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || mainPanel !== "nfc" || !nfcEnabled) return;
+    if (!userId || effectiveMainPanel !== "nfc" || !nfcEnabled) return;
 
     let cancelled = false;
-    setNfcLoading(true);
-    fetchMyNfcDashboardApi()
+    void fetchMyNfcDashboardApi()
       .then((data) => {
         if (!cancelled) setNfcTags(data.tags);
       })
@@ -120,13 +138,7 @@ export function HomeDashboardSection({
     return () => {
       cancelled = true;
     };
-  }, [userId, mainPanel, nfcEnabled]);
-
-  useEffect(() => {
-    if (!nfcEnabled && mainPanel === "nfc") {
-      setMainPanel("items");
-    }
-  }, [nfcEnabled, mainPanel]);
+  }, [userId, effectiveMainPanel, nfcEnabled]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -178,7 +190,7 @@ export function HomeDashboardSection({
   }, [nfcEnabled]);
 
   const seeAllHref =
-    mainPanel === "items" ? "/tracking" : "/nfc/my-tags";
+    effectiveMainPanel === "items" ? "/tracking" : "/nfc/my-tags";
 
   const emptyMessage =
     itemFilter === "all"
@@ -189,20 +201,20 @@ export function HomeDashboardSection({
 
   const loading =
     (authLoading && !userId) ||
-    (mainPanel === "items" ? itemsLoading : nfcLoading);
+    (effectiveMainPanel === "items" ? itemsLoading : nfcLoading);
 
   return (
     <section className={cn("mt-8 min-h-[16rem]", className)}>
       <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
         <SegmentedTabs
-          value={mainPanel}
+          value={effectiveMainPanel}
           onChange={setMainPanel}
           items={mainTabs}
           className="mb-0 sm:flex-1 sm:max-w-md"
         />
         {userId && (
           <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-            {mainPanel === "items" && (
+            {effectiveMainPanel === "items" && (
               <div className="relative" ref={filterRef}>
                 <button
                   type="button"
@@ -288,7 +300,7 @@ export function HomeDashboardSection({
         </div>
       ) : loading ? (
         <DashboardListSkeleton rows={3} />
-      ) : mainPanel === "items" ? (
+      ) : effectiveMainPanel === "items" ? (
         displayItems.length === 0 ? (
           <div className="text-center py-8 text-text-secondary bg-bg-secondary rounded-2xl">
             {emptyMessage}

@@ -3,7 +3,7 @@
 // Force dynamic rendering for security
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Search,
     CheckCircle,
@@ -20,7 +20,7 @@ import {
     RefreshCw,
 } from "lucide-react";
 import { cn, formatThaiDate } from "@/lib/utils";
-import { findMatchesForLostItem, findMatchesForFoundItem, MatchScore, getMatchConfidence } from "@/lib/matching";
+import { findMatchesForLostItem, findMatchesForFoundItem, MatchScore } from "@/lib/matching";
 import { logItemMatched } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
@@ -43,7 +43,7 @@ interface DisplayMatch extends MatchScore {
 export default function AdminMatchingPage() {
     const { user } = useAuth();
     const { showAlert, dialog } = useAppDialog();
-    const { categories, getCategoryByValue } = useCategories();
+    const { getCategoryByValue } = useCategories();
     const [activeTab, setActiveTab] = useState<"lost" | "found">("lost");
     const [lostItems, setLostItems] = useState<LostItem[]>([]);
     const [foundItems, setFoundItems] = useState<FoundItem[]>([]);
@@ -92,7 +92,7 @@ export default function AdminMatchingPage() {
     }, []);
 
     // Auto-match all items when data changes
-    const runAutoMatch = () => {
+    const runAutoMatch = useCallback(() => {
         if (allMatches.length === 0) setLoadingAutoMatch(true);
 
         // Run matching in next tick for better UX
@@ -117,7 +117,7 @@ export default function AdminMatchingPage() {
             setAllMatches(matchResults);
             setLoadingAutoMatch(false);
         }, 100);
-    };
+    }, [allMatches.length, lostItems, foundItems]);
 
     // Run auto-match when items change
     useEffect(() => {
@@ -127,7 +127,7 @@ export default function AdminMatchingPage() {
             setAllMatches([]);
             setLoadingAutoMatch(false);
         }
-    }, [loading, lostItems.length, foundItems.length]);
+    }, [loading, lostItems.length, foundItems.length, runAutoMatch]);
 
     // Filter matches by confidence
     const filteredAutoMatches = useMemo(() => {
@@ -224,14 +224,17 @@ export default function AdminMatchingPage() {
     };
 
     // Filter items by search
-    const filteredItems = (activeTab === "lost" ? lostItems : foundItems).filter((item: any) => {
+    const filteredItems = (activeTab === "lost" ? lostItems : foundItems).filter((item) => {
         const searchLower = searchQuery.toLowerCase();
         if (!searchLower) return true;
         return (
             item.trackingCode?.toLowerCase().includes(searchLower) ||
             item.itemName?.toLowerCase().includes(searchLower) ||
             item.description?.toLowerCase().includes(searchLower) ||
-            (item.locationLost || item.locationFound)?.toLowerCase().includes(searchLower)
+            (activeTab === "lost"
+              ? (item as LostItem).locationLost
+              : (item as FoundItem).locationFound
+            )?.toLowerCase().includes(searchLower)
         );
     });
 
@@ -496,7 +499,7 @@ export default function AdminMatchingPage() {
                                     <p>ไม่พบรายการ</p>
                                 </div>
                             ) : (
-                                filteredItems.map((item: any) => {
+                                filteredItems.map((item) => {
                                     const isLost = activeTab === "lost";
                                     const isSelected = selectedItem?.id === item.id;
 
@@ -514,7 +517,7 @@ export default function AdminMatchingPage() {
                                                     "w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0",
                                                     isLost ? "bg-red-100 dark:bg-red-900/30" : "bg-green-100 dark:bg-green-900/30"
                                                 )}>
-                                                    {isLost ? (getCategoryByValue(item.category)?.icon || "📦") : "📦"}
+                                                    {isLost ? (getCategoryByValue(item.category ?? "")?.icon || "📦") : "📦"}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-medium text-gray-900 dark:text-white truncate">
@@ -522,7 +525,7 @@ export default function AdminMatchingPage() {
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                                                         <MapPin className="w-3 h-3" />
-                                                        <span className="truncate">{isLost ? item.locationLost : item.locationFound}</span>
+                                                        <span className="truncate">{isLost ? (item as LostItem).locationLost : (item as FoundItem).locationFound}</span>
                                                     </div>
                                                     <p className="text-xs text-gray-400 mt-1">{item.trackingCode}</p>
                                                 </div>

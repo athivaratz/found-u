@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
+  type AuthenticationResponseJSON,
 } from "@simplewebauthn/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/database.types";
@@ -108,7 +109,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const verification = await verifyAuthenticationResponse({
-      response: response as any,
+      response: response as unknown as AuthenticationResponseJSON,
       expectedChallenge: stored.challenge,
       expectedOrigin: getOrigin(request),
       expectedRPID: getRpId(request),

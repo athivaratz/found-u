@@ -16,8 +16,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Loader2,
-  User,
-  Mail,
   Save,
   Share2,
   MapPin,
@@ -47,7 +45,7 @@ type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
 
 export default function AdminSettingsPage() {
   const supabase = createClient();
-  const { user, appSettings: contextAppSettings } = useAuth();
+  const { user } = useAuth();
   const { showAlert, showConfirm, dialog } = useAppDialog();
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -792,6 +790,7 @@ export default function AdminSettingsPage() {
                   className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-xl"
                 >
                   {admin.photoURL ? (
+                    /* eslint-disable-next-line @next/next/no-img-element -- external avatar URL */
                     <img
                       src={admin.photoURL}
                       alt={admin.displayName}

@@ -24,22 +24,10 @@ import {
   type LostItem,
   type FoundItem,
   type ItemStatus,
+  type ContactInfo,
 } from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { subscribeToLostItems, subscribeToFoundItems, timestampToDate } from "@/lib/database";
-
-// Type guard สำหรับตรวจสอบว่าเป็น Timestamp หรือ Date
-function isTimestamp(value: any): value is { toDate: () => Date } {
-  return value && typeof value.toDate === 'function';
-}
-
-// Type guard สำหรับตรวจสอบว่าเป็น Date หรือ Timestamp
-function toDate(value: Date | { toDate: () => Date } | undefined): Date {
-  if (!value) return new Date();
-  if (isTimestamp(value)) return value.toDate();
-  if (value instanceof Date) return value;
-  return new Date();
-}
 
 type FilterType = 'all' | 'lost' | 'found';
 
@@ -52,7 +40,7 @@ type CombinedItem = {
   status: ItemStatus;
   category?: string;
   photoUrl?: string;
-  contacts?: any[];
+  contacts?: ContactInfo[];
   trackingCode: string;
   createdAt: Date;
 };
@@ -108,7 +96,7 @@ export default function ListPage() {
       category: item.category,
       contacts: item.contacts,
       trackingCode: item.trackingCode,
-      createdAt: toDate(item.createdAt),
+      createdAt: timestampToDate(item.createdAt),
     })),
     ...foundItems.map((item) => ({
       id: item.id,
@@ -120,7 +108,7 @@ export default function ListPage() {
       photoUrl: item.photoUrl,
       contacts: item.finderContacts,
       trackingCode: item.trackingCode,
-      createdAt: toDate(item.createdAt),
+      createdAt: timestampToDate(item.createdAt),
     })),
   ]
     .filter((item) => {

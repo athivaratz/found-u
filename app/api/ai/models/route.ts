@@ -26,8 +26,15 @@ export async function GET() {
       );
     }
 
-    const data = await response.json();
-    const models = (data.models || []).map((model: any) => ({
+    const data = await response.json() as {
+      models?: Array<{
+        name?: string;
+        displayName?: string;
+        description?: string;
+        supportedGenerationMethods?: string[];
+      }>;
+    };
+    const models = (data.models || []).map((model) => ({
       name: model.name,
       displayName: model.displayName,
       description: model.description,

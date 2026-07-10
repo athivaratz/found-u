@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -64,6 +64,7 @@ import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
 import { resolveMapView } from "@/lib/map-utils";
 import { logItemCreated } from "@/lib/logger";
+import type { MatchScore } from "@/lib/matching";
 import {
   computeHandoverDeadlineFromNow,
   formatHandoverCountdown,
@@ -173,7 +174,7 @@ export default function ReportFoundPage() {
   );
 
   const [showMatches, setShowMatches] = useState(false);
-  const [matches, setMatches] = useState<any[]>([]);
+  const [matches, setMatches] = useState<MatchScore[]>([]);
   const [submittedHandoverDeadline, setSubmittedHandoverDeadline] = useState<Date | null>(null);
   const [handoverCountdownMs, setHandoverCountdownMs] = useState<number | null>(null);
 
@@ -249,9 +250,15 @@ export default function ReportFoundPage() {
     !authLoading && !configLoading && !!user && !appSettingsReady;
   const showLocationGate = waitingForSettings || (enforcementRequired && locationVerified !== true);
 
-  const mapFallbackCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
+  const mapFallbackCenter = useMemo(
+    () => appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 },
+    [appSettings.mapDefaultCenter]
+  );
   const mapFallbackZoom = appSettings.mapDefaultZoom ?? 17;
-  const schoolPolygon = appSettings.mapSchoolBoundary || [];
+  const schoolPolygon = useMemo(
+    () => appSettings.mapSchoolBoundary || [],
+    [appSettings.mapSchoolBoundary]
+  );
 
   const {
     center: formMapCenter,
@@ -278,7 +285,7 @@ export default function ReportFoundPage() {
     [mapFallbackCenter, mapFallbackZoom, schoolPolygon, userCurrentCoords]
   );
 
-  const verifyLocation = async () => {
+  const verifyLocation = useCallback(async () => {
     const polygon = appSettings.mapSchoolBoundary || [];
 
     if (!appSettings.mapEnforceFoundInSchool) {
@@ -346,7 +353,7 @@ export default function ReportFoundPage() {
       setLocationErrorType("outside");
     }
     setGpsLoading(false);
-  };
+  }, [appSettings.mapEnforceFoundInSchool, appSettings.mapSchoolBoundary]);
 
   const boundaryString = JSON.stringify(appSettings?.mapSchoolBoundary || []);
 
@@ -361,6 +368,7 @@ export default function ReportFoundPage() {
     user,
     appSettings.mapEnforceFoundInSchool,
     boundaryString,
+    verifyLocation,
   ]);
 
   useEffect(() => {
@@ -377,7 +385,7 @@ export default function ReportFoundPage() {
     });
 
     return unwatch;
-  }, [enforcementRequired]);
+  }, [enforcementRequired, locationVerified, verifyLocation]);
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -760,7 +768,7 @@ export default function ReportFoundPage() {
                       </h3>
                     </div>
                     <div className="space-y-3">
-                      {matches.slice(0, 3).map((match: any) => (
+                      {matches.slice(0, 3).map((match) => (
                         <div
                           key={match.lostItem.id}
                           className="bg-bg-card rounded-lg p-3 border border-border-light shadow-sm"
@@ -784,7 +792,7 @@ export default function ReportFoundPage() {
                                         : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
                                   )}
                                 >
-                                  ความน่าจะเป็น {match.scorePercentage}%
+                                  ความน่าจะเป็น {match.scorePercentage ?? Math.round(match.score * 100)}%
                                 </span>
                               </div>
                             </div>

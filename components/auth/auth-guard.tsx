@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { LoadingModal } from "@/components/ui/loading-modal";
@@ -36,7 +36,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   } = useAuth();
   const router = useRouter();
   const pathname = usePathname() ?? "";
-  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialDismissed, setTutorialDismissed] = useState(false);
+
+  const showTutorial =
+    !loading &&
+    !!user &&
+    isStudentVerified &&
+    !hasSeenTutorial &&
+    !isPublicPath(pathname) &&
+    !tutorialDismissed;
 
   const isProtected = pathname.length > 0 && !isPublicPath(pathname);
 
@@ -106,18 +114,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     isBanned,
   ]);
 
-  useEffect(() => {
-    if (
-      !loading &&
-      user &&
-      isStudentVerified &&
-      !hasSeenTutorial &&
-      !isPublicPath(pathname)
-    ) {
-      setShowTutorial(true);
-    }
-  }, [loading, user, isStudentVerified, hasSeenTutorial, pathname]);
-
   if (user && pathname === "/") {
     return null;
   }
@@ -160,7 +156,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         <TutorialSystem
           isOpen={showTutorial}
           userId={appUser.uid}
-          onComplete={() => setShowTutorial(false)}
+          onComplete={() => setTutorialDismissed(true)}
         />
       )}
     </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   ChevronDown,
   CheckCircle2,
@@ -49,15 +49,8 @@ export function AgentThinkingLog({
   className,
 }: AgentThinkingLogProps) {
   const toolParts = (message.parts || []).filter(isToolUIPart);
-  const [expanded, setExpanded] = useState(isStreaming);
-
-  useEffect(() => {
-    if (isStreaming) {
-      setExpanded(true);
-    } else if (toolParts.length > 0) {
-      setExpanded(false);
-    }
-  }, [isStreaming, toolParts.length]);
+  const [userExpanded, setUserExpanded] = useState(false);
+  const expanded = isStreaming || userExpanded;
 
   if (toolParts.length === 0) return null;
 
@@ -67,7 +60,9 @@ export function AgentThinkingLog({
     <div className={cn("mb-3", className)}>
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => {
+          if (!isStreaming) setUserExpanded((value) => !value);
+        }}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl agent-thinking-panel text-left"
       >
         <span className="text-xs font-medium text-text-secondary">

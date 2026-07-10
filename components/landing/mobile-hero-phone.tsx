@@ -29,14 +29,12 @@ function imageAspect(img: MobileHeroImage) {
 
 export function MobileHeroPhone({ images, intervalMs = 3500 }: MobileHeroPhoneProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const safeActiveIndex =
+    images.length === 0 ? 0 : Math.min(activeIndex, images.length - 1);
 
   const screenAspect = useMemo(() => {
     if (images.length === 0) return DEFAULT_RATIO;
     return Math.min(...images.map(imageAspect));
-  }, [images]);
-
-  useEffect(() => {
-    setActiveIndex(0);
   }, [images]);
 
   useEffect(() => {
@@ -76,8 +74,8 @@ export function MobileHeroPhone({ images, intervalMs = 3500 }: MobileHeroPhonePr
             style={{ aspectRatio: screenAspect }}
           >
             {images.map((img, idx) => {
-              const isActive = idx === activeIndex;
-              const isNear = Math.abs(idx - activeIndex) <= 1;
+              const isActive = idx === safeActiveIndex;
+              const isNear = Math.abs(idx - safeActiveIndex) <= 1;
               return (
                 <m.div
                   key={img.fileName}
@@ -110,7 +108,7 @@ export function MobileHeroPhone({ images, intervalMs = 3500 }: MobileHeroPhonePr
               <span
                 key={img.fileName}
                 className={`h-1.5 rounded-full transition-all ${
-                  idx === activeIndex
+                  idx === safeActiveIndex
                     ? "w-5 bg-line-green"
                     : "w-1.5 bg-border-medium"
                 }`}

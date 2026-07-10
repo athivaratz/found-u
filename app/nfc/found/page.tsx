@@ -55,7 +55,6 @@ function NfcFoundContent() {
       setTagId(fromUrl.toUpperCase());
       void loadTag(fromUrl);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   useEffect(() => {

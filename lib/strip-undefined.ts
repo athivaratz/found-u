@@ -1,5 +1,5 @@
 /** Remove undefined values so Firestore addDoc/setDoc does not throw. */
-export function stripUndefined<T>(value: T): any {
+export function stripUndefined<T>(value: T): T {
   if (value === undefined) {
     return value;
   }

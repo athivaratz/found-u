@@ -49,7 +49,6 @@ export async function deleteSessionRecord(sessionId: string): Promise<void> {
 }
 
 export async function enforceSessionLimit(userId: string): Promise<void> {
-  const db = getChatDB();
   const sessions = await listSessionsForUser(userId);
   if (sessions.length <= MAX_SESSIONS_PER_USER) return;
 

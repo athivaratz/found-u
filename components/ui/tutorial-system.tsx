@@ -80,14 +80,14 @@ export function TutorialSystem({ isOpen, userId, onComplete }: TutorialSystemPro
     onComplete();
   };
 
-  const handleSkip = async () => {
+  const handleSkip = useCallback(async () => {
     try {
       await updateUserTutorialSeen(userId);
     } catch (error) {
       console.error("Error updating tutorial status:", error);
     }
     onComplete();
-  };
+  }, [onComplete, userId]);
 
   // Touch handlers for swipe
   const onTouchStart = (e: React.TouchEvent) => {
@@ -123,7 +123,7 @@ export function TutorialSystem({ isOpen, userId, onComplete }: TutorialSystemPro
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, handleNext, handlePrev]);
+  }, [isOpen, handleNext, handlePrev, handleSkip]);
 
   if (!isOpen) return null;
 

@@ -576,7 +576,9 @@ export async function updateAppSettings(settings: Partial<AppSettings>, updatedB
       ? (row.settings as DbRow)
       : {};
   const current = normalizeAppSettingsBlob(rawBlob);
-  const { updatedAt: _omitUpdatedAt, updatedBy: _omitUpdatedBy, ...payload } = settings;
+  const { updatedAt: settingsUpdatedAt, updatedBy: settingsUpdatedBy, ...payload } = settings;
+  void settingsUpdatedAt;
+  void settingsUpdatedBy;
 
   const mergedSettings: AppSettings = stripUndefined({
     ...current,
@@ -677,7 +679,7 @@ export async function getLostItemByTrackingCode(trackingCode: string) {
 }
 
 export async function getLostItems(
-  constraints: Array<SupabaseConstraint<ReturnType<typeof createClient>["from"] extends never ? never : any>> = []
+  constraints: SupabaseConstraint<unknown>[] = []
 ) {
   const supabase = createClient();
   let query = supabase.from(COLLECTIONS.LOST_ITEMS).select("*").order("created_at", { ascending: false });
@@ -838,7 +840,7 @@ export async function getFoundItem(id: string) {
 }
 
 export async function getFoundItems(
-  constraints: Array<SupabaseConstraint<ReturnType<typeof createClient>["from"] extends never ? never : any>> = []
+  constraints: SupabaseConstraint<unknown>[] = []
 ) {
   const supabase = createClient();
   let query = supabase.from(COLLECTIONS.FOUND_ITEMS).select("*").order("created_at", { ascending: false });

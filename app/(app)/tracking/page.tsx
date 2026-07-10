@@ -29,19 +29,6 @@ import LoginPrompt from "@/components/auth/login-prompt";
 
 type SearchResult = (LostItem & { matchLocation?: string; icon?: string }) | null;
 
-// Type guard สำหรับตรวจสอบว่าเป็น Timestamp หรือ Date
-function isTimestamp(value: any): value is { toDate: () => Date } {
-  return value && typeof value.toDate === 'function';
-}
-
-// Type guard สำหรับตรวจสอบว่าเป็น Date หรือ Timestamp
-function toDate(value: Date | { toDate: () => Date } | undefined): Date {
-  if (!value) return new Date();
-  if (isTimestamp(value)) return value.toDate();
-  if (value instanceof Date) return value;
-  return new Date();
-}
-
 export default function TrackingPage() {
   const { user, loading: authLoading, isAdmin } = useAuth();
 
@@ -265,7 +252,7 @@ export default function TrackingPage() {
                       )}
                       <div className="flex items-center gap-2 text-text-secondary">
                         <Calendar className="w-4 h-4 text-text-tertiary" />
-                        <span>วันที่แจ้ง: {searchResult.createdAt ? formatThaiDate(toDate(searchResult.createdAt)) : "-"}</span>
+                        <span>วันที่แจ้ง: {searchResult.createdAt ? formatThaiDate(timestampToDate(searchResult.createdAt)) : "-"}</span>
                       </div>
 
                       {/* Show match location if found */}
@@ -360,7 +347,7 @@ export default function TrackingPage() {
                           </h4>
                         </div>
                         <p className="text-xs text-text-secondary mt-0.5">
-                          {item.trackingCode} • {item.createdAt ? formatThaiDate(toDate(item.createdAt)) : "-"}
+                          {item.trackingCode} • {item.createdAt ? formatThaiDate(timestampToDate(item.createdAt)) : "-"}
                         </p>
                       </div>
 

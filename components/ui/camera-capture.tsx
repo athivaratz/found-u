@@ -151,6 +151,7 @@ export default function CameraCapture({
     return (
       <div className={cn("space-y-3", className)}>
         <div className="relative rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-700">
+          {/* eslint-disable-next-line @next/next/no-img-element -- blob preview URL from camera capture */}
           <img src={previewUrl} alt="Captured" className="w-full h-56 object-cover" />
         </div>
         <div className="flex gap-2">

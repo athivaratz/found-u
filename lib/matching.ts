@@ -5,15 +5,10 @@ import { DEFAULT_APP_SETTINGS } from './types';
 import type { LostItem, FoundItem, ItemCategory } from './types';
 import { calculateSimilarity } from './ner';
 import { resolveAiCredentials, getGeminiApiKey } from '@/lib/ai/credentials-resolver';
+import { timestampToDate } from '@/lib/database';
 
-// Helper to convert Firestore Timestamp or Date to Date
-function toDate(date: any): Date {
-  if (!date) return new Date();
-  if (date.toDate && typeof date.toDate === 'function') {
-    return date.toDate();
-  }
-  if (date instanceof Date) return date;
-  return new Date(date);
+function toDate(date: Date | undefined | unknown): Date {
+  return timestampToDate(date);
 }
 
 function toRadians(value: number): number {
@@ -50,6 +45,7 @@ export interface MatchScore {
   lostItem: LostItem;
   foundItem: FoundItem;
   score: number;
+  scorePercentage?: number;
   reasons: string[];
   confidence: 'high' | 'medium' | 'low';
 }

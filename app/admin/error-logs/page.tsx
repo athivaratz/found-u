@@ -165,7 +165,7 @@ export default function AdminErrorLogsPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [dateRange]);
+  }, [dateRange, supabase]);
 
   // Handle resolve
   const handleResolve = async (errorId: string) => {
@@ -292,7 +292,7 @@ export default function AdminErrorLogsPage() {
           <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <select
             value={dateRange}
-            onChange={(e) => setDateRange(e.target.value as any)}
+            onChange={(e) => setDateRange(e.target.value as typeof dateRange)}
             className="pl-12 pr-8 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white appearance-none min-w-[140px]"
           >
             <option value="today">วันนี้</option>
@@ -305,7 +305,7 @@ export default function AdminErrorLogsPage() {
         {/* Severity Filter */}
         <select
           value={severityFilter}
-          onChange={(e) => setSeverityFilter(e.target.value as any)}
+          onChange={(e) => setSeverityFilter(e.target.value as typeof severityFilter)}
           className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white"
         >
           <option value="all">ทุกระดับ</option>
@@ -318,7 +318,7 @@ export default function AdminErrorLogsPage() {
         {/* Source Filter */}
         <select
           value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value as any)}
+          onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
           className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white"
         >
           <option value="all">ทุกแหล่ง</option>

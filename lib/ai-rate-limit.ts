@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { coerceAppSettings } from "@/lib/database";
-import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
+import type { AppSettings } from "@/lib/types";
 
 export interface RateLimitCheckResult {
   allowed: boolean;

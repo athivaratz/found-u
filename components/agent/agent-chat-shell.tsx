@@ -29,7 +29,6 @@ function AgentChatInner() {
     fallback,
     droppedCount,
     storageWarning,
-    sidebarOpen,
     setSidebarOpen,
     createSession,
     sendPrompt,

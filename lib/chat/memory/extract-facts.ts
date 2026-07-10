@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 import { getToolName, isToolUIPart } from "ai";
-import type { MemoryFact, MemoryFactType } from "@/lib/chat/types";
+import type { MemoryFact } from "@/lib/chat/types";
 
 function getUserText(message: UIMessage): string {
   return (message.parts || [])

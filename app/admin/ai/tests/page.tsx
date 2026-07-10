@@ -663,6 +663,7 @@ export default function AITestsPage() {
                       className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm"
                     >
                       <div className="flex gap-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- local test image preview */}
                         <img
                           src={result.imagePreview}
                           alt="Test"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { logClientError } from "@/lib/logger";
 
@@ -26,14 +26,14 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  async componentDidCatch(error: Error, errorInfo: any) {
+  async componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Error caught by boundary:", error, errorInfo);
     
     // Log the error to Firestore
     try {
       const errorId = await logClientError(
         error,
-        { componentStack: errorInfo?.componentStack },
+        { componentStack: errorInfo?.componentStack ?? undefined },
         this.props.userId,
         this.props.userEmail
       );

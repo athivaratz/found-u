@@ -34,6 +34,7 @@ import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
 import { getMapDisplayPosition } from "@/lib/geolocation";
 import { logItemCreated } from "@/lib/logger";
+import type { MatchScore } from "@/lib/matching";
 import { FieldValidationMessage } from "@/components/ui/field-validation-message";
 import { inputStateClass } from "@/components/ui/validated-field";
 import { ValidationSummary } from "@/components/ui/validation-summary";
@@ -71,7 +72,7 @@ export default function ReportLostPage() {
   const [trackingCode, setTrackingCode] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showMatches, setShowMatches] = useState(false);
-  const [matches, setMatches] = useState<any[]>([]);
+  const [matches, setMatches] = useState<MatchScore[]>([]);
 
   const mapFallbackCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
   const mapFallbackZoom = appSettings.mapDefaultZoom ?? 17;
@@ -135,6 +136,8 @@ export default function ReportLostPage() {
       unsubCategories();
       unsubContactTypes();
     };
+    // Seed default contact type once when config loads; contacts is intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -354,7 +357,7 @@ export default function ReportLostPage() {
                       </h3>
                     </div>
                     <div className="space-y-3">
-                      {matches.slice(0, 3).map((match: any) => (
+                      {matches.slice(0, 3).map((match) => (
                         <div
                           key={match.foundItem.id}
                           className="bg-bg-card rounded-lg p-3 border border-border-light shadow-sm"
@@ -378,7 +381,7 @@ export default function ReportLostPage() {
                                         : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
                                   )}
                                 >
-                                  ความน่าจะเป็น {match.scorePercentage}%
+                                  ความน่าจะเป็น {match.scorePercentage ?? Math.round(match.score * 100)}%
                                 </span>
                               </div>
                             </div>

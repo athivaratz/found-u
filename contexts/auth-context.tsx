@@ -345,6 +345,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearSilentSyncTimer();
       unsubscribe();
     };
+    // Auth listener is registered once on mount; deps are intentionally stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

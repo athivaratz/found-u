@@ -20,7 +20,6 @@ import {
   subscribeToLostItems,
   subscribeToFoundItems,
   timestampToDate,
-  getAIUsageStats,
   subscribeToAIUsage,
   getAllUsers,
 } from "@/lib/database";
@@ -94,7 +93,7 @@ export default function AdminDashboard() {
     claimed: [...lostItems, ...foundItems].filter((i) => i.status === "claimed").length,
     thisWeek: [...lostItems, ...foundItems].filter((item) => {
       if (!item.createdAt) return false;
-      const date = timestampToDate(item.createdAt as any);
+      const date = timestampToDate(item.createdAt);
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       return date > weekAgo;
@@ -104,8 +103,8 @@ export default function AdminDashboard() {
   // Recent activity (last 8 items)
   const recentActivity = [...lostItems, ...foundItems]
     .sort((a, b) => {
-      const dateA = a.createdAt ? timestampToDate(a.createdAt as any).getTime() : 0;
-      const dateB = b.createdAt ? timestampToDate(b.createdAt as any).getTime() : 0;
+      const dateA = a.createdAt ? timestampToDate(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? timestampToDate(b.createdAt).getTime() : 0;
       return dateB - dateA;
     })
     .slice(0, 8);
@@ -620,7 +619,7 @@ export default function AdminDashboard() {
                         </span>
                         <p className="text-xs text-gray-400 mt-1">
                           {item.createdAt
-                            ? formatThaiDate(timestampToDate(item.createdAt as any))
+                            ? formatThaiDate(timestampToDate(item.createdAt))
                             : "-"}
                         </p>
                       </div>
