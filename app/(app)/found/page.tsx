@@ -99,6 +99,7 @@ export default function ReportFoundPage() {
 
   const [gpsLoading, setGpsLoading] = useState(false);
   const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
+  const [adminGpsBypassed, setAdminGpsBypassed] = useState(false);
   const [locationErrorType, setLocationErrorType] = useState<
     | "permission"
     | "timeout"
@@ -222,7 +223,9 @@ export default function ReportFoundPage() {
   const enforcementRequired = appSettingsReady && !!appSettings.mapEnforceFoundInSchool;
   const waitingForSettings =
     !authLoading && !configLoading && !!user && !appSettingsReady;
-  const showLocationGate = waitingForSettings || (enforcementRequired && locationVerified !== true);
+  const showLocationGate =
+    waitingForSettings ||
+    (enforcementRequired && !adminGpsBypassed && locationVerified !== true);
 
   const mapFallbackCenter = useMemo(
     () => appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 },
@@ -332,11 +335,13 @@ export default function ReportFoundPage() {
   const boundaryString = JSON.stringify(appSettings?.mapSchoolBoundary || []);
 
   useEffect(() => {
-    if (!authLoading && !configLoading && appSettingsReady && user) {
+    if (adminGpsBypassed) return;
+    if (!authPending && !configLoading && appSettingsReady && user) {
       void verifyLocation();
     }
   }, [
-    authLoading,
+    adminGpsBypassed,
+    authPending,
     configLoading,
     appSettingsReady,
     user,
@@ -346,7 +351,7 @@ export default function ReportFoundPage() {
   ]);
 
   useEffect(() => {
-    if (!enforcementRequired) return;
+    if (!enforcementRequired || adminGpsBypassed) return;
 
     const unwatch = watchGeolocationPermission((state) => {
       if (state === "denied") {
@@ -359,7 +364,7 @@ export default function ReportFoundPage() {
     });
 
     return unwatch;
-  }, [enforcementRequired, locationVerified, verifyLocation]);
+  }, [enforcementRequired, adminGpsBypassed, locationVerified, verifyLocation]);
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -1406,16 +1411,24 @@ export default function ReportFoundPage() {
 
                 <div className="w-full space-y-3">
                   <button
-                    onClick={() => void verifyLocation()}
+                    onClick={() => {
+                      setAdminGpsBypassed(false);
+                      void verifyLocation();
+                    }}
                     type="button"
                     className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors shadow-sm"
                   >
                     ลองใหม่อีกครั้ง
                   </button>
-                  
+
                   {isAdmin && (
                     <button
-                      onClick={() => setLocationVerified(true)}
+                      onClick={() => {
+                        setAdminGpsBypassed(true);
+                        setLocationVerified(true);
+                        setLocationErrorType(null);
+                        setGpsLoading(false);
+                      }}
                       type="button"
                       className="w-full py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors shadow-sm"
                     >
