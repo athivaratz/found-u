@@ -42,8 +42,10 @@ export function isAuthPublicPath(pathname: string): boolean {
 export function resolvePostLoginPath(payload: {
   mustChangePassword?: boolean;
   mustSetupPin?: boolean;
+  returnTo?: string;
 }): string {
   if (payload.mustChangePassword) return AUTH_ROUTES.changePassword;
   if (payload.mustSetupPin) return AUTH_ROUTES.setupPin;
+  if (payload.returnTo) return payload.returnTo;
   return "/home";
 }

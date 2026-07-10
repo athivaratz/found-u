@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -23,12 +23,9 @@ import { type ContactInfo, type ContactType, type ItemCategory, type LocationCoo
 import { cn, generateTrackingCode, isPointInPolygon, normalizeGeoPolygon } from "@/lib/utils";
 import {
   addLostItem,
-  subscribeToCategories,
-  subscribeToContactTypes,
-  type CategoryConfig,
-  type ContactTypeConfig,
 } from "@/lib/database";
 import { useAuth } from "@/contexts/auth-context";
+import { useCategories, useContactTypes } from "@/contexts/DataContext";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
@@ -48,14 +45,14 @@ const LOST_FORM_STEPS = [
 
 export default function ReportLostPage() {
   const router = useRouter();
-  const { user, loading: authLoading, appSettings } = useAuth();
+  const { user, loading: authLoading, authHydrating, appSettings } = useAuth();
+  const authPending = authLoading || authHydrating;
+  const { categories, loading: categoriesLoading } = useCategories();
+  const { contactTypes, loading: contactTypesLoading } = useContactTypes();
+  const configLoading = categoriesLoading || contactTypesLoading;
   const { showAlert, dialog } = useAppDialog();
   const reduced = useReducedMotion();
   const [formStep, setFormStep] = useState(0);
-
-  const [categories, setCategories] = useState<CategoryConfig[]>([]);
-  const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
-  const [configLoading, setConfigLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     itemName: "",
@@ -73,6 +70,7 @@ export default function ReportLostPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showMatches, setShowMatches] = useState(false);
   const [matches, setMatches] = useState<MatchScore[]>([]);
+  const contactTypeSeededRef = useRef(false);
 
   const mapFallbackCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
   const mapFallbackZoom = appSettings.mapDefaultZoom ?? 17;
@@ -113,38 +111,16 @@ export default function ReportLostPage() {
   });
 
   useEffect(() => {
-    let loadedCount = 0;
-    const checkLoaded = () => {
-      loadedCount++;
-      if (loadedCount >= 2) setConfigLoading(false);
-    };
-
-    const unsubCategories = subscribeToCategories((cats) => {
-      setCategories(cats);
-      checkLoaded();
-    });
-
-    const unsubContactTypes = subscribeToContactTypes((types) => {
-      setContactTypes(types);
-      if (types.length > 0 && contacts[0]?.type === "phone") {
-        setContacts([{ type: types[0].value as ContactType, value: "" }]);
-      }
-      checkLoaded();
-    });
-
-    return () => {
-      unsubCategories();
-      unsubContactTypes();
-    };
-    // Seed default contact type once when config loads; contacts is intentionally omitted.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (contactTypeSeededRef.current || contactTypes.length === 0) return;
+    contactTypeSeededRef.current = true;
+    setContacts([{ type: contactTypes[0].value as ContactType, value: "" }]);
+  }, [contactTypes]);
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authPending && !user) {
       router.push(AUTH_ROUTES.hub);
     }
-  }, [user, authLoading, router]);
+  }, [user, authPending, router]);
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>

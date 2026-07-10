@@ -23,7 +23,12 @@ import {
   writeAuthBootstrapCache,
 } from "@/lib/auth-bootstrap-cache";
 import { getTimeoutRemaining, isUserBanned } from "@/lib/database";
-import { getAuthSessionStatus, postStudentLogin } from "@/lib/student-auth-api";
+import {
+  getAuthSessionStatus,
+  postPasskeyLogin,
+  postPinLogin,
+  postStudentLogin,
+} from "@/lib/student-auth-api";
 import type { AppSettings, AppUser, BanStatus } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
@@ -45,12 +50,18 @@ type SessionFlags = {
   isStudentVerified: boolean;
 };
 
+type LoginResult = {
+  mustChangePassword: boolean;
+  mustSetupPin: boolean;
+};
+
 interface AuthContextType {
   user: User | null;
   appUser: AppUser | null;
   appSettings: AppSettings;
   appSettingsReady: boolean;
   loading: boolean;
+  authHydrating: boolean;
   sessionReady: boolean;
   isAuthActionLoading: boolean;
   isAdmin: boolean;
@@ -63,7 +74,9 @@ interface AuthContextType {
   banStatus: BanStatus;
   banReason: string | undefined;
   timeoutRemaining: number;
-  signInWithStudentId: (studentId: string, password: string) => Promise<{ mustChangePassword: boolean; mustSetupPin: boolean }>;
+  signInWithStudentId: (studentId: string, password: string) => Promise<LoginResult>;
+  signInWithPin: (studentId: string, pin: string) => Promise<LoginResult>;
+  signInWithPasskey: () => Promise<LoginResult>;
   signInWithCustomToken: (_customToken: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -94,6 +107,21 @@ function flagsFromStatus(status: SessionStatusPayload): SessionFlags {
   };
 }
 
+function flagsFromLoginResponse(mustSetupPin?: boolean): SessionFlags {
+  const needsPin = Boolean(mustSetupPin);
+  return {
+    hasPin: !needsPin,
+    mustSetupPin: needsPin,
+    isAdmin: false,
+    isStudentVerified: false,
+  };
+}
+
+function hasValidBootstrapForUser(uid: string): boolean {
+  const cached = readAuthBootstrapCache();
+  return Boolean(cached && cached.uid === uid);
+}
+
 function shouldSyncSilently(
   event: AuthChangeEvent,
   sessionUser: User,
@@ -120,6 +148,13 @@ function needsBlockingUi(
   lastSyncedUid: string | null
 ): boolean {
   if (!sessionUser) return false;
+  if (
+    hasValidBootstrapForUser(sessionUser.id) &&
+    bootstrapDone &&
+    lastSyncedUid === sessionUser.id
+  ) {
+    return false;
+  }
   if (!bootstrapDone) return true;
   return lastSyncedUid !== sessionUser.id;
 }
@@ -132,6 +167,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [appSettingsReady, setAppSettingsReady] = useState(false);
   const [loading, setLoading] = useState(() => !initialCache);
+  const [authHydrating, setAuthHydrating] = useState(
+    () => typeof window !== "undefined"
+  );
   const [sessionReady, setSessionReady] = useState(() => !!initialCache);
   const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
   const [sessionFlags, setSessionFlags] = useState<SessionFlags>(
@@ -149,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } | null>(null);
   const sessionFlagsRef = useRef(sessionFlags);
   sessionFlagsRef.current = sessionFlags;
+  const signedInViaLoginRef = useRef(false);
 
   const persistBootstrap = (uid: string, flags: SessionFlags) => {
     writeAuthBootstrapCache({ uid, sessionFlags: flags, fetchedAt: Date.now() });
@@ -192,6 +231,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const clearSilentSyncTimer = () => {
+    if (silentSyncTimerRef.current) {
+      clearTimeout(silentSyncTimerRef.current);
+      silentSyncTimerRef.current = null;
+    }
+  };
+
+  const scheduleSilentSyncRef = useRef<(uid: string) => void>(() => {});
+
+  scheduleSilentSyncRef.current = (uid: string) => {
+    clearSilentSyncTimer();
+    silentSyncTimerRef.current = setTimeout(() => {
+      silentSyncTimerRef.current = null;
+      if (silentSyncInFlightRef.current) return;
+      silentSyncInFlightRef.current = true;
+      void fetchAndApplySessionStatus(uid)
+        .catch(() => {
+          // Keep existing flags on background failure.
+        })
+        .finally(() => {
+          silentSyncInFlightRef.current = false;
+        });
+    }, SILENT_SYNC_DEBOUNCE_MS);
+  };
+
+  const finalizeLoginFromResponse = (payload: {
+    mustChangePassword: boolean;
+    mustSetupPin?: boolean;
+  }): LoginResult => {
+    const uid = auth.currentUser?.id;
+    if (uid) {
+      const flags = flagsFromLoginResponse(payload.mustSetupPin);
+      setSessionFlags(flags);
+      persistBootstrap(uid, flags);
+      lastSyncedUserIdRef.current = uid;
+    }
+    bootstrapDoneRef.current = true;
+    setSessionReady(true);
+    setLoading(false);
+    if (uid) {
+      scheduleSilentSyncRef.current(uid);
+    }
+    return {
+      mustChangePassword: payload.mustChangePassword,
+      mustSetupPin: Boolean(payload.mustSetupPin),
+    };
+  };
+
   const refreshUserProfile = async () => {
     const uid = auth.currentUser?.id ?? user?.id;
     if (!uid) return;
@@ -214,15 +301,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     void auth.refreshLocal().then(() => {
       const localUser = auth.currentUser;
-      const cached = readAuthBootstrapCache();
-      if (!localUser || !cached || cached.uid !== localUser.id) return;
-
-      bootstrapDoneRef.current = true;
-      lastSyncedUserIdRef.current = cached.uid;
-      setUser(localUser);
-      setSessionFlags(cached.sessionFlags);
-      setSessionReady(true);
-      setLoading(false);
+      if (localUser) {
+        setUser(localUser);
+        const cached = readAuthBootstrapCache();
+        if (cached && cached.uid === localUser.id) {
+          bootstrapDoneRef.current = true;
+          lastSyncedUserIdRef.current = cached.uid;
+          setSessionFlags(cached.sessionFlags);
+          setSessionReady(true);
+          setLoading(false);
+        }
+      }
+      setAuthHydrating(false);
     });
   }, []);
 
@@ -230,28 +320,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const isCancelled = () => cancelled;
 
-    const clearSilentSyncTimer = () => {
-      if (silentSyncTimerRef.current) {
-        clearTimeout(silentSyncTimerRef.current);
-        silentSyncTimerRef.current = null;
-      }
-    };
-
     const scheduleSilentSync = (uid: string) => {
-      clearSilentSyncTimer();
-      silentSyncTimerRef.current = setTimeout(() => {
-        silentSyncTimerRef.current = null;
-        if (isCancelled()) return;
-        if (silentSyncInFlightRef.current) return;
-        silentSyncInFlightRef.current = true;
-        void fetchAndApplySessionStatus(uid)
-          .catch(() => {
-            // Keep existing flags on background failure.
-          })
-          .finally(() => {
-            silentSyncInFlightRef.current = false;
-          });
-      }, SILENT_SYNC_DEBOUNCE_MS);
+      scheduleSilentSyncRef.current(uid);
     };
 
     const blockingSync = async (sessionUser: User | null) => {
@@ -259,6 +329,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(sessionUser);
 
       if (!sessionUser) {
+        clearSilentSyncTimer();
         lastSyncedUserIdRef.current = null;
         sessionStatusCacheRef.current = null;
         clearAuthBootstrapCache();
@@ -279,13 +350,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (blocking) {
         setLoading(true);
         setSessionReady(false);
+      } else {
+        setSessionReady(true);
+        setLoading(false);
       }
 
       const ok = await fetchAndApplySessionStatus(sessionUser.id, { force: blocking });
       if (!ok) {
         console.error("Session sync error");
         if (!isCancelled() && blocking) {
-          setSessionFlags(EMPTY_SESSION_FLAGS);
+          scheduleSilentSync(sessionUser.id);
         }
       }
 
@@ -297,6 +371,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         bootstrapDoneRef.current = true;
         persistBootstrap(sessionUser.id, sessionFlagsRef.current);
+        if (!blocking || !ok) {
+          scheduleSilentSync(sessionUser.id);
+        }
       }
     };
 
@@ -309,6 +386,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!sessionUser) {
         clearSilentSyncTimer();
         await blockingSync(null);
+        return;
+      }
+
+      if (signedInViaLoginRef.current && event === "SIGNED_IN") {
+        setUser(sessionUser);
+        scheduleSilentSync(sessionUser.id);
         return;
       }
 
@@ -393,31 +476,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithStudentId = async (studentId: string, password: string) => {
     setIsAuthActionLoading(true);
+    signedInViaLoginRef.current = true;
     try {
       const result = await postStudentLogin(studentId, password);
-      const uid = auth.currentUser?.id;
-      try {
-        if (uid) {
-          const ok = await fetchAndApplySessionStatus(uid, { force: true });
-          if (!ok) throw new Error("session status failed");
-        } else {
-          const status = await getAuthSessionStatus();
-          applySessionStatus(status);
-        }
-      } catch {
-        applySessionStatus({ mustSetupPin: result.mustSetupPin, hasPin: !result.mustSetupPin });
-      }
-      if (uid) {
-        lastSyncedUserIdRef.current = uid;
-      }
-      bootstrapDoneRef.current = true;
-      setSessionReady(true);
-      setLoading(false);
-      return {
-        mustChangePassword: result.mustChangePassword,
-        mustSetupPin: Boolean(result.mustSetupPin),
-      };
+      return finalizeLoginFromResponse(result);
     } finally {
+      signedInViaLoginRef.current = false;
+      setIsAuthActionLoading(false);
+    }
+  };
+
+  const signInWithPin = async (studentId: string, pin: string) => {
+    setIsAuthActionLoading(true);
+    signedInViaLoginRef.current = true;
+    try {
+      const result = await postPinLogin(studentId, pin);
+      return finalizeLoginFromResponse(result);
+    } finally {
+      signedInViaLoginRef.current = false;
+      setIsAuthActionLoading(false);
+    }
+  };
+
+  const signInWithPasskey = async () => {
+    setIsAuthActionLoading(true);
+    signedInViaLoginRef.current = true;
+    try {
+      const result = await postPasskeyLogin();
+      return finalizeLoginFromResponse(result);
+    } finally {
+      signedInViaLoginRef.current = false;
       setIsAuthActionLoading(false);
     }
   };
@@ -460,6 +548,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         appSettings,
         appSettingsReady,
         loading,
+        authHydrating,
         sessionReady,
         isAuthActionLoading,
         isAdmin,
@@ -473,6 +562,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         banReason: appUser?.banReason,
         timeoutRemaining,
         signInWithStudentId,
+        signInWithPin,
+        signInWithPasskey,
         signInWithCustomToken: signInWithCustomTokenHandler,
         logout,
         refreshSession,

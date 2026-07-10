@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Lock, Plus, X } from "lucide-react";
 import Header from "@/components/layout/header";
@@ -15,13 +15,8 @@ import { type ContactInfo, type ContactType, type ItemCategory } from "@/lib/typ
 import { cn } from "@/lib/utils";
 import { buildTagUrl, isWebNfcSupported, writeTagUrl, getNfcErrorMessage } from "@/lib/nfc";
 import { registerNfcTagApi } from "@/lib/nfc-api";
-import {
-  subscribeToCategories,
-  subscribeToContactTypes,
-  type CategoryConfig,
-  type ContactTypeConfig,
-} from "@/lib/database";
 import { useAuth } from "@/contexts/auth-context";
+import { useCategories, useContactTypes } from "@/contexts/DataContext";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { logNfcTagRegistered } from "@/lib/logger";
@@ -32,11 +27,11 @@ import { fieldErrorId, fieldId, recordToIssues } from "@/lib/feedback/types";
 
 export default function NfcRegisterPage() {
   const router = useRouter();
-  const { user, loading: authLoading, appSettings } = useAuth();
+  const { user, loading: authLoading, authHydrating, appSettings } = useAuth();
+  const authPending = authLoading || authHydrating;
+  const { categories } = useCategories();
+  const { contactTypes } = useContactTypes();
   const { showAlert, showConfirm, dialog } = useAppDialog();
-
-  const [categories, setCategories] = useState<CategoryConfig[]>([]);
-  const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
   const [formData, setFormData] = useState({
     itemName: "",
     category: "" as ItemCategory | "",
@@ -53,6 +48,7 @@ export default function NfcRegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [nfcSupported, setNfcSupported] = useState(false);
   const [nfcChecked, setNfcChecked] = useState(false);
+  const contactTypeSeededRef = useRef(false);
 
   useEffect(() => {
     setNfcSupported(isWebNfcSupported());
@@ -60,22 +56,14 @@ export default function NfcRegisterPage() {
   }, []);
 
   useEffect(() => {
-    const unsubCategories = subscribeToCategories(setCategories);
-    const unsubContactTypes = subscribeToContactTypes((types) => {
-      setContactTypes(types);
-      if (types.length > 0) {
-        setContacts([{ type: types[0].value as ContactType, value: "" }]);
-      }
-    });
-    return () => {
-      unsubCategories();
-      unsubContactTypes();
-    };
-  }, []);
+    if (contactTypeSeededRef.current || contactTypes.length === 0) return;
+    contactTypeSeededRef.current = true;
+    setContacts([{ type: contactTypes[0].value as ContactType, value: "" }]);
+  }, [contactTypes]);
 
   useEffect(() => {
-    if (!authLoading && !user) router.push(AUTH_ROUTES.hub);
-  }, [user, authLoading, router]);
+    if (!authPending && !user) router.push(AUTH_ROUTES.hub);
+  }, [user, authPending, router]);
 
   const handleContactChange = (index: number, field: "type" | "value", value: string) => {
     const next = [...contacts];

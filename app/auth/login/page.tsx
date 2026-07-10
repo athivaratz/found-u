@@ -8,9 +8,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { Loader2, Fingerprint, Shield, UserRound } from "lucide-react";
 import {
   getDeviceProfile,
-  postPasskeyLogin,
-  postPinLogin,
-  postStudentLogin,
   resolvePostLoginPath,
 } from "@/lib/student-auth-api";
 import {
@@ -23,6 +20,7 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { slideUp } from "@/lib/motion";
 import { AuthPageHeader } from "@/components/auth/auth-page-header";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
+import { captureReturnToFromQuery, consumeReturnTo } from "@/lib/auth-return-to";
 import { StatusAlert } from "@/components/ui/status-alert";
 
 type LoginView = "quick" | "full";
@@ -53,12 +51,17 @@ function LoginPageContent() {
   const {
     user,
     loading,
+    authHydrating,
     isStudentVerified,
     isAdmin,
     mustChangePassword,
     mustSetupPin,
-    refreshSession,
+    signInWithStudentId,
+    signInWithPin,
+    signInWithPasskey,
   } = useAuth();
+
+  const authPending = loading || authHydrating;
 
   const [view, setView] = useState<LoginView>("full");
   const [viewReady, setViewReady] = useState(false);
@@ -74,6 +77,27 @@ function LoginPageContent() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [needsRegistrationHint, setNeedsRegistrationHint] = useState(false);
+
+  useEffect(() => {
+    captureReturnToFromQuery();
+  }, []);
+
+  const navigateAfterLogin = (result: {
+    mustChangePassword: boolean;
+    mustSetupPin: boolean;
+  }) => {
+    const returnTo =
+      !result.mustChangePassword && !result.mustSetupPin
+        ? consumeReturnTo("/home")
+        : undefined;
+    router.replace(
+      resolvePostLoginPath({
+        mustChangePassword: result.mustChangePassword,
+        mustSetupPin: result.mustSetupPin,
+        returnTo,
+      })
+    );
+  };
 
   const initRememberedDevice = useCallback(async () => {
     const remembered = getRememberedDevice();
@@ -115,12 +139,24 @@ function LoginPageContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (user && !loading) {
+    if (user && !authPending) {
       if (mustChangePassword) router.replace(AUTH_ROUTES.changePassword);
       else if (mustSetupPin) router.replace(AUTH_ROUTES.setupPin);
-      else if (isStudentVerified || isAdmin) router.replace("/home");
+      else if (isStudentVerified || isAdmin) {
+        router.replace(
+          resolvePostLoginPath({ returnTo: consumeReturnTo("/home") })
+        );
+      }
     }
-  }, [user, loading, router, mustChangePassword, mustSetupPin, isStudentVerified, isAdmin]);
+  }, [
+    user,
+    authPending,
+    router,
+    mustChangePassword,
+    mustSetupPin,
+    isStudentVerified,
+    isAdmin,
+  ]);
 
   useEffect(() => {
     if (view !== "full" || studentId.length !== 5) {
@@ -152,13 +188,12 @@ function LoginPageContent() {
     setErrorMsg(null);
     setNeedsRegistrationHint(false);
     try {
-      const result = await postStudentLogin(studentId, password);
+      const result = await signInWithStudentId(studentId, password);
       setRememberedDevice({
-        studentId: result.studentId || studentId,
-        nickname: result.nickname,
+        studentId,
+        nickname: undefined,
       });
-      await refreshSession();
-      router.push(resolvePostLoginPath(result));
+      navigateAfterLogin(result);
     } catch (err) {
       const loginErr = err as Error & { needsRegistration?: boolean };
       setErrorMsg(loginErr.message || "เข้าสู่ระบบไม่สำเร็จ");
@@ -173,9 +208,8 @@ function LoginPageContent() {
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      const result = await postPinLogin(rememberedId, pin);
-      await refreshSession();
-      router.push(resolvePostLoginPath(result));
+      const result = await signInWithPin(rememberedId, pin);
+      navigateAfterLogin(result);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "PIN ไม่ถูกต้อง");
     } finally {
@@ -187,9 +221,8 @@ function LoginPageContent() {
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      const result = await postPasskeyLogin();
-      await refreshSession();
-      router.push(resolvePostLoginPath(result));
+      const result = await signInWithPasskey();
+      navigateAfterLogin(result);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "PassKey ไม่สำเร็จ");
     } finally {
@@ -221,7 +254,7 @@ function LoginPageContent() {
   const isRedirectingAfterLogin =
     !!user && (mustChangePassword || mustSetupPin || isStudentVerified || isAdmin);
 
-  if (loading || !viewReady || isRedirectingAfterLogin) {
+  if (authPending || !viewReady || isRedirectingAfterLogin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-secondary">
         <Loader2 className="w-10 h-10 animate-spin text-line-green" />

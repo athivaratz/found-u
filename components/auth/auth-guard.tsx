@@ -1,22 +1,32 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { LoadingModal } from "@/components/ui/loading-modal";
 import { TutorialSystem } from "@/components/ui/tutorial-system";
 import { StudentRegistrationModal } from "@/components/auth/student-registration-modal";
-import { AUTH_ROUTES, isAuthPublicPath, isSetupPublicPath } from "@/lib/auth-routes";
-import { isKnownRoute } from "@/lib/known-routes";
+import { AUTH_ROUTES } from "@/lib/auth-routes";
+import { captureReturnToFromQuery, consumeReturnTo, saveReturnTo } from "@/lib/auth-return-to";
+import {
+  deferAfterNavigation,
+  isTutorialDismissedThisSession,
+  markTutorialDismissedThisSession,
+  resolveActiveModal,
+} from "@/lib/auth-modal-queue";
+import { isAuthOnlyRoute, isProtectedRoute, isPublicRoute } from "@/lib/route-access";
 
-const PUBLIC_PATHS = ["/", "/banned"];
-
-function isPublicPath(pathname: string) {
+function AuthBootstrapScreen() {
   return (
-    PUBLIC_PATHS.includes(pathname) ||
-    isAuthPublicPath(pathname) ||
-    isSetupPublicPath(pathname) ||
-    !isKnownRoute(pathname)
+    <div
+      className="min-h-screen flex items-center justify-center bg-bg-secondary"
+      role="status"
+      aria-live="polite"
+      aria-label="กำลังโหลด"
+    >
+      <Loader2 className="w-10 h-10 animate-spin text-line-green" />
+    </div>
   );
 }
 
@@ -25,6 +35,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     user,
     appUser,
     loading,
+    authHydrating,
     sessionReady,
     isAuthActionLoading,
     isStudentVerified,
@@ -36,49 +47,78 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   } = useAuth();
   const router = useRouter();
   const pathname = usePathname() ?? "";
-  const [tutorialDismissed, setTutorialDismissed] = useState(false);
+  const [deferredTutorialPath, setDeferredTutorialPath] = useState<string | null>(null);
+  const [tutorialDismissed, setTutorialDismissed] = useState(() =>
+    isTutorialDismissedThisSession()
+  );
 
-  const showTutorial =
-    !loading &&
-    !!user &&
-    isStudentVerified &&
-    !hasSeenTutorial &&
-    !isPublicPath(pathname) &&
-    !tutorialDismissed;
+  const authPending = loading || authHydrating;
+  const isProtected = isProtectedRoute(pathname);
 
-  const isProtected = pathname.length > 0 && !isPublicPath(pathname);
+  useEffect(() => {
+    captureReturnToFromQuery();
+  }, [pathname]);
 
   const needsStudentVerification =
+    !authPending &&
+    sessionReady &&
     !!user &&
     !!appUser &&
-    sessionReady &&
     !isBanned &&
     !mustChangePassword &&
     !mustSetupPin &&
     !isStudentVerified &&
     !isAdmin;
 
-  // Redirect before paint to avoid stacking the previous page with /auth.
+  const tutorialEligible =
+    !authPending &&
+    sessionReady &&
+    !isAuthActionLoading &&
+    !!user &&
+    isStudentVerified &&
+    !hasSeenTutorial &&
+    !isPublicRoute(pathname) &&
+    !tutorialDismissed &&
+    pathname !== AUTH_ROUTES.changePassword &&
+    pathname !== AUTH_ROUTES.setupPin;
+
+  useEffect(() => {
+    if (!tutorialEligible) return;
+    return deferAfterNavigation(() => {
+      setDeferredTutorialPath(pathname);
+    });
+  }, [tutorialEligible, pathname]);
+
+  const showTutorial =
+    tutorialEligible && deferredTutorialPath === pathname;
+  const activeModal = resolveActiveModal({
+    needsRegistration: needsStudentVerification,
+    showTutorial,
+  });
+
+  const postAuthDestination = () => consumeReturnTo("/home");
+
   useLayoutEffect(() => {
+    if (authPending) return;
+
     if (user && pathname === "/") {
-      router.replace("/home");
+      router.replace(postAuthDestination());
       return;
     }
 
     if (!user && isProtected) {
+      saveReturnTo(`${pathname}${typeof window !== "undefined" ? window.location.search : ""}`);
       router.replace(AUTH_ROUTES.hub);
       return;
     }
 
-    if (loading) return;
-
-    if (user && (pathname === AUTH_ROUTES.hub || pathname === AUTH_ROUTES.login)) {
+    if (user && isAuthOnlyRoute(pathname)) {
       if (mustChangePassword) {
         router.replace(AUTH_ROUTES.changePassword);
       } else if (mustSetupPin) {
         router.replace(AUTH_ROUTES.setupPin);
       } else if (isStudentVerified || isAdmin) {
-        router.replace("/home");
+        router.replace(postAuthDestination());
       }
       return;
     }
@@ -99,11 +139,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (user && !isBanned && pathname === "/banned") {
-      router.replace("/home");
+      router.replace(postAuthDestination());
     }
   }, [
     user,
     loading,
+    authHydrating,
+    authPending,
     pathname,
     router,
     isProtected,
@@ -114,21 +156,24 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     isBanned,
   ]);
 
+  if (authPending && isProtected) {
+    return <AuthBootstrapScreen />;
+  }
+
   if (user && pathname === "/") {
     return null;
   }
 
-  // Never keep rendering a protected page without a session (even while loading).
-  if (isProtected && !user) {
+  if (isProtected && !user && !authPending) {
     return null;
   }
 
-  if (!loading && user && isBanned && pathname !== "/banned") {
+  if (!authPending && user && isBanned && pathname !== "/banned") {
     return null;
   }
 
   if (
-    !loading &&
+    !authPending &&
     user &&
     mustChangePassword &&
     pathname !== AUTH_ROUTES.changePassword
@@ -137,7 +182,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (
-    !loading &&
+    !authPending &&
     user &&
     mustSetupPin &&
     !isAdmin &&
@@ -146,17 +191,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return null;
   }
 
+  const handleTutorialComplete = () => {
+    markTutorialDismissedThisSession();
+    setTutorialDismissed(true);
+  };
+
   return (
     <>
       {children}
       <LoadingModal isOpen={isAuthActionLoading} message="กำลังดำเนินการ..." />
-      <StudentRegistrationModal open={needsStudentVerification} />
+      <StudentRegistrationModal open={activeModal === "registration"} />
 
-      {showTutorial && appUser && (
+      {activeModal === "tutorial" && appUser && (
         <TutorialSystem
-          isOpen={showTutorial}
+          isOpen
           userId={appUser.uid}
-          onComplete={() => setTutorialDismissed(true)}
+          onComplete={handleTutorialComplete}
         />
       )}
     </>

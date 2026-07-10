@@ -41,10 +41,6 @@ import {
 } from "@/lib/utils";
 import {
   addFoundItem,
-  subscribeToCategories,
-  subscribeToContactTypes,
-  type CategoryConfig,
-  type ContactTypeConfig,
 } from "@/lib/database";
 import { uploadFoundItemImage } from "@/lib/storage";
 import {
@@ -59,6 +55,7 @@ import {
   watchGeolocationPermission,
 } from "@/lib/geolocation";
 import { useAuth } from "@/contexts/auth-context";
+import { useCategories, useContactTypes } from "@/contexts/DataContext";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
@@ -91,14 +88,14 @@ const PERSONNEL_OFFICE_LABEL = getDropOffLocationLabel(DEFAULT_FOUND_DROP_OFF_LO
 export default function ReportFoundPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user, loading: authLoading, appSettings, appSettingsReady, isAdmin } = useAuth();
+  const { user, loading: authLoading, authHydrating, appSettings, appSettingsReady, isAdmin } = useAuth();
+  const authPending = authLoading || authHydrating;
+  const { categories, loading: categoriesLoading } = useCategories();
+  const { contactTypes, loading: contactTypesLoading } = useContactTypes();
+  const configLoading = categoriesLoading || contactTypesLoading;
   const { showAlert, dialog } = useAppDialog();
   const reduced = useReducedMotion();
   const [formStep, setFormStep] = useState(0);
-
-  const [categories, setCategories] = useState<CategoryConfig[]>([]);
-  const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
-  const [configLoading, setConfigLoading] = useState(true);
 
   const [gpsLoading, setGpsLoading] = useState(false);
   const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
@@ -179,33 +176,10 @@ export default function ReportFoundPage() {
   const [handoverCountdownMs, setHandoverCountdownMs] = useState<number | null>(null);
 
   useEffect(() => {
-    let loadedCount = 0;
-    const checkLoaded = () => {
-      loadedCount++;
-      if (loadedCount >= 2) setConfigLoading(false);
-    };
-
-    const unsubCategories = subscribeToCategories((cats) => {
-      setCategories(cats);
-      checkLoaded();
-    });
-
-    const unsubContactTypes = subscribeToContactTypes((types) => {
-      setContactTypes(types);
-      checkLoaded();
-    });
-
-    return () => {
-      unsubCategories();
-      unsubContactTypes();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authPending && !user) {
       router.push(AUTH_ROUTES.hub);
     }
-  }, [user, authLoading, router]);
+  }, [user, authPending, router]);
 
   useEffect(() => {
     if (user) {

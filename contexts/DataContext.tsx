@@ -9,6 +9,7 @@ import {
   type ContactTypeConfig,
   type LocationConfig,
 } from "@/lib/database";
+import { useAuth } from "@/contexts/auth-context";
 
 export type Category = CategoryConfig;
 export type Location = LocationConfig;
@@ -56,39 +57,61 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
-  const [locations, setLocations] = useState<Location[]>(DEFAULT_LOCATIONS);
-  const [contactTypes, setContactTypes] = useState<ContactType[]>(DEFAULT_CONTACT_TYPES);
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading, authHydrating } = useAuth();
+  const authPending = authLoading || authHydrating;
+  const canSubscribe = Boolean(user?.id) && !authPending;
+
+  const [subscribedCategories, setSubscribedCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [subscribedLocations, setSubscribedLocations] = useState<Location[]>(DEFAULT_LOCATIONS);
+  const [subscribedContactTypes, setSubscribedContactTypes] =
+    useState<ContactType[]>(DEFAULT_CONTACT_TYPES);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!canSubscribe) return;
+
     let loadedCount = 0;
+    let cancelled = false;
+
     const checkLoaded = () => {
       loadedCount += 1;
-      if (loadedCount >= 3) setLoading(false);
+      if (!cancelled && loadedCount >= 3) setLoading(false);
     };
 
+    // Mark loading while waiting for the first realtime payloads.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- subscription bootstrap
+    setLoading(true);
+
     const unsubCategories = subscribeToCategories((data) => {
-      setCategories(data.length ? data : DEFAULT_CATEGORIES);
+      if (cancelled) return;
+      setSubscribedCategories(data.length ? data : DEFAULT_CATEGORIES);
       checkLoaded();
     });
 
     const unsubLocations = subscribeToLocations((data) => {
-      setLocations(data.length ? data : DEFAULT_LOCATIONS);
+      if (cancelled) return;
+      setSubscribedLocations(data.length ? data : DEFAULT_LOCATIONS);
       checkLoaded();
     });
 
     const unsubContactTypes = subscribeToContactTypes((data) => {
-      setContactTypes(data.length ? data : DEFAULT_CONTACT_TYPES);
+      if (cancelled) return;
+      setSubscribedContactTypes(data.length ? data : DEFAULT_CONTACT_TYPES);
       checkLoaded();
     });
 
     return () => {
+      cancelled = true;
       unsubCategories();
       unsubLocations();
       unsubContactTypes();
     };
-  }, []);
+  }, [canSubscribe, user?.id]);
+
+  const categories = canSubscribe ? subscribedCategories : DEFAULT_CATEGORIES;
+  const locations = canSubscribe ? subscribedLocations : DEFAULT_LOCATIONS;
+  const contactTypes = canSubscribe ? subscribedContactTypes : DEFAULT_CONTACT_TYPES;
+  const dataLoading = canSubscribe ? loading : false;
 
   const getCategoryByValue = (value: string) => categories.find((item) => item.value === value);
   const getLocationByValue = (value: string) => locations.find((item) => item.value === value);
@@ -100,7 +123,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         categories,
         locations,
         contactTypes,
-        loading,
+        loading: dataLoading,
         getCategoryByValue,
         getLocationByValue,
         getContactTypeByValue,
