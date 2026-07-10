@@ -45,7 +45,7 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
   });
 
   const content = (
-    <div className={cn("flex flex-col h-full min-h-0", className)}>
+    <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border-light/60 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <History className="w-4 h-4 text-text-tertiary shrink-0" />
@@ -157,7 +157,13 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
 
   if (variant === "inline") {
     return (
-      <aside className="w-[260px] shrink-0 border-r border-border-light/60 bg-bg-primary/80 flex flex-col min-h-0 h-full rounded-l-2xl overflow-hidden">
+      <aside
+        className={cn(
+          "hidden assistant-desktop:flex w-[260px] shrink-0 border-r border-border-light/60",
+          "bg-bg-primary/80 flex-col min-h-0 h-full rounded-l-2xl overflow-hidden",
+          className
+        )}
+      >
         {content}
       </aside>
     );
@@ -168,14 +174,14 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/40 md:hidden"
+        className="fixed inset-0 z-40 bg-black/40 assistant-desktop:hidden"
         onClick={() => setSidebarOpen(false)}
         aria-hidden
       />
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-[min(100vw-3rem,280px)] bg-bg-primary shadow-xl",
-          "flex flex-col md:hidden animate-in slide-in-from-left duration-200"
+          "flex flex-col assistant-desktop:hidden animate-in slide-in-from-left duration-200"
         )}
       >
         {content}

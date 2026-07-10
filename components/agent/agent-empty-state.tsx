@@ -17,18 +17,18 @@ export function AgentEmptyState({ onSelectPrompt, className }: AgentEmptyStatePr
         className
       )}
     >
-      <div className="w-full max-w-lg md:max-w-xl my-auto">
+      <div className="w-full max-w-lg assistant-desktop:max-w-xl my-auto">
         <div
-          className="agent-avatar w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] mx-auto mb-5 md:mb-6"
+          className="agent-avatar w-16 h-16 assistant-desktop:w-[4.5rem] assistant-desktop:h-[4.5rem] mx-auto mb-5 assistant-desktop:mb-6"
           aria-hidden
         >
-          <Search className="w-7 h-7 md:w-8 md:h-8" strokeWidth={2.25} />
+          <Search className="w-7 h-7 assistant-desktop:w-8 assistant-desktop:h-8" strokeWidth={2.25} />
         </div>
 
-        <h2 className="text-lg md:text-xl font-semibold text-text-primary mb-2 text-balance">
+        <h2 className="text-lg assistant-desktop:text-xl font-semibold text-text-primary mb-2 text-balance">
           {thaiCopy.agent.welcome}
         </h2>
-        <p className="text-sm text-text-secondary mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
+        <p className="text-sm text-text-secondary mb-6 assistant-desktop:mb-8 max-w-md mx-auto leading-relaxed">
           {thaiCopy.agent.welcomeHint}
         </p>
 

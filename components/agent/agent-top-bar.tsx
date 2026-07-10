@@ -50,14 +50,14 @@ export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: Age
         </div>
       </div>
 
-      <ModeSwitcher variant="compact" className="shrink-0 md:hidden" />
+      <ModeSwitcher variant="compact" className="shrink-0 assistant-desktop:hidden" />
 
       <div className="flex items-center gap-1 shrink-0">
         {onOpenHistory ? (
           <button
             type="button"
             onClick={onOpenHistory}
-            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
+            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors assistant-desktop:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label="ประวัติแชท"
           >
             <History className="w-5 h-5" />
@@ -73,7 +73,7 @@ export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: Age
             <RotateCcw className="w-5 h-5" />
           </button>
         ) : (
-          <div className="w-9 shrink-0 md:hidden" />
+          <div className="w-9 shrink-0 assistant-desktop:hidden" />
         )}
       </div>
     </header>

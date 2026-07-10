@@ -39,7 +39,7 @@ export function AgentComposer({
   };
 
   return (
-    <div className={cn("px-4 pb-4 pt-2 max-md:safe-bottom md:px-5 md:pb-5", className)}>
+    <div className={cn("px-4 pb-4 pt-2 max-lg:safe-bottom assistant-desktop:px-5 assistant-desktop:pb-5", className)}>
       <div
         className={cn(
           "flex items-end gap-2 p-2 rounded-2xl bg-bg-card",

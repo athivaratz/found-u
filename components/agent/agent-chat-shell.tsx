@@ -81,15 +81,15 @@ function AgentChatInner() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-1">
-      <ChatSidebar variant="inline" className="hidden lg:flex" />
+    <div className="flex h-full min-h-0 flex-1 w-full min-w-0">
+      <ChatSidebar variant="inline" />
       <ChatSidebar variant="drawer" />
 
       <div
         className={cn(
           "flex flex-col min-h-0 flex-1 agent-surface-bg agent-chat-pane",
-          "md:rounded-2xl md:border md:border-border-light",
-          "md:overflow-hidden md:h-full"
+          "assistant-desktop:rounded-2xl assistant-desktop:border assistant-desktop:border-border-light",
+          "assistant-desktop:overflow-hidden assistant-desktop:h-full"
         )}
       >
         <AgentTopBar

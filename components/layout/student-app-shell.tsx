@@ -45,15 +45,17 @@ export function StudentAppShell({
   if (isAssistant) {
     return (
       <div className={cn("min-h-screen bg-bg-secondary transition-colors", className)}>
-        {/* Mobile: immersive full-screen chat */}
-        <div className="md:hidden h-[100dvh] flex flex-col">{children}</div>
+        {/* Mobile / tablet portrait: immersive full-screen chat */}
+        <div className="assistant-desktop:hidden h-[100dvh] flex flex-col w-full min-w-0 overflow-hidden">
+          {children}
+        </div>
 
-        {/* Desktop: sidebar + full-height chat column */}
-        <div className="hidden md:flex h-screen overflow-hidden">
+        {/* Desktop / tablet landscape: sidebar + full-height chat column */}
+        <div className="hidden assistant-desktop:flex h-screen overflow-hidden">
           <Sidebar />
           <main
             className={cn(
-              "flex-1 ml-72 bg-bg-secondary flex flex-col min-h-0 min-w-0 h-screen p-4 md:p-5",
+              "flex-1 ml-72 bg-bg-secondary flex flex-col min-h-0 min-w-0 h-screen p-4 assistant-desktop:p-5",
               mainClassName
             )}
           >
