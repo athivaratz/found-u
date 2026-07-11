@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Package, ChevronRight, Moon, Sun, LogIn, LogOut, User, Settings } from "lucide-react";
 import BottomNav from "@/components/layout/bottom-nav";
@@ -59,7 +59,7 @@ function HomeQuickMenu({ className }: { className?: string }) {
             <Link
               key={item.href}
               href={item.href}
-              className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-secondary"
+              className="group block rounded-xl min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-secondary"
             >
               <div className="bg-bg-card rounded-xl p-4 border border-border-light group-hover:border-border-medium transition-colors duration-200 motion-safe:group-active:scale-[0.99]">
                 <div className="flex items-center gap-4">
@@ -96,6 +96,15 @@ export default function Home() {
 
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowUserMenu(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showUserMenu]);
+
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "สวัสดีตอนเช้า" : hour < 17 ? "สวัสดีตอนบ่าย" : "สวัสดีตอนเย็น";
@@ -128,7 +137,7 @@ export default function Home() {
     <div className="min-h-screen bg-bg-primary transition-colors md:flex">
       <Sidebar />
 
-      <div className={cn("flex min-h-screen flex-1 flex-col main-with-bottom-nav", shellSidebarInset)}>
+      <div className={cn("flex min-h-screen flex-1 flex-col main-with-bottom-nav min-w-0", shellSidebarInset)}>
         {/* Mobile header — switcher inside the green band */}
         <header className="md:hidden bg-line-green text-white safe-top shrink-0">
           <div className="px-5 pt-5 pb-4 flex flex-col gap-4">
@@ -195,8 +204,14 @@ export default function Home() {
 
                     {showUserMenu && (
                       <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-                        <div className="absolute right-0 mt-2 w-56 bg-bg-card text-text-primary rounded-xl shadow-card z-50 overflow-hidden animate-fade-in">
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          className="fixed inset-0 z-40 cursor-default bg-black/20 md:bg-transparent"
+                          onClick={() => setShowUserMenu(false)}
+                          aria-label="ปิดเมนูผู้ใช้"
+                        />
+                        <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2.5rem)] bg-bg-card text-text-primary rounded-xl shadow-card z-50 overflow-hidden animate-fade-in">
                           <div className="p-4 border-b border-border-light">
                             <p className="font-medium text-text-primary truncate">
                               {getUserShownName(appUser, user)}
@@ -204,7 +219,7 @@ export default function Home() {
                           </div>
                           <Link
                             href="/settings"
-                            className="flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-bg-secondary focus-visible:outline-none focus-visible:bg-bg-secondary"
+                            className="flex items-center gap-3 px-4 min-h-11 py-3 text-text-primary hover:bg-bg-secondary focus-visible:outline-none focus-visible:bg-bg-secondary"
                             onClick={() => setShowUserMenu(false)}
                           >
                             <Settings className="w-4 h-4" />
@@ -213,7 +228,7 @@ export default function Home() {
                           {isAdmin && (
                             <Link
                               href="/admin"
-                              className="flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-bg-secondary focus-visible:outline-none focus-visible:bg-bg-secondary"
+                              className="flex items-center gap-3 px-4 min-h-11 py-3 text-text-primary hover:bg-bg-secondary focus-visible:outline-none focus-visible:bg-bg-secondary"
                               onClick={() => setShowUserMenu(false)}
                             >
                               <User className="w-4 h-4" />
@@ -223,7 +238,7 @@ export default function Home() {
                           <button
                             type="button"
                             onClick={handleLogout}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-status-error hover:bg-status-error-light focus-visible:outline-none focus-visible:bg-status-error-light"
+                            className="w-full flex items-center gap-3 px-4 min-h-11 py-3 text-status-error hover:bg-status-error-light focus-visible:outline-none focus-visible:bg-status-error-light"
                           >
                             <LogOut className="w-4 h-4" />
                             <span>ออกจากระบบ</span>
@@ -258,7 +273,7 @@ export default function Home() {
             <div className="flex items-start justify-between gap-6">
               <div className="min-w-0">
                 <p className="text-sm text-text-secondary mb-1">ยินดีต้อนรับ!</p>
-                <h1 className="text-2xl font-bold text-text-primary min-h-[2rem] text-balance leading-tight">
+                <h1 className="text-2xl font-semibold text-text-primary min-h-[2rem] text-balance leading-tight">
                   {authLoading && !user ? (
                     <span
                       className="inline-block h-7 w-48 max-w-full rounded bg-bg-tertiary animate-pulse align-middle"
@@ -276,7 +291,7 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="relative z-[1] flex-1 bg-bg-secondary px-5 pt-5 pb-6 rounded-t-2xl -mt-3 md:mt-0 md:rounded-none md:px-8 md:pt-8 md:pb-8 xl:px-12 xl:pb-12">
+        <main className="relative z-[1] flex-1 min-w-0 overflow-x-clip bg-bg-secondary px-5 pt-5 pb-6 rounded-t-2xl -mt-3 md:mt-0 md:rounded-none md:px-8 md:pt-8 md:pb-8 xl:px-12 xl:pb-12">
           <HomeQuickMenu className="mb-6 md:mb-8" />
 
           <HomeDashboardSection

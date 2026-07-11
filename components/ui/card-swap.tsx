@@ -11,9 +11,10 @@ import React, {
   useState,
 } from "react";
 import gsap from "gsap";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import styles from "./card-swap.module.css";
 
-type EasingType = "linear" | "elastic";
+type EasingType = "smooth" | "linear";
 
 type SwapConfig = {
   ease: string;
@@ -102,31 +103,32 @@ export default function CardSwap({
   pauseOnHover = false,
   onCardClick,
   skewAmount = 6,
-  easing = "elastic",
+  easing = "smooth",
   children,
 }: CardSwapProps) {
+  const reduceMotion = useReducedMotion();
   const dimensionStyle = useMemo(
     () => buildDimensionStyle(width, height, aspectRatio),
     [width, height, aspectRatio]
   );
   const [layoutScale, setLayoutScale] = useState(1);
   const config: SwapConfig =
-    easing === "elastic"
+    easing === "linear"
       ? {
-          ease: "elastic.out(0.6,0.9)",
-          durDrop: 2,
-          durMove: 1,
-          durReturn: 1.5,
-          promoteOverlap: 0.9,
-          returnDelay: 0.05,
-        }
-      : {
           ease: "power1.inOut",
           durDrop: 0.8,
           durMove: 0.8,
           durReturn: 0.8,
           promoteOverlap: 0.45,
           returnDelay: 0.2,
+        }
+      : {
+          ease: "power2.out",
+          durDrop: 0.55,
+          durMove: 0.5,
+          durReturn: 0.55,
+          promoteOverlap: 0.5,
+          returnDelay: 0.1,
         };
 
   const childArr = useMemo(() => Children.toArray(children), [children]);
@@ -269,6 +271,7 @@ export default function CardSwap({
 
     waitForRefs(() => {
       placeAll();
+      if (reduceMotion) return;
       runSwap();
     });
 
@@ -311,6 +314,7 @@ export default function CardSwap({
     skewAmount,
     easing,
     refs.length,
+    reduceMotion,
   ]);
 
   const rendered = childArr.map((child, i) =>

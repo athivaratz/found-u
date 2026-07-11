@@ -15,7 +15,7 @@ type FormStepperProps = {
   className?: string;
 };
 
-const STEP_COLUMN_CLASS = "w-[4.75rem] sm:w-[5.5rem]";
+const STEP_COLUMN_CLASS = "w-[4.25rem] sm:w-[5.5rem]";
 
 export function FormStepper({ steps, currentStep, className }: FormStepperProps) {
   return (
@@ -50,7 +50,7 @@ export function FormStepper({ steps, currentStep, className }: FormStepperProps)
                 </span>
                 <span
                   className={cn(
-                    "mt-2 w-full text-center text-xs font-medium leading-snug px-0.5",
+                    "mt-2 w-full text-center text-[11px] sm:text-xs font-medium leading-snug px-0.5 break-words",
                     active ? "text-line-green" : "text-text-tertiary"
                   )}
                 >
@@ -110,7 +110,8 @@ export function FormStepperActions({
   return (
     <div
       className={cn(
-        "sticky bottom-0 z-20 -mx-4 px-4 py-3 md:static md:mx-0 md:px-0 md:py-0",
+        "sticky z-20 -mx-4 px-4 pt-3 pb-3",
+        "bottom-[var(--bottom-nav-height)] md:static md:bottom-auto md:mx-0 md:px-0 md:py-0",
         "bg-bg-secondary/95 backdrop-blur-sm border-t border-border-light md:border-0 md:bg-transparent md:backdrop-blur-none",
         className
       )}
@@ -121,7 +122,7 @@ export function FormStepperActions({
             type="button"
             onClick={onBack}
             disabled={isSubmitting}
-            className="flex-1 py-3 rounded-xl font-medium border border-border-light text-text-secondary hover:bg-bg-primary disabled:opacity-50"
+            className="flex-1 min-h-11 py-2.5 rounded-xl font-medium border border-border-light text-text-secondary hover:bg-bg-primary disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
           >
             {backLabel}
           </button>
@@ -132,7 +133,7 @@ export function FormStepperActions({
             onClick={onSubmit}
             disabled={isSubmitting || nextDisabled}
             className={cn(
-              "py-3 rounded-xl font-semibold text-white bg-line-green hover:bg-line-green-hover disabled:opacity-50",
+              "min-h-11 py-2.5 rounded-xl font-semibold text-white bg-line-green hover:bg-line-green-hover disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35",
               isFirst ? "w-full" : "flex-[2]"
             )}
           >
@@ -144,7 +145,7 @@ export function FormStepperActions({
             onClick={onNext}
             disabled={nextDisabled || isSubmitting}
             className={cn(
-              "py-3 rounded-xl font-semibold text-white bg-line-green hover:bg-line-green-hover disabled:opacity-50",
+              "min-h-11 py-2.5 rounded-xl font-semibold text-white bg-line-green hover:bg-line-green-hover disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35",
               isFirst ? "w-full" : "flex-[2]"
             )}
           >

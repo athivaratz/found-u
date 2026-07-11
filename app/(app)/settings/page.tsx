@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, m } from "framer-motion";
@@ -18,7 +18,6 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { UserAvatar } from "@/components/user/user-avatar";
 import {
-  getProfilePhotoUrl,
   getUserPublicEmail,
   getUserShownName,
   hasPinAuthMethod,
@@ -35,8 +34,9 @@ import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { StatusAlert } from "@/components/ui/status-alert";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
+import { FieldValidationMessage } from "@/components/ui/field-validation-message";
 import { inputStateClass } from "@/components/ui/validated-field";
-import { fieldId, humanizeFeedbackMessage } from "@/lib/feedback/types";
+import { fieldErrorId, fieldId, humanizeFeedbackMessage } from "@/lib/feedback/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { cn } from "@/lib/utils";
 import { slideUp } from "@/lib/motion";
@@ -73,6 +73,8 @@ export default function SettingsPage() {
   const [securityLoading, setSecurityLoading] = useState(false);
   const [passkeyRegistered, setPasskeyRegistered] = useState(false);
   const [passkeyCount, setPasskeyCount] = useState(0);
+  const [passkeyStatusError, setPasskeyStatusError] = useState<string | null>(null);
+  const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
   const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
   const [verifyInput, setVerifyInput] = useState("");
   const [verifyMode, setVerifyMode] = useState<"pin" | "password">("pin");
@@ -125,24 +127,49 @@ export default function SettingsPage() {
     }
   }, [appUser]);
 
+  const loadPasskeyStatus = useCallback(async () => {
+    if (!user) return;
+    setPasskeyStatusError(null);
+    try {
+      const status = await getPasskeyStatus();
+      setPasskeyRegistered(status.hasPasskey);
+      setPasskeyCount(status.count);
+    } catch {
+      setPasskeyRegistered(false);
+      setPasskeyCount(0);
+      setPasskeyStatusError("ไม่สามารถโหลดสถานะ PassKey ได้ กรุณาลองอีกครั้ง");
+    }
+  }, [user]);
+
   useEffect(() => {
-    const loadPasskeyStatus = async () => {
-      if (!user) return;
-      try {
-        const status = await getPasskeyStatus();
-        setPasskeyRegistered(status.hasPasskey);
-        setPasskeyCount(status.count);
-      } catch {
-        setPasskeyRegistered(false);
-        setPasskeyCount(0);
-      }
-    };
     void loadPasskeyStatus();
-  }, [user, appUser?.authMethods]);
+  }, [loadPasskeyStatus, appUser?.authMethods]);
+
+  const validatePinForm = () => {
+    const nextErrors: Record<string, string> = {};
+    if (!/^\d{6}$/.test(pin)) {
+      nextErrors.pin = "กรุณากรอก PIN 6 หลัก";
+    }
+    if (!/^\d{6}$/.test(confirmPin)) {
+      nextErrors.confirmPin = "กรุณายืนยัน PIN 6 หลัก";
+    } else if (pin !== confirmPin) {
+      nextErrors.confirmPin = "PIN ไม่ตรงกัน";
+    }
+    setPinErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const saveShownName = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    const trimmed = shownName.trim();
+    if (!trimmed) {
+      setProfileError("กรุณากรอกชื่อที่แสดง");
+      setProfileMessage(null);
+      return;
+    }
+
     setProfileSaving(true);
     setProfileError(null);
     setProfileMessage(null);
@@ -155,7 +182,7 @@ export default function SettingsPage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ shownName: shownName.trim() }),
+        body: JSON.stringify({ shownName: trimmed }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
@@ -170,14 +197,12 @@ export default function SettingsPage() {
 
   const setupPin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin !== confirmPin) {
-      setSecurityError("PIN ไม่ตรงกัน");
-      return;
-    }
+    if (!validatePinForm()) return;
     if (!user) return;
     setSecurityLoading(true);
     setSecurityError(null);
     setSecurityMessage(null);
+    setPinErrors({});
     try {
       const token = await getSessionToken();
       if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
@@ -247,13 +272,12 @@ export default function SettingsPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg-primary">
-        <Loader2 className="w-8 h-8 animate-spin text-line-green" />
+      <div className="min-h-screen flex items-center justify-center bg-bg-primary" aria-busy="true">
+        <Loader2 className="w-8 h-8 animate-spin text-line-green" aria-label="กำลังโหลด" />
       </div>
     );
   }
 
-  const hasProfilePhoto = !!getProfilePhotoUrl(appUser, user);
   const publicEmail = getUserPublicEmail(appUser, user);
   const realName = [appUser?.firstName, appUser?.lastName].filter(Boolean).join(" ");
 
@@ -320,12 +344,18 @@ export default function SettingsPage() {
     verifyMode === "pin" ? /^\d{6}$/.test(verifyInput) : verifyInput.trim().length > 0;
 
   const profilePanel = (
-    <section className="bg-bg-card rounded-2xl border border-border-light p-5 shadow-card space-y-5">
+    <section
+      className="bg-bg-card rounded-2xl border border-border-light p-5 shadow-card space-y-5"
+      aria-labelledby="profile-settings-heading"
+    >
+      <h2 id="profile-settings-heading" className="sr-only">
+        ตั้งค่าโปรไฟล์
+      </h2>
       <div className="flex items-center gap-4">
         <UserAvatar
           user={user}
           appUser={appUser}
-          className="w-16 h-16 rounded-full object-cover"
+          className="w-16 h-16 rounded-full object-cover shrink-0"
           iconClassName="w-7 h-7"
         />
         <div className="min-w-0 flex-1">
@@ -335,35 +365,55 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {profileMessage && <p className="text-sm text-green-600">{profileMessage}</p>}
-      {profileError && <p className="text-sm text-red-600">{profileError}</p>}
+      <div aria-live="polite" aria-atomic="true" className="space-y-3">
+        {profileMessage ? (
+          <StatusAlert variant="success" message={profileMessage} />
+        ) : null}
+        {profileError ? (
+          <StatusAlert id="profile-error" variant="error" message={profileError} />
+        ) : null}
+      </div>
 
-      <form onSubmit={saveShownName} className="stack-form">
+      <form onSubmit={saveShownName} className="stack-form" aria-busy={profileSaving}>
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">
+          <label
+            htmlFor={fieldId("shownName")}
+            className="block text-sm font-medium text-text-primary mb-1"
+          >
             ชื่อที่แสดง
           </label>
           <input
+            id={fieldId("shownName")}
             type="text"
+            name="shownName"
             value={shownName}
-            onChange={(e) => setShownName(e.target.value)}
+            onChange={(e) => {
+              setShownName(e.target.value);
+              if (profileError) setProfileError(null);
+            }}
             placeholder="ชื่อเล่นหรือชื่อที่ต้องการแสดง"
             maxLength={40}
-            className="w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary text-text-primary"
+            autoComplete="nickname"
+            aria-invalid={profileError ? true : undefined}
+            aria-describedby={`${fieldId("shownName")}-hint${profileError ? " profile-error" : ""}`}
+            className={cn(
+              "w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35",
+              inputStateClass(profileError ?? undefined)
+            )}
           />
-          <p className="text-xs text-text-tertiary mt-1">
-            ใช้แทนชื่อจริงบนหน้าหลัก
+          <p id={`${fieldId("shownName")}-hint`} className="text-xs text-text-tertiary mt-1">
+            ใช้แทนชื่อจริงบนหน้าหลัก (สูงสุด 40 ตัวอักษร)
           </p>
         </div>
         <button
           type="submit"
           disabled={profileSaving}
-          className="w-full py-2.5 bg-line-green text-white rounded-xl font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full min-h-11 py-2.5 bg-line-green text-white rounded-xl font-medium disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2"
         >
           {profileSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
           ) : (
-            <Save className="w-4 h-4" />
+            <Save className="w-4 h-4" aria-hidden />
           )}
           บันทึกชื่อที่แสดง
         </button>
@@ -385,7 +435,7 @@ export default function SettingsPage() {
               <Hash className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
                 <dt className="text-text-tertiary text-xs">รหัสนักเรียน</dt>
-                <dd className="text-text-primary font-mono">{appUser.studentId}</dd>
+                <dd className="text-text-primary break-all font-mono">{appUser.studentId}</dd>
               </div>
             </div>
           )}
@@ -409,82 +459,162 @@ export default function SettingsPage() {
     securityError && !passwordPromptOpen && !connectionModalOpen;
 
   const securityPanel = (
-    <section className="bg-bg-card rounded-2xl border border-border-light p-5 shadow-card space-y-4">
-      {securityMessage && <p className="text-sm text-green-600">{securityMessage}</p>}
-      {showInlineSecurityError && <StatusAlert variant="error" message={securityError} />}
+    <section
+      className="bg-bg-card rounded-2xl border border-border-light p-5 shadow-card space-y-4"
+      aria-labelledby="security-settings-heading"
+    >
+      <h2 id="security-settings-heading" className="sr-only">
+        ตั้งค่าความปลอดภัย
+      </h2>
+
+      <div aria-live="polite" aria-atomic="true" className="space-y-3">
+        {securityMessage ? (
+          <StatusAlert variant="success" message={securityMessage} />
+        ) : null}
+        {showInlineSecurityError && securityError ? (
+          <StatusAlert variant="error" message={securityError} />
+        ) : null}
+        {passkeyStatusError ? (
+          <StatusAlert
+            variant="warning"
+            message={passkeyStatusError}
+            action={{
+              label: "ลองอีกครั้ง",
+              onClick: () => void loadPasskeyStatus(),
+            }}
+          />
+        ) : null}
+      </div>
 
       <Link
         href={AUTH_ROUTES.changePassword}
         className={cn(
-          "flex items-center gap-3 w-full px-4 py-3 rounded-xl border border-border-light",
-          "hover:bg-bg-secondary transition-colors"
+          "flex items-center gap-3 w-full min-h-11 px-4 py-3 rounded-xl border border-border-light",
+          "hover:bg-bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
         )}
       >
-        <KeyRound className="w-5 h-5 text-line-green shrink-0" />
+        <KeyRound className="w-5 h-5 text-line-green shrink-0" aria-hidden />
         <div className="text-left min-w-0">
           <p className="font-medium text-text-primary">เปลี่ยนรหัสผ่าน</p>
-          <p className="text-xs text-text-secondary">รหัสผ่านสำหรับเข้าสู่ระบบด้วยรหัสนักเรียน</p>
+          <p className="text-xs text-text-secondary break-words">
+            รหัสผ่านสำหรับเข้าสู่ระบบด้วยรหัสนักเรียน
+          </p>
         </div>
       </Link>
 
       <div className="border-t border-border-light pt-4">
-        <p className="text-sm font-medium text-text-primary mb-3">PIN 6 หลัก</p>
-        <form onSubmit={setupPin} className="stack-form">
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            placeholder="PIN ใหม่"
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            className="w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary"
-          />
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            placeholder="ยืนยัน PIN"
-            value={confirmPin}
-            onChange={(e) =>
-              setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))
-            }
-            className="w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary"
-          />
-          <button
-            type="submit"
-            disabled={securityLoading}
-            className="w-full py-2.5 bg-line-green text-white rounded-xl font-medium disabled:opacity-50"
-          >
-            บันทึก PIN
-          </button>
+        <form onSubmit={setupPin} className="stack-form" aria-busy={securityLoading}>
+          <fieldset className="stack-form border-0 p-0 m-0 min-w-0">
+            <legend className="text-sm font-medium text-text-primary mb-3">
+              PIN 6 หลัก
+            </legend>
+            <div>
+              <label htmlFor={fieldId("pin")} className="block text-sm font-medium text-text-secondary mb-1">
+                PIN ใหม่
+              </label>
+              <input
+                id={fieldId("pin")}
+                type="password"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                autoComplete="new-password"
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  if (pinErrors.pin) {
+                    setPinErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.pin;
+                      return next;
+                    });
+                  }
+                  if (securityError) setSecurityError(null);
+                }}
+                aria-invalid={pinErrors.pin ? true : undefined}
+                aria-describedby={pinErrors.pin ? fieldErrorId("pin") : undefined}
+                className={cn(
+                  "w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary text-text-primary font-mono tracking-widest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35",
+                  inputStateClass(pinErrors.pin)
+                )}
+              />
+              <FieldValidationMessage id={fieldErrorId("pin")} message={pinErrors.pin} />
+            </div>
+            <div>
+              <label
+                htmlFor={fieldId("confirmPin")}
+                className="block text-sm font-medium text-text-secondary mb-1"
+              >
+                ยืนยัน PIN
+              </label>
+              <input
+                id={fieldId("confirmPin")}
+                type="password"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                autoComplete="new-password"
+                value={confirmPin}
+                onChange={(e) => {
+                  setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  if (pinErrors.confirmPin) {
+                    setPinErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.confirmPin;
+                      return next;
+                    });
+                  }
+                  if (securityError) setSecurityError(null);
+                }}
+                aria-invalid={pinErrors.confirmPin ? true : undefined}
+                aria-describedby={pinErrors.confirmPin ? fieldErrorId("confirmPin") : undefined}
+                className={cn(
+                  "w-full px-4 py-3 rounded-xl border border-border-light bg-bg-primary text-text-primary font-mono tracking-widest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35",
+                  inputStateClass(pinErrors.confirmPin)
+                )}
+              />
+              <FieldValidationMessage
+                id={fieldErrorId("confirmPin")}
+                message={pinErrors.confirmPin}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={securityLoading}
+              className="w-full min-h-11 py-2.5 bg-line-green text-white rounded-xl font-medium disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2"
+            >
+              บันทึก PIN
+            </button>
+          </fieldset>
         </form>
       </div>
 
       <div className="border-t border-border-light pt-4">
         <div className="rounded-xl border border-border-light p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="font-medium text-text-primary">PassKey</p>
-              <p className="text-xs text-text-secondary">
+              <p className="text-xs text-text-secondary break-words">
                 {passkeyRegistered
                   ? `ลงทะเบียนแล้ว ${passkeyCount} รายการ`
                   : "ยังไม่ได้ลงทะเบียน"}
               </p>
             </div>
-            <Fingerprint className="w-5 h-5 text-text-secondary" />
+            <Fingerprint className="w-5 h-5 text-text-secondary shrink-0" aria-hidden />
           </div>
           <button
             type="button"
             onClick={() => openPasswordPrompt(passkeyRegistered ? "removePasskey" : "addPasskey")}
             disabled={securityLoading || passwordChecking}
-            className="w-full py-2.5 border border-border-light rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-bg-secondary transition-colors"
+            aria-busy={securityLoading}
+            className="w-full min-h-11 py-2.5 border border-border-light rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
           >
             {securityLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
             ) : passkeyRegistered ? (
-              <Unlink2 className="w-4 h-4" />
+              <Unlink2 className="w-4 h-4" aria-hidden />
             ) : (
-              <Fingerprint className="w-4 h-4" />
+              <Fingerprint className="w-4 h-4" aria-hidden />
             )}
             {passkeyRegistered ? "ยกเลิก PassKey" : "ลงทะเบียน PassKey"}
           </button>
@@ -564,7 +694,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={closePasswordPrompt}
                 disabled={passwordChecking}
-                className="flex-1 py-2.5 rounded-xl border border-border-light text-text-secondary disabled:opacity-50"
+                className="flex-1 min-h-11 py-2.5 rounded-xl border border-border-light text-text-secondary disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
               >
                 ยกเลิก
               </button>
@@ -572,9 +702,9 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => void handleConfirmedConnectionAction()}
                 disabled={passwordChecking || !canSubmitVerification}
-                className="flex-1 py-2.5 rounded-xl bg-line-green text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 min-h-11 py-2.5 rounded-xl bg-line-green text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
               >
-                {passwordChecking && <Loader2 className="w-4 h-4 animate-spin" />}
+                {passwordChecking && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />}
                 ยืนยัน
               </button>
             </div>
@@ -625,7 +755,7 @@ export default function SettingsPage() {
                   setPasswordPromptError(null);
                 }}
                 disabled={passwordChecking}
-                className="text-xs text-line-green hover:underline disabled:opacity-50"
+                className="min-h-11 px-1 text-xs text-line-green hover:underline disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded"
               >
                 {verifyMode === "pin" ? "ใช้รหัสผ่านแทน" : "ใช้ PIN แทน"}
               </button>
@@ -640,7 +770,7 @@ export default function SettingsPage() {
         {isAdmin && (
           <Link
             href="/admin/settings"
-            className="block text-center text-sm text-text-secondary hover:text-line-green py-2"
+            className="block text-center text-sm text-text-secondary hover:text-line-green min-h-11 py-2 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
           >
             ตั้งค่าระบบ (Admin) →
           </Link>

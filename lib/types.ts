@@ -529,28 +529,28 @@ export function isFoundPendingRoomConfirm(status: ItemStatus): boolean {
 export const STATUS_CONFIG: Record<ItemStatus, { label: string; color: string; bgColor: string }> = {
   searching: {
     label: "กำลังตามหา",
-    color: "text-gray-600 dark:text-gray-300",
-    bgColor: "bg-gray-100 dark:bg-gray-800"
+    color: "text-text-secondary",
+    bgColor: "bg-bg-tertiary",
   },
   pending_room_confirm: {
     label: "รอส่งห้องบุคคล",
-    color: "text-amber-700 dark:text-amber-400",
-    bgColor: "bg-amber-50 dark:bg-amber-900/30"
+    color: "text-status-warning",
+    bgColor: "bg-status-warning-light",
   },
   found: {
     label: "ถึงห้องบุคคลแล้ว",
-    color: "text-[#06C755] dark:text-[#4ade80]",
-    bgColor: "bg-[#e8f8ef] dark:bg-[#06C755]/20"
+    color: "text-line-green",
+    bgColor: "bg-line-green-light dark:bg-line-green/20",
   },
   claimed: {
     label: "รับคืนแล้ว",
-    color: "text-blue-600 dark:text-blue-400",
-    bgColor: "bg-blue-50 dark:bg-blue-900/30"
+    color: "text-status-info",
+    bgColor: "bg-status-info-light",
   },
   expired: {
     label: "หมดอายุ",
-    color: "text-red-500 dark:text-red-400",
-    bgColor: "bg-red-50 dark:bg-red-900/30"
+    color: "text-status-error",
+    bgColor: "bg-status-error-light",
   },
 };
 

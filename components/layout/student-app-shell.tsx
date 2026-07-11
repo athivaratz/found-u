@@ -51,7 +51,7 @@ export function StudentAppShell({
         {headerTitle ? (
           <Header title={headerTitle} showBack backHref={headerBackHref} />
         ) : null}
-        <main className={cn("flex-1 page-padding py-4", mainClassName)}>
+        <main className={cn("flex-1 page-padding py-4 min-w-0 overflow-x-clip", mainClassName)}>
           <div className={contentClass}>{children}</div>
         </main>
         {showBottomNav ? <BottomNav /> : null}
@@ -60,7 +60,7 @@ export function StudentAppShell({
       {/* Desktop */}
       <div className="hidden md:flex min-h-screen">
         <Sidebar />
-        <main className={cn(shellDesktopMain, shellSidebarInset, shellDesktopPadding, mainClassName)}>
+        <main className={cn(shellDesktopMain, shellSidebarInset, shellDesktopPadding, "min-w-0 overflow-x-clip", mainClassName)}>
           <div className={contentClass}>{children}</div>
         </main>
       </div>

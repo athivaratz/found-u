@@ -17,7 +17,7 @@ import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
 import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
 import { PageHeader } from "@/components/layout/page-header";
 import { AnimatePresence, m } from "framer-motion";
-import { slideUp } from "@/lib/motion";
+import { slideUp, scaleIn, staggerContainer, staggerItem, fade, motionSafe, duration, easeOut } from "@/lib/motion";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { type ContactInfo, type ContactType, type ItemCategory, type LocationCoords } from "@/lib/types";
 import { cn, generateTrackingCode, isPointInPolygon, normalizeGeoPolygon } from "@/lib/utils";
@@ -52,6 +52,15 @@ export default function ReportLostPage() {
   const configLoading = categoriesLoading || contactTypesLoading;
   const { showAlert, dialog } = useAppDialog();
   const reduced = useReducedMotion();
+  const successMotion = motionSafe(scaleIn, reduced);
+  const successIconMotion = motionSafe(
+    {
+      initial: { opacity: 0, scale: 0.88 },
+      animate: { opacity: 1, scale: 1 },
+      transition: { duration: duration.normal, ease: easeOut, delay: 0.06 },
+    },
+    reduced
+  );
   const [formStep, setFormStep] = useState(0);
 
   const [formData, setFormData] = useState({
@@ -281,8 +290,8 @@ export default function ReportLostPage() {
 
   if ((authLoading && !user) || configLoading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
+      <div className="min-h-screen bg-bg-secondary dark:bg-bg-primary flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-line-green" aria-label="กำลังโหลด" />
       </div>
     );
   }
@@ -303,40 +312,70 @@ export default function ReportLostPage() {
     return (
       <StudentAppShell headerTitle="แจ้งของหายสำเร็จ" showBottomNav maxWidth="lg">
           <div className="flex flex-col items-center justify-center py-4 md:py-8">
-            <div className="w-full max-w-lg bg-bg-card rounded-2xl shadow-sm border border-border-light p-6 md:p-8 animate-fade-in text-center">
-              <div className="w-20 h-20 rounded-full bg-[#e8f8ef] dark:bg-[#06C755]/20 flex items-center justify-center mb-6 mx-auto animate-fade-in">
-                <CheckCircle2 className="w-10 h-10 text-[#06C755]" />
-              </div>
+            <m.div
+              className="w-full max-w-lg bg-bg-card rounded-xl border border-border-light p-6 md:p-8 text-center"
+              initial={reduced ? false : successMotion.initial}
+              animate={successMotion.animate}
+              transition={successMotion.transition}
+            >
+              <m.div
+                className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 mx-auto"
+                initial={reduced ? false : successIconMotion.initial}
+                animate={successIconMotion.animate}
+                transition={successIconMotion.transition}
+              >
+                <CheckCircle2 className="w-7 h-7 text-line-green" aria-hidden />
+              </m.div>
 
-              <h2 className="text-xl font-semibold text-text-primary mb-2">แจ้งของหายเรียบร้อย!</h2>
-              <p className="text-text-secondary text-center mb-8">
+              <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
+                แจ้งของหายเรียบร้อย!
+              </h2>
+              <p className="text-text-secondary text-center text-sm mb-6 text-pretty">
                 เราจะแจ้งเตือนคุณเมื่อมีคนพบของ
               </p>
 
-              <div className="w-full bg-bg-secondary rounded-2xl p-6 mb-8 border border-border-light">
-                <p className="text-sm text-text-secondary text-center mb-2">รหัสติดตาม</p>
-                <p className="text-2xl font-bold text-[#06C755] text-center tracking-wider font-mono">
+              <div className="w-full bg-bg-secondary rounded-xl p-5 mb-6 border border-border-light">
+                <p className="text-sm text-text-secondary text-center mb-1">รหัสติดตาม</p>
+                <p className="text-xl font-semibold text-text-primary text-center tracking-wider font-mono">
                   {trackingCode}
                 </p>
-                <p className="text-xs text-text-tertiary text-center mt-3">
+                <p className="text-xs text-text-tertiary text-center mt-2">
                   กรุณาบันทึกรหัสนี้ไว้เพื่อติดตามสถานะ
                 </p>
               </div>
 
               {showMatches && matches.length > 0 && (
-                <div className="mt-6 text-left">
-                  <div className="bg-[#e8f8ef] dark:bg-[#06C755]/10 rounded-xl p-4 border border-[#06C755]/20">
+                <m.div
+                  className="mt-6 text-left"
+                  initial={reduced ? false : fade.initial}
+                  animate={fade.animate}
+                  transition={{ ...fade.transition, delay: reduced ? 0 : 0.12 }}
+                >
+                  <div className="rounded-xl border border-border-light bg-bg-secondary p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <Search className="w-5 h-5 text-[#06C755]" />
-                      <h3 className="font-semibold text-text-primary">
+                      <Search className="w-4 h-4 text-text-tertiary" aria-hidden />
+                      <h3 className="text-sm font-medium text-text-primary">
                         พบของที่อาจตรงกัน ({matches.length} รายการ)
                       </h3>
                     </div>
-                    <div className="space-y-3">
+                    <m.div
+                      className="space-y-2"
+                      variants={
+                        reduced
+                          ? undefined
+                          : {
+                              initial: {},
+                              animate: staggerContainer.animate,
+                            }
+                      }
+                      initial={reduced ? false : "initial"}
+                      animate="animate"
+                    >
                       {matches.slice(0, 3).map((match) => (
-                        <div
+                        <m.div
                           key={match.foundItem.id}
-                          className="bg-bg-card rounded-lg p-3 border border-border-light shadow-sm"
+                          variants={reduced ? undefined : staggerItem}
+                          className="bg-bg-card rounded-lg p-3 border border-border-light"
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
@@ -351,10 +390,10 @@ export default function ReportLostPage() {
                                   className={cn(
                                     "text-xs px-2 py-0.5 rounded-full",
                                     match.confidence === "high"
-                                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                                      ? "bg-status-success-light text-line-green"
                                       : match.confidence === "medium"
-                                        ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
-                                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
+                                        ? "bg-status-warning-light text-status-warning"
+                                        : "bg-bg-tertiary text-text-secondary"
                                   )}
                                 >
                                   ความน่าจะเป็น {match.scorePercentage ?? Math.round(match.score * 100)}%
@@ -362,42 +401,46 @@ export default function ReportLostPage() {
                               </div>
                             </div>
                             <button
+                              type="button"
                               onClick={() =>
                                 router.push(`/tracking?code=${match.foundItem.trackingCode}`)
                               }
-                              className="ml-3 px-3 py-1.5 bg-[#06C755] text-white text-xs rounded-lg hover:bg-[#05b34d] transition-colors flex-shrink-0"
+                              className="ml-3 min-h-11 px-3 border border-line-green text-line-green text-sm rounded-lg hover:bg-line-green-light transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                             >
                               ดู
                             </button>
                           </div>
-                        </div>
+                        </m.div>
                       ))}
-                    </div>
+                    </m.div>
                     <button
+                      type="button"
                       onClick={() => router.push(`/tracking?code=${trackingCode}`)}
-                      className="w-full mt-3 py-2 text-sm text-[#06C755] hover:text-[#05b34d] font-medium"
+                      className="w-full mt-3 py-2 text-sm text-line-green hover:text-line-green-hover font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                     >
                       ดูทั้งหมด →
                     </button>
                   </div>
-                </div>
+                </m.div>
               )}
 
               <div className="w-full space-y-3 mt-8">
                 <button
+                  type="button"
                   onClick={() => router.push("/tracking")}
-                  className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors shadow-sm"
+                  className="w-full min-h-11 py-2.5 bg-line-green text-white rounded-xl font-medium hover:bg-line-green-hover transition-[transform,colors] duration-150 active:scale-[0.98] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                 >
                   ติดตามสถานะ
                 </button>
                 <button
+                  type="button"
                   onClick={() => router.push("/home")}
-                  className="w-full py-3 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light"
+                  className="w-full min-h-11 py-2.5 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                 >
                   กลับหน้าหลัก
                 </button>
               </div>
-            </div>
+            </m.div>
           </div>
       </StudentAppShell>
     );
@@ -419,7 +462,7 @@ export default function ReportLostPage() {
             if (formStep < LOST_FORM_STEPS.length - 1) goNextStep();
             else void handleSubmit();
           }}
-          className="pb-4"
+          className="form-sticky-footer-padding md:pb-4"
         >
           <AnimatePresence mode="wait">
             <m.div
@@ -435,7 +478,7 @@ export default function ReportLostPage() {
             <>
             <div>
               <label htmlFor={fieldId("itemName")} className="block text-sm font-medium text-text-secondary mb-2">
-                ชื่อสิ่งของ <span className="text-red-500">*</span>
+                ชื่อสิ่งของ <span className="text-status-error">*</span>
               </label>
               <input
                 id={fieldId("itemName")}
@@ -455,8 +498,8 @@ export default function ReportLostPage() {
             </div>
 
             <div>
-              <label htmlFor={fieldId("category")} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                ประเภท <span className="text-red-500">*</span>
+              <label htmlFor={fieldId("category")} className="block text-sm font-medium text-text-secondary mb-2">
+                ประเภท <span className="text-status-error">*</span>
               </label>
               <div className="relative">
                 <select
@@ -469,7 +512,7 @@ export default function ReportLostPage() {
                   className={cn(
                     "input-line appearance-none pr-10",
                     inputStateClass(errors.category),
-                    !formData.category && "text-gray-400"
+                    !formData.category && "text-text-tertiary"
                   )}
                 >
                   <option value="">เลือกประเภท</option>
@@ -479,7 +522,7 @@ export default function ReportLostPage() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
               </div>
               <FieldValidationMessage
                 id={fieldErrorId("category")}
@@ -488,7 +531,7 @@ export default function ReportLostPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
                 รายละเอียดเพิ่มเติม
               </label>
               <textarea
@@ -507,7 +550,7 @@ export default function ReportLostPage() {
             <>
             <div>
               <label htmlFor={fieldId("locationLost")} className="block text-sm font-medium text-text-secondary mb-2">
-                สถานที่ทำหาย <span className="text-red-500">*</span>
+                สถานที่ทำหาย <span className="text-status-error">*</span>
               </label>
               <input
                 id={fieldId("locationLost")}
@@ -535,7 +578,7 @@ export default function ReportLostPage() {
                   <button
                     type="button"
                     onClick={handleUseCurrentLocation}
-                    className="text-xs text-line-green hover:text-line-green-hover flex items-center gap-1 shrink-0"
+                    className="inline-flex items-center gap-1 min-h-11 px-2 -mr-2 text-sm text-line-green hover:text-line-green-hover shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                   >
                     <MapPin className="w-3 h-3" />
                     ใช้ตำแหน่งปัจจุบัน
@@ -569,16 +612,16 @@ export default function ReportLostPage() {
             <div className="pt-1">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    ช่องทางติดต่อ <span className="text-red-500">*</span>
+                  <p className="text-sm font-medium text-text-primary">
+                    ช่องทางติดต่อ <span className="text-status-error">*</span>
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">อย่างน้อย 1 ช่องทาง</p>
+                  <p className="text-xs text-text-tertiary mt-0.5">อย่างน้อย 1 ช่องทาง</p>
                 </div>
                 {contacts.length < 3 && (
                   <button
                     type="button"
                     onClick={addContact}
-                    className="flex items-center gap-1 text-sm text-[#06C755] font-medium hover:underline"
+                    className="inline-flex items-center gap-1 min-h-11 px-2 -mr-2 text-sm text-line-green font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                   >
                     <Plus className="w-4 h-4" />
                     เพิ่ม
@@ -598,7 +641,7 @@ export default function ReportLostPage() {
               {contacts.map((contact, index) => (
                 <div
                   key={index}
-                  className="grid grid-cols-[minmax(7rem,auto)_1fr_auto] gap-2 items-center"
+                  className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(7rem,auto)_1fr_auto] sm:items-center"
                 >
                   <div className="relative min-w-0">
                     <select
@@ -628,7 +671,7 @@ export default function ReportLostPage() {
                   <button
                     type="button"
                     onClick={() => removeContact(index)}
-                    className="w-11 h-11 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition-colors shrink-0"
+                    className="w-full min-h-11 h-11 sm:w-11 flex items-center justify-center rounded-xl bg-status-error-light text-status-error hover:bg-status-error-light/80 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error/35"
                     aria-label="ลบช่องทางติดต่อ"
                   >
                     <X className="w-5 h-5" />

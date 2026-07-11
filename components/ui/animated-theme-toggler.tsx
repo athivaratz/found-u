@@ -5,6 +5,7 @@ import { Moon, Sun } from "lucide-react";
 import { flushSync } from "react-dom";
 import { useTheme } from "next-themes";
 import { useMounted } from "@/hooks/use-mounted";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 import { cn } from "@/lib/utils";
 
@@ -132,6 +133,7 @@ export function AnimatedThemeToggler({
   const shape = variant ?? "circle";
   const { resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
+  const reduceMotion = useReducedMotion();
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const isDark = mounted && resolvedTheme === "dark";
@@ -164,7 +166,7 @@ export function AnimatedThemeToggler({
       setTheme(nextTheme);
     };
 
-    if (typeof document.startViewTransition !== "function") {
+    if (typeof document.startViewTransition !== "function" || reduceMotion) {
       applyTheme();
       return;
     }
@@ -213,7 +215,7 @@ export function AnimatedThemeToggler({
         );
       });
     }
-  }, [shape, fromCenter, duration, isDark, mounted, setTheme]);
+  }, [shape, fromCenter, duration, isDark, mounted, reduceMotion, setTheme]);
 
   return (
     <button
@@ -221,7 +223,8 @@ export function AnimatedThemeToggler({
       type="button"
       onClick={toggleTheme}
       className={cn(
-        "inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-light bg-bg-card text-text-primary shadow-sm transition-colors hover:bg-bg-tertiary",
+        "inline-flex h-11 w-11 min-h-11 min-w-11 items-center justify-center rounded-full border border-border-light bg-bg-card text-text-primary shadow-sm transition-colors hover:bg-bg-tertiary",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30",
         className
       )}
       aria-label="สลับโหมดสว่าง/มืด"

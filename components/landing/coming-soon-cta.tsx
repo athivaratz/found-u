@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { focusRing } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
 type ComingSoonCtaProps = {
@@ -23,22 +24,32 @@ export function ComingSoonCta({
 }: ComingSoonCtaProps) {
   if (comingSoon) {
     return (
-      <span
+      <button
+        type="button"
+        disabled
+        aria-label={message}
         className={cn(
-          "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-full bg-bg-tertiary px-5 py-2 text-sm font-medium text-text-tertiary",
-          className
+          "inline-flex max-w-full items-center justify-center gap-2 rounded-full",
+          className,
+          "cursor-not-allowed bg-bg-tertiary text-sm font-medium text-text-primary hover:bg-bg-tertiary"
         )}
-        aria-disabled
       >
-        {message}
-      </span>
+        <span className="line-clamp-2 text-center">{message}</span>
+      </button>
     );
   }
 
   return (
-    <Link href={href} className={cn("inline-flex items-center justify-center gap-2", className)}>
+    <Link
+      href={href}
+      className={cn(
+        "inline-flex items-center justify-center gap-2",
+        focusRing,
+        className
+      )}
+    >
       {label}
-      {showArrow ? <ArrowRight className="h-5 w-5" /> : null}
+      {showArrow ? <ArrowRight className="h-5 w-5 shrink-0" aria-hidden /> : null}
     </Link>
   );
 }
