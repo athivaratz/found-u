@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Package, ChevronRight, Moon, Sun, LogIn, LogOut, User, Settings } from "lucide-react";
 import BottomNav from "@/components/layout/bottom-nav";
 import Sidebar from "@/components/layout/sidebar";
+import { ModeSwitcher } from "@/components/agent/mode-switcher";
 import { useAuth } from "@/contexts/auth-context";
 import { getUserPublicEmail, getUserShownName } from "@/lib/user-display";
 import { UserAvatar } from "@/components/user/user-avatar";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { menuItems } from "@/lib/menu";
 import { DashboardListSkeleton } from "@/components/layout/app-shell-skeleton";
+import { shellSidebarInset } from "@/components/layout/shell-layout";
 
 const HomeDashboardSection = dynamic(
   () =>
@@ -55,7 +57,7 @@ function HomeQuickMenu({ className }: { className?: string }) {
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href}>
-              <div className="bg-bg-card rounded-2xl p-4 shadow-card border border-border-light hover:shadow-md hover:border-border-medium transition-all duration-200 active:scale-[0.98]">
+              <div className="bg-bg-card rounded-xl p-4 border border-border-light hover:border-border-medium transition-colors duration-200 active:scale-[0.99]">
                 <div className="flex items-center gap-4">
                   <div
                     className={cn(
@@ -122,123 +124,128 @@ export default function Home() {
     <div className="min-h-screen bg-bg-primary transition-colors md:flex">
       <Sidebar />
 
-      <div className="flex min-h-screen flex-1 flex-col md:ml-72">
-        {/* Mobile header */}
-        <header className="px-5 pt-6 pb-6 bg-gradient-to-br from-line-green to-line-green md:hidden">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                <Package className="w-6 h-6 text-white" />
+      <div className={cn("flex min-h-screen flex-1 flex-col main-with-bottom-nav", shellSidebarInset)}>
+        {/* Mobile header — switcher lives inside the green band (no separate bar above) */}
+        <header className="md:hidden bg-line-green text-white safe-top">
+          <div className="px-5 pt-4 pb-5 flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                  <Package className="w-6 h-6 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-white/85 text-sm">{greeting} 👋</p>
+                  <h1 className="text-white text-xl font-semibold min-h-[1.75rem] truncate text-balance">
+                    {authLoading && !user ? (
+                      <span
+                        className="inline-block h-5 w-28 rounded bg-white/20 animate-pulse align-middle"
+                        aria-hidden
+                      />
+                    ) : user ? (
+                      welcomeName
+                    ) : (
+                      "Found-U"
+                    )}
+                  </h1>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-white/80 text-sm">{greeting} 👋</p>
-                <h1 className="text-white text-xl font-semibold min-h-[1.75rem]">
-                  {authLoading && !user ? (
-                    <span
-                      className="inline-block h-5 w-28 rounded bg-white/20 animate-pulse align-middle"
-                      aria-hidden
-                    />
-                  ) : user ? (
-                    welcomeName
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
+                  className="flex items-center justify-center min-w-11 min-h-11 rounded-full bg-white/20 hover:bg-white/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                  aria-label="สลับโหมดสว่าง/มืด"
+                >
+                  {themeMounted ? (
+                    isDarkTheme ? (
+                      <Sun className="w-5 h-5 text-white" />
+                    ) : (
+                      <Moon className="w-5 h-5 text-white" />
+                    )
                   ) : (
-                    "Found-U"
+                    <span className="block w-5 h-5" aria-hidden />
                   )}
-                </h1>
-              </div>
-            </div>
+                </button>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
-                className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-                aria-label="สลับโหมดสว่าง/มืด"
-              >
-                {themeMounted ? (
-                  isDarkTheme ? (
-                    <Sun className="w-5 h-5 text-white" />
-                  ) : (
-                    <Moon className="w-5 h-5 text-white" />
-                  )
-                ) : (
-                  <span className="block w-5 h-5" aria-hidden />
-                )}
-              </button>
+                {authLoading && !user ? (
+                  <div className="w-11 h-11 rounded-full bg-white/20 animate-pulse shrink-0" aria-hidden />
+                ) : user ? (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowUserMenu(!showUserMenu)}
+                      className="flex items-center justify-center w-11 h-11 rounded-full overflow-hidden border-2 border-white/30 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                      aria-label="เมนูผู้ใช้"
+                      aria-expanded={showUserMenu}
+                    >
+                      <UserAvatar
+                        user={user}
+                        appUser={appUser}
+                        size={40}
+                        className="w-full h-full rounded-full object-cover"
+                        iconClassName="w-5 h-5 text-white"
+                        fallbackClassName="w-full h-full bg-white/20 text-white"
+                      />
+                    </button>
 
-              {authLoading && !user ? (
-                <div className="w-10 h-10 rounded-full bg-white/20 animate-pulse shrink-0" aria-hidden />
-              ) : user ? (
-                <div className="relative">
-                  <button
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/30 shrink-0"
-                  >
-                    <UserAvatar
-                      user={user}
-                      appUser={appUser}
-                      size={40}
-                      className="w-full h-full rounded-full object-cover"
-                      iconClassName="w-5 h-5 text-white"
-                      fallbackClassName="w-full h-full bg-white/20 text-white"
-                    />
-                  </button>
-
-                  {showUserMenu && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-                      <div className="absolute right-0 mt-2 w-56 bg-bg-card rounded-xl shadow-card z-50 overflow-hidden animate-fade-in">
-                        <div className="p-4 border-b border-border-light">
-                          <p className="font-medium text-text-primary truncate">
-                            {getUserShownName(appUser, user)}
-                          </p>
-                          {getUserPublicEmail(appUser, user) ? (
-                            <p className="text-sm text-text-secondary truncate">
-                              {getUserPublicEmail(appUser, user)}
+                    {showUserMenu && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                        <div className="absolute right-0 mt-2 w-56 bg-bg-card rounded-xl shadow-card z-50 overflow-hidden animate-fade-in">
+                          <div className="p-4 border-b border-border-light">
+                            <p className="font-medium text-text-primary truncate">
+                              {getUserShownName(appUser, user)}
                             </p>
-                          ) : (
-                            <p className="text-xs text-text-tertiary">ยังไม่มีอีเมล</p>
-                          )}
-                        </div>
-                        <Link
-                          href="/settings"
-                          className="flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-bg-secondary"
-                          onClick={() => setShowUserMenu(false)}
-                        >
-                          <Settings className="w-4 h-4" />
-                          <span>ตั้งค่า</span>
-                        </Link>
-                        {isAdmin && (
+                          </div>
                           <Link
-                            href="/admin"
+                            href="/settings"
                             className="flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-bg-secondary"
                             onClick={() => setShowUserMenu(false)}
                           >
-                            <User className="w-4 h-4" />
-                            <span>Admin Panel</span>
+                            <Settings className="w-4 h-4" />
+                            <span>ตั้งค่า</span>
                           </Link>
-                        )}
-                        <button
-                          onClick={handleLogout}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-status-error hover:bg-bg-secondary"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          <span>ออกจากระบบ</span>
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={handleSignIn}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm font-medium transition-colors"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span className="hidden sm:inline">เข้าสู่ระบบ</span>
-                </button>
-              )}
+                          {isAdmin && (
+                            <Link
+                              href="/admin"
+                              className="flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-bg-secondary"
+                              onClick={() => setShowUserMenu(false)}
+                            >
+                              <User className="w-4 h-4" />
+                              <span>Admin Panel</span>
+                            </Link>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-status-error hover:bg-bg-secondary"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>ออกจากระบบ</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSignIn}
+                    className="flex items-center justify-center gap-2 min-h-11 px-4 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span className="hidden sm:inline">เข้าสู่ระบบ</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-3">
+              <ModeSwitcher variant="compact" tone="on-accent" />
+              <p className="text-white/90 text-sm">ยินดีต้อนรับ!</p>
             </div>
           </div>
-          <p className="text-white/90 text-sm">ยินดีต้อนรับ!</p>
         </header>
 
         {/* Desktop header */}
@@ -261,7 +268,7 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="flex-1 bg-bg-secondary px-5 pb-24 -mt-4 md:mt-0 md:px-8 md:pb-8 xl:px-12 xl:pb-12">
+        <main className="flex-1 bg-bg-secondary px-5 pt-5 pb-6 rounded-t-2xl -mt-2 md:mt-0 md:rounded-none md:px-8 md:pb-8 xl:px-12 xl:pb-12">
           <HomeQuickMenu className="md:hidden" />
 
           <HomeDashboardSection

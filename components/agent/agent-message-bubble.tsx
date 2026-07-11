@@ -151,7 +151,7 @@ export function AgentMessageBubble({
   if (isUser) {
     return (
       <div className="flex justify-end mb-4">
-        <div className="max-w-[85%] md:max-w-[70%] px-4 py-2.5 rounded-2xl rounded-br-md bg-line-green-light text-text-primary text-[15px] leading-relaxed">
+        <div className="max-w-[85%] md:max-w-[70%] px-4 py-2.5 rounded-2xl rounded-br-md bg-line-green-light text-text-primary text-base leading-relaxed">
           {text}
         </div>
       </div>
@@ -199,7 +199,7 @@ export function AgentMessageBubble({
 
         {text ? (
           <div className="relative">
-            <p className="text-[15px] leading-relaxed text-text-primary whitespace-pre-wrap">
+            <p className="text-base leading-relaxed text-text-primary whitespace-pre-wrap">
               {text}
               {isStreaming ? <span className="agent-stream-cursor" aria-hidden /> : null}
             </p>
@@ -207,7 +207,7 @@ export function AgentMessageBubble({
               <button
                 type="button"
                 onClick={handleCopy}
-                className="absolute -top-1 right-0 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-bg-tertiary text-text-tertiary transition-opacity"
+                className="absolute -top-1 right-0 p-2 rounded-lg hover:bg-bg-tertiary text-text-tertiary transition-opacity opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
                 aria-label="คัดลอก"
               >
                 {copied ? (

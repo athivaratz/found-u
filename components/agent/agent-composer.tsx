@@ -55,14 +55,14 @@ export function AgentComposer({
           placeholder={thaiCopy.agent.placeholder}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] text-text-primary placeholder:text-text-tertiary outline-none max-h-[120px]"
+          className="flex-1 resize-none bg-transparent px-3 py-2.5 text-base text-text-primary placeholder:text-text-tertiary outline-none max-h-[120px]"
         />
         {onVoiceClick ? (
           <button
             type="button"
             onClick={onVoiceClick}
             disabled={disabled}
-            className="p-2.5 rounded-full text-text-secondary hover:text-line-green hover:bg-line-green-light transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
+            className="flex items-center justify-center min-w-11 min-h-11 rounded-full text-text-secondary hover:text-line-green hover:bg-line-green-light transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label="โหมดเสียง"
           >
             <Mic className="w-5 h-5" />
@@ -72,7 +72,7 @@ export function AgentComposer({
           type="button"
           onClick={onSubmit}
           disabled={disabled || !value.trim()}
-          className="p-2.5 rounded-full bg-line-green text-white hover:bg-line-green-hover transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/40 focus-visible:ring-offset-2"
+          className="flex items-center justify-center min-w-11 min-h-11 rounded-full bg-line-green text-white hover:bg-line-green-hover transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/40 focus-visible:ring-offset-2"
           aria-label="ส่งข้อความ"
         >
           <Send className="w-5 h-5" />

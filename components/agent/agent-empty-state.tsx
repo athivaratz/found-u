@@ -38,7 +38,7 @@ export function AgentEmptyState({ onSelectPrompt, className }: AgentEmptyStatePr
               key={prompt}
               type="button"
               onClick={() => onSelectPrompt(prompt)}
-              className="w-full text-left px-4 py-3 rounded-xl bg-bg-card border border-border-light hover:border-line-green/50 hover:bg-line-green-light/40 text-sm text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
+              className="w-full text-left px-4 py-3 rounded-xl bg-bg-card border border-border-light hover:border-line-green/50 hover:bg-line-green-light/40 text-sm text-text-primary transition-colors active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             >
               {prompt}
             </button>

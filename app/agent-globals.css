@@ -74,14 +74,14 @@
   height: 8px;
   border-radius: 9999px;
   background: var(--text-tertiary);
-  animation: agent-typing-bounce 1.2s ease-in-out infinite;
+  animation: agent-typing-pulse 1.2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
 }
 
 .dark .agent-typing-dot {
   background: rgba(255, 255, 255, 0.45);
 }
 
-@keyframes agent-typing-bounce {
+@keyframes agent-typing-pulse {
   0%,
   60%,
   100% {
@@ -89,7 +89,7 @@
     opacity: 0.45;
   }
   30% {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
     opacity: 1;
   }
 }

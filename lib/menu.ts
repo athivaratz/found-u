@@ -1,4 +1,4 @@
-import { Search, Camera, Clock, Package, Radio, Sparkles } from "lucide-react";
+import { Search, Camera, Clock, Package, Radio } from "lucide-react";
 
 export const menuItems = [
   {
@@ -8,14 +8,6 @@ export const menuItems = [
     subtitle: "Home",
     color: "bg-bg-secondary",
     iconColor: "text-text-secondary",
-  },
-  {
-    href: "/assistant",
-    icon: Sparkles,
-    title: "ผู้ช่วย AI",
-    subtitle: "AI Assistant",
-    color: "bg-line-green-light",
-    iconColor: "text-line-green",
   },
   {
     href: "/lost",

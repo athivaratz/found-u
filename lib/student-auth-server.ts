@@ -998,11 +998,15 @@ export async function createStudentAccountManual(input: {
   studentId: string;
   password?: string;
   firstName: string;
+  lastName: string;
+  gradeLevel?: string;
+  roomNumber?: string;
   role: "user" | "admin";
   adminUid: string;
 }): Promise<{ studentId: string; uid: string }> {
   const id = normalizeStudentId(input.studentId);
   const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
 
   if (!isValidStudentId(id)) {
     throw new Error("เลขประจำตัวต้องเป็นตัวเลข 5 หลัก");
@@ -1012,6 +1016,9 @@ export async function createStudentAccountManual(input: {
   }
   if (!firstName) {
     throw new Error("กรุณากรอกชื่อ");
+  }
+  if (!lastName) {
+    throw new Error("กรุณากรอกนามสกุล");
   }
 
   const admin = createAdminClient();
@@ -1025,9 +1032,10 @@ export async function createStudentAccountManual(input: {
     throw new Error(`เลขประจำตัว ${id} มีในระบบแล้ว`);
   }
 
-  const lastName = "-";
   const nickname = firstName;
-  const displayName = firstName;
+  const displayName = `${firstName} ${lastName}`.trim();
+  const gradeLevel = input.gradeLevel?.trim() || null;
+  const roomNumber = input.roomNumber?.trim() || null;
   const importBatchId = `manual_${Date.now()}`;
   const now = new Date().toISOString();
 
@@ -1042,6 +1050,8 @@ export async function createStudentAccountManual(input: {
       first_name: firstName,
       last_name: lastName,
       nickname,
+      grade_level: gradeLevel,
+      room_number: roomNumber,
       must_change_password: false,
       has_logged_in_once: false,
       is_registered: false,
@@ -1071,6 +1081,8 @@ export async function createStudentAccountManual(input: {
     first_name: firstName,
     last_name: lastName,
     nickname,
+    grade_level: gradeLevel,
+    room_number: roomNumber,
     school_password_hash: schoolHash,
     current_password_hash: schoolHash,
     must_change_password: false,

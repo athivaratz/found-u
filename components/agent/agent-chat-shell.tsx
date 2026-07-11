@@ -43,7 +43,11 @@ function AgentChatInner() {
 
   if ((authLoading && !user) || !mounted) {
     return (
-      <div className="h-full flex-1 flex items-center justify-center agent-surface-bg min-h-0">
+      <div
+        className="h-full flex-1 flex items-center justify-center agent-surface-bg min-h-0"
+        role="status"
+        aria-label="กำลังโหลด"
+      >
         <div className="w-8 h-8 rounded-full border-2 border-line-green border-t-transparent animate-spin" />
       </div>
     );
@@ -54,10 +58,12 @@ function AgentChatInner() {
       <div className="h-full flex-1 flex flex-col agent-surface-bg min-h-0">
         <AgentTopBar />
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <p className="text-text-secondary mb-4">{thaiCopy.agent.loginRequired}</p>
+          <p className="text-sm text-text-secondary mb-5 max-w-sm leading-relaxed">
+            {thaiCopy.agent.loginRequired}
+          </p>
           <Link
             href={AUTH_ROUTES.hub}
-            className="px-6 py-2.5 rounded-xl bg-line-green text-white font-medium"
+            className="px-8 py-3 rounded-full bg-line-green text-white font-medium hover:bg-line-green-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/40 focus-visible:ring-offset-2"
           >
             เข้าสู่ระบบ
           </Link>
@@ -69,7 +75,11 @@ function AgentChatInner() {
 
   if (chatLoading) {
     return (
-      <div className="h-full flex-1 flex items-center justify-center agent-surface-bg min-h-0">
+      <div
+        className="h-full flex-1 flex items-center justify-center agent-surface-bg min-h-0"
+        role="status"
+        aria-label="กำลังโหลดแชท"
+      >
         <div className="w-8 h-8 rounded-full border-2 border-line-green border-t-transparent animate-spin" />
       </div>
     );
@@ -81,17 +91,17 @@ function AgentChatInner() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-1 w-full min-w-0">
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-1 w-full min-w-0",
+        "assistant-desktop:rounded-2xl assistant-desktop:border assistant-desktop:border-border-light",
+        "assistant-desktop:overflow-hidden assistant-desktop:bg-bg-primary assistant-desktop:shadow-card"
+      )}
+    >
       <ChatSidebar variant="inline" />
       <ChatSidebar variant="drawer" />
 
-      <div
-        className={cn(
-          "flex flex-col min-h-0 flex-1 agent-surface-bg agent-chat-pane",
-          "assistant-desktop:rounded-2xl assistant-desktop:border assistant-desktop:border-border-light",
-          "assistant-desktop:overflow-hidden assistant-desktop:h-full"
-        )}
-      >
+      <div className="flex flex-col min-h-0 flex-1 agent-surface-bg agent-chat-pane assistant-desktop:bg-bg-primary">
         <AgentTopBar
           status={status}
           onNewChat={() => void createSession()}
@@ -99,13 +109,19 @@ function AgentChatInner() {
         />
 
         {droppedCount > 0 ? (
-          <div className="mx-4 mt-2 px-3 py-2 text-xs text-text-secondary bg-bg-tertiary/80 rounded-xl border border-border-light/60 shrink-0">
+          <div
+            className="mx-4 mt-2 feedback-panel feedback-panel--info text-xs text-text-secondary shrink-0"
+            role="status"
+          >
             แชทยาว — จำเฉพาะข้อความล่าสุด ({droppedCount} ข้อความเก่าไม่ส่งให้ผู้ช่วย)
           </div>
         ) : null}
 
         {storageWarning ? (
-          <div className="mx-4 mt-2 px-3 py-2 text-xs text-amber-800 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200/60 shrink-0">
+          <div
+            className="mx-4 mt-2 feedback-panel feedback-panel--warning text-xs text-text-primary shrink-0"
+            role="status"
+          >
             {storageWarning}
           </div>
         ) : null}

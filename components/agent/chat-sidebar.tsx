@@ -55,7 +55,7 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="p-1.5 rounded-lg hover:bg-bg-tertiary text-text-secondary"
+            className="p-1.5 rounded-lg hover:bg-bg-tertiary text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label="ปิด"
           >
             <X className="w-4 h-4" />
@@ -71,7 +71,7 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="ค้นหาแชท..."
-            className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-bg-tertiary border border-border-light/60 focus:outline-none focus:ring-1 focus:ring-line-green/40"
+            className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-bg-tertiary border border-border-light/60 focus:outline-none focus:ring-2 focus:ring-line-green/40"
           />
         </div>
       </div>
@@ -105,11 +105,11 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
                         </span>
                       </div>
                       {session.preview ? (
-                        <p className="text-[10px] text-text-tertiary truncate mt-0.5">
+                        <p className="text-xs text-text-tertiary truncate mt-0.5">
                           {session.preview}
                         </p>
                       ) : null}
-                      <p className="text-[10px] text-text-tertiary mt-1">
+                      <p className="text-xs text-text-tertiary mt-1">
                         {formatSessionTime(session.updatedAt)}
                         {session.messageCount > 0 ? ` · ${session.messageCount} ข้อความ` : ""}
                       </p>
@@ -118,7 +118,7 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
                       <button
                         type="button"
                         onClick={() => void pinSession(session.id, !session.pinned)}
-                        className="p-1.5 rounded-lg hover:bg-bg-secondary text-text-tertiary"
+                        className="p-1.5 rounded-lg hover:bg-bg-secondary text-text-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
                         aria-label={session.pinned ? "เลิกปักหมุด" : "ปักหมุด"}
                       >
                         {session.pinned ? (
@@ -146,7 +146,7 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
         <button
           type="button"
           onClick={() => void clearAgentMemory()}
-          className="w-full flex items-center justify-center gap-2 text-xs text-text-secondary hover:text-status-error py-2 rounded-xl hover:bg-status-error-light/50 transition-colors"
+          className="w-full flex items-center justify-center gap-2 text-xs text-text-secondary hover:text-status-error py-2.5 rounded-xl hover:bg-status-error-light/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error/30"
         >
           <Trash2 className="w-3.5 h-3.5" />
           ลบความจำ Agent
@@ -159,8 +159,8 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
     return (
       <aside
         className={cn(
-          "hidden assistant-desktop:flex w-[260px] shrink-0 border-r border-border-light/60",
-          "bg-bg-primary/80 flex-col min-h-0 h-full rounded-l-2xl overflow-hidden",
+          "hidden assistant-desktop:flex w-[260px] shrink-0 flex-col min-h-0 h-full",
+          "border-r border-border-light bg-bg-primary",
           className
         )}
       >
@@ -181,7 +181,7 @@ export function ChatSidebar({ className, variant = "drawer" }: ChatSidebarProps)
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-[min(100vw-3rem,280px)] bg-bg-primary shadow-xl",
-          "flex flex-col assistant-desktop:hidden animate-in slide-in-from-left duration-200"
+          "flex flex-col assistant-desktop:hidden animate-in slide-in-from-left duration-200 motion-reduce:animate-none"
         )}
       >
         {content}

@@ -9,10 +9,18 @@ import {
 } from "@/lib/student-auth-server";
 import { parseJsonBody } from "@/lib/parse-request";
 
+const GRADE_LEVELS = ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6"] as const;
+
 const createStudentBodySchema = z.object({
   studentId: z.string().min(1, "กรุณากรอกเลขประจำตัว"),
   password: z.string().optional(),
   firstName: z.string().min(1, "กรุณากรอกชื่อ"),
+  lastName: z.string().min(1, "กรุณากรอกนามสกุล"),
+  gradeLevel: z.enum(GRADE_LEVELS).optional(),
+  roomNumber: z
+    .string()
+    .refine((v) => !v || /^\d{1,2}$/.test(v), "ห้องต้องเป็นตัวเลข 1-2 หลัก")
+    .optional(),
   role: z.enum(["user", "admin"]).default("user"),
 });
 
@@ -28,7 +36,7 @@ export async function POST(request: NextRequest) {
   try {
     const parsed = await parseJsonBody(request, createStudentBodySchema);
     if (!parsed.success) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const { studentId, password, firstName, role } = parsed.data;
+    const { studentId, password, firstName, lastName, gradeLevel, roomNumber, role } = parsed.data;
 
     const id = normalizeStudentId(studentId);
     if (!isValidStudentId(id)) {
@@ -45,6 +53,9 @@ export async function POST(request: NextRequest) {
       studentId: id,
       password: password || undefined,
       firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      gradeLevel: gradeLevel || undefined,
+      roomNumber: roomNumber?.trim() || undefined,
       role,
       adminUid: authUser.uid,
     });

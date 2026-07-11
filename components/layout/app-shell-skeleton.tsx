@@ -1,6 +1,11 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import {
+  shellDesktopPadding,
+  shellSidebarInset,
+  shellSidebarWidth,
+} from "@/components/layout/shell-layout";
 
 function SkeletonBar({
   className,
@@ -20,7 +25,12 @@ function SkeletonBar({
 
 function SidebarSkeleton() {
   return (
-    <aside className="w-72 bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen hidden md:flex flex-col z-50">
+    <aside
+      className={cn(
+        shellSidebarWidth,
+        "bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen hidden md:flex flex-col z-50"
+      )}
+    >
       <div className="p-6 border-b border-border-light">
         <div className="flex items-center gap-3 mb-6">
           <SkeletonBar className="h-12 w-12 rounded-lg shrink-0" />
@@ -118,7 +128,7 @@ export function AppShellSkeleton({
 
       <div className="hidden md:flex min-h-screen bg-bg-primary">
         {showSidebar && <SidebarSkeleton />}
-        <main className="flex-1 ml-72 bg-bg-secondary px-0 pb-6 pt-0 md:px-8 md:pb-8 xl:px-12 xl:pb-12">
+        <main className={cn("flex-1 bg-bg-secondary", shellSidebarInset, shellDesktopPadding)}>
           {showDesktopHeader && <DesktopHeaderSkeleton />}
           {showDashboard && (
             <div className="mt-8">

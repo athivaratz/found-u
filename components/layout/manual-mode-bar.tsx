@@ -1,0 +1,24 @@
+"use client";
+
+import { ModeSwitcher } from "@/components/agent/mode-switcher";
+import { cn } from "@/lib/utils";
+
+type ManualModeBarProps = {
+  className?: string;
+};
+
+/** Mobile-only mode switcher — desktop uses Sidebar compact switcher. */
+export function ManualModeBar({ className }: ManualModeBarProps) {
+  return (
+    <div
+      className={cn(
+        "sticky top-0 z-40 px-4 py-2.5 md:hidden",
+        "bg-bg-secondary/95 backdrop-blur-md border-b border-border-light/60",
+        "flex justify-center",
+        className
+      )}
+    >
+      <ModeSwitcher variant="compact" />
+    </div>
+  );
+}

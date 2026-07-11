@@ -30,30 +30,29 @@ export default function Header({
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 flex items-center justify-between px-4 py-4 bg-bg-primary border-b border-border-light transition-colors",
+        "sticky top-0 z-30 flex items-center gap-3 px-4 py-3",
+        "bg-bg-primary/95 backdrop-blur-sm border-b border-border-light transition-colors",
         className
       )}
     >
-      {/* Left: Back button or spacer */}
-      <div className="w-10">
-        {showBack && (
+      <div className="w-11 shrink-0 flex items-center justify-start">
+        {showBack ? (
           <button
+            type="button"
             onClick={handleBack}
-            className="p-2 -ml-2 rounded-full hover:bg-bg-secondary transition-colors"
+            className="flex items-center justify-center min-w-11 min-h-11 -ml-2 rounded-full hover:bg-bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label="กลับ"
           >
             <ArrowLeft className="w-5 h-5 text-text-primary" />
           </button>
-        )}
+        ) : null}
       </div>
 
-      {/* Center: Title */}
-      <h1 className="flex-1 text-center text-lg font-semibold text-text-primary truncate">
+      <h1 className="flex-1 text-center text-lg font-semibold text-text-primary truncate text-balance">
         {title}
       </h1>
 
-      {/* Right: Action or spacer */}
-      <div className="w-10 flex justify-end">{rightAction}</div>
+      <div className="w-11 shrink-0 flex items-center justify-end">{rightAction}</div>
     </header>
   );
 }

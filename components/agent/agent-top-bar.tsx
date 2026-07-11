@@ -26,7 +26,7 @@ export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: Age
     <header
       className={cn(
         "sticky top-0 z-20 flex items-center justify-between gap-3 px-4 py-3 shrink-0",
-        "bg-bg-primary border-b border-border-light",
+        "bg-bg-primary/95 backdrop-blur-sm border-b border-border-light",
         className
       )}
     >
@@ -50,14 +50,13 @@ export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: Age
         </div>
       </div>
 
-      <ModeSwitcher variant="compact" className="shrink-0 assistant-desktop:hidden" />
-
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
+        <ModeSwitcher variant="compact" className="shrink-0" />
         {onOpenHistory ? (
           <button
             type="button"
             onClick={onOpenHistory}
-            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors assistant-desktop:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
+            className="flex items-center justify-center min-w-11 min-h-11 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors assistant-desktop:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label="ประวัติแชท"
           >
             <History className="w-5 h-5" />
@@ -67,14 +66,12 @@ export function AgentTopBar({ status, onNewChat, onOpenHistory, className }: Age
           <button
             type="button"
             onClick={onNewChat}
-            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
+            className="flex items-center justify-center min-w-11 min-h-11 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
             aria-label={thaiCopy.agent.newChat}
           >
             <RotateCcw className="w-5 h-5" />
           </button>
-        ) : (
-          <div className="w-9 shrink-0 assistant-desktop:hidden" />
-        )}
+        ) : null}
       </div>
     </header>
   );

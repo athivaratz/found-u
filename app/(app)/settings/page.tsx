@@ -332,18 +332,6 @@ export default function SettingsPage() {
           <p className="font-medium text-text-primary truncate">
             {getUserShownName(appUser, user)}
           </p>
-          {publicEmail ? (
-            <p className="text-sm text-text-secondary truncate">{publicEmail}</p>
-          ) : (
-            <p className="text-xs text-text-tertiary mt-0.5">
-              ยังไม่มีอีเมลในบัญชี
-            </p>
-          )}
-          {!hasProfilePhoto && (
-            <p className="text-xs text-text-tertiary mt-1">
-              คุณสามารถเพิ่มรูปโปรไฟล์ได้จากบัญชีผู้ใช้
-            </p>
-          )}
         </div>
       </div>
 

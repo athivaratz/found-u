@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { m, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { UIMessage } from "ai";
 import { AgentMessageBubble } from "@/components/agent/agent-message-bubble";
 import { AgentTypingIndicator } from "@/components/agent/agent-typing-indicator";
@@ -30,12 +30,15 @@ function shouldShowTyping(messages: UIMessage[], status: string): boolean {
 
 export function AgentMessageList({ messages, status }: AgentMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
   const isStreaming = status === "streaming" || status === "submitted";
   const showTyping = shouldShowTyping(messages, status);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, status, showTyping]);
+    bottomRef.current?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }, [messages, status, showTyping, reduceMotion]);
 
   return (
     <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 md:px-6">
@@ -43,9 +46,9 @@ export function AgentMessageList({ messages, status }: AgentMessageListProps) {
         {messages.map((message, index) => (
           <m.div
             key={`${message.id}-${index}`}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.25, 1, 0.5, 1] }}
           >
             <AgentMessageBubble
               message={message}
@@ -64,10 +67,10 @@ export function AgentMessageList({ messages, status }: AgentMessageListProps) {
         {showTyping ? (
           <m.div
             key="typing"
-            initial={{ opacity: 0, y: 6 }}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 4 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
+            transition={{ duration: reduceMotion ? 0 : 0.15, ease: [0.25, 1, 0.5, 1] }}
           >
             <AgentTypingIndicator />
           </m.div>
