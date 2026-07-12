@@ -59,7 +59,7 @@ export default async function SetupPage() {
           </main>
         }
       >
-        <SetupPageClient initialState={EMPTY_WIZARD_STATE} />
+        <SetupPageClient initialState={{ ...EMPTY_WIZARD_STATE, envMissing: true }} />
       </Suspense>
     );
   }

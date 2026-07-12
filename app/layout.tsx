@@ -1,13 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Kanit } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/auth-context";
-import { AppModeProvider } from "@/contexts/app-mode-context";
-import { DataProvider } from "@/contexts/DataContext";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import AuthGuard from "@/components/auth/auth-guard";
-import { BfcacheRestoreHandler } from "@/components/bfcache-restore-handler";
+import { SetupAwareProviders } from "@/components/providers/setup-aware-providers";
 import { buildSiteMetadata } from "@/lib/seo-metadata";
 
 // โหลดฟอนต์ Kanit สำหรับภาษาไทย
@@ -55,25 +51,7 @@ export default function RootLayout({
             enableSystem
             storageKey="theme"
           >
-            <AuthProvider>
-              <AppModeProvider>
-                <BfcacheRestoreHandler />
-                <DataProvider>
-                  <AuthGuard>
-                    {/* 
-                      Responsive layout wrapper
-                      - Mobile: max-w-md centered
-                      - Desktop: Full width for better experience
-                    */}
-                    <div className="min-h-screen bg-bg-secondary transition-colors">
-                      <div className="w-full min-h-screen bg-bg-primary transition-colors">
-                        {children}
-                      </div>
-                    </div>
-                  </AuthGuard>
-                </DataProvider>
-              </AppModeProvider>
-            </AuthProvider>
+            <SetupAwareProviders>{children}</SetupAwareProviders>
           </ThemeProvider>
         </ErrorBoundary>
       </body>

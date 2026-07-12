@@ -34,6 +34,7 @@ export type SetupWizardInitialState = {
   branding: BrandingDraft;
   ai: AiDraft;
   databaseReady?: boolean;
+  envMissing?: boolean;
 };
 
 type SetupWizardProps = SetupWizardInitialState;
@@ -45,9 +46,12 @@ export function SetupWizard({
   branding,
   ai,
   databaseReady = false,
+  envMissing = false,
 }: SetupWizardProps) {
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>(databaseReady ? "wizard" : "init");
+  const [phase, setPhase] = useState<Phase>(
+    envMissing ? "init" : databaseReady ? "wizard" : "init"
+  );
   const [step, setStep] = useState(initialStep);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
@@ -169,6 +173,7 @@ export function SetupWizard({
   if (phase === "init") {
     return (
       <SetupInitializing
+        initialReason={envMissing ? "missing_env" : undefined}
         onReady={() => setPhase("wizard")}
         onCompleted={() => router.replace("/")}
       />

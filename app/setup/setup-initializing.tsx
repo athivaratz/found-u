@@ -13,18 +13,29 @@ type SetupStatusResponse = {
 type SetupInitializingProps = {
   onReady: () => void;
   onCompleted: () => void;
+  /** Skip polling and show a fixed reason (e.g. missing env from server) */
+  initialReason?: "missing_env";
 };
 
 const MAX_POLLS = 45;
 
-export function SetupInitializing({ onReady, onCompleted }: SetupInitializingProps) {
+export function SetupInitializing({
+  onReady,
+  onCompleted,
+  initialReason,
+}: SetupInitializingProps) {
   const searchParams = useSearchParams();
-  const reason = searchParams.get("reason");
-  const [status, setStatus] = useState<SetupStatusResponse | null>(null);
+  const reason = initialReason ?? searchParams.get("reason");
+  const [status, setStatus] = useState<SetupStatusResponse | null>(
+    initialReason === "missing_env"
+      ? { databaseReady: false, setupCompleted: false, reason: "missing_env" }
+      : null
+  );
   const [pollCount, setPollCount] = useState(0);
-  const [stopped, setStopped] = useState(false);
+  const [stopped, setStopped] = useState(initialReason === "missing_env");
 
   useEffect(() => {
+    if (initialReason === "missing_env") return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let polls = 0;
@@ -73,7 +84,7 @@ export function SetupInitializing({ onReady, onCompleted }: SetupInitializingPro
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [onCompleted, onReady]);
+  }, [initialReason, onCompleted, onReady]);
 
   const reasonMessage =
     reason === "missing_env" || status?.reason === "missing_env"
@@ -90,7 +101,11 @@ export function SetupInitializing({ onReady, onCompleted }: SetupInitializingPro
         ) : null}
         <div className="space-y-2">
           <p className="text-sm font-medium text-primary">Found-U Setup</p>
-          <h1 className="text-xl font-bold">กำลังเตรียมฐานข้อมูล</h1>
+          <h1 className="text-xl font-bold">
+            {stopped && (reason === "missing_env" || status?.reason === "missing_env")
+              ? "ยังไม่ได้ตั้งค่า Environment"
+              : "กำลังเตรียมฐานข้อมูล"}
+          </h1>
           <p className="text-sm text-text-secondary">
             {reasonMessage ?? "กำลังเตรียมระบบและตรวจสอบฐานข้อมูล..."}
           </p>

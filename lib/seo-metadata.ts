@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasSupabaseAdminEnv } from "@/lib/setup/db-url";
 import { getDefaultAppUrl } from "@/lib/app-domains";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
@@ -12,7 +13,19 @@ interface OgSettings {
   image?: string;
 }
 
+function defaultOgSettings(): OgSettings {
+  return {
+    title: DEFAULT_APP_SETTINGS.ogTitle || "foundu.forum",
+    description:
+      DEFAULT_APP_SETTINGS.ogDescription || "ระบบแจ้งของหาย-ของเจอ",
+  };
+}
+
 async function fetchOgSettings(): Promise<OgSettings> {
+  if (!hasSupabaseAdminEnv()) {
+    return defaultOgSettings();
+  }
+
   try {
     const admin = createAdminClient();
     const { data } = await admin
@@ -36,11 +49,7 @@ async function fetchOgSettings(): Promise<OgSettings> {
     };
   } catch (error) {
     console.error("Error fetching OG settings:", error);
-    return {
-      title: DEFAULT_APP_SETTINGS.ogTitle || "foundu.forum",
-      description:
-        DEFAULT_APP_SETTINGS.ogDescription || "ระบบแจ้งของหาย-ของเจอ",
-    };
+    return defaultOgSettings();
   }
 }
 

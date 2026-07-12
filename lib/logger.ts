@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client";
+import { createClient, isSupabaseBrowserConfigured } from "@/lib/supabase/client";
 import type { ErrorSeverity, ErrorSource } from "@/lib/types";
 import type { Json } from "@/lib/database.types";
 
@@ -188,6 +188,10 @@ export async function logConfigChanged(
 }
 
 export async function logError(params: LogErrorParams): Promise<string | null> {
+  if (!isSupabaseBrowserConfigured()) {
+    console.error("Failed to log error (Supabase not configured):", params.message);
+    return null;
+  }
   try {
     const supabase = createClient();
     const { data, error } = await supabase
