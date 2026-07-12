@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SetupPageClient } from "./setup-page-client";
 import { fetchSetupStatusAdmin } from "@/lib/setup/setup-status-server";
+import { ensureSetupActionCookie } from "@/lib/setup/setup-auth";
 import {
   getAiCredentialsData,
   getSchoolBrandingData,
@@ -67,6 +68,10 @@ export default async function SetupPage() {
   const status = await fetchSetupStatusAdmin();
   if (status.setupCompleted) {
     redirect("/");
+  }
+
+  if (status.databaseReady) {
+    await ensureSetupActionCookie();
   }
 
   const initialState = await loadWizardInitialState(status);

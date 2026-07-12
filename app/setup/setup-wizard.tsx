@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
 import { LoadingModal } from "@/components/ui/loading-modal";
@@ -67,6 +67,11 @@ export function SetupWizard({
     lastName: "",
     nickname: "Admin",
   });
+
+  useEffect(() => {
+    if (phase !== "wizard") return;
+    void fetch("/api/setup/status", { cache: "no-store", credentials: "same-origin" });
+  }, [phase]);
 
   const handleBrandingChange = useCallback((draft: BrandingDraft) => {
     setBrandingDraft(draft);

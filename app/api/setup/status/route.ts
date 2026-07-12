@@ -6,10 +6,9 @@ import {
 import { fetchSetupStatusAdmin } from "@/lib/setup/setup-status-server";
 import { hasMinimumSetupEnv } from "@/lib/setup/db-url";
 import {
-  SETUP_ACTION_COOKIE,
   assertSetupActionAuthorized,
+  applySetupActionCookie,
 } from "@/lib/setup/setup-auth";
-import { signSetupActionCookie } from "@/lib/setup/setup-cookie";
 
 export async function GET() {
   if (!hasMinimumSetupEnv()) {
@@ -35,16 +34,7 @@ export async function GET() {
   });
 
   if (databaseReady && !status.setupCompleted) {
-    const signed = await signSetupActionCookie();
-    if (signed) {
-      response.cookies.set(SETUP_ACTION_COOKIE, signed, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60,
-        path: "/",
-      });
-    }
+    await applySetupActionCookie(response);
   }
 
   return response;
