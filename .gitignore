@@ -52,6 +52,7 @@ next-env.d.ts
 docs/
 .vscode/
 .cursor/
+supabase/.temp/
 ืtools/
 *.csv
 tools/tools.txt

@@ -1,11 +1,26 @@
+/** Recursively omit object keys whose values are `undefined`. */
+export type StripUndefined<T> = T extends undefined
+  ? undefined
+  : T extends Date
+    ? T
+    : T extends readonly (infer U)[]
+      ? StripUndefined<U>[]
+      : T extends object
+        ? {
+            [K in keyof T as undefined extends T[K] ? never : K]: StripUndefined<
+              Exclude<T[K], undefined>
+            >;
+          }
+        : T;
+
 /** Remove undefined values so Firestore addDoc/setDoc does not throw. */
-export function stripUndefined<T>(value: T): T {
+export function stripUndefined<T>(value: T): StripUndefined<T> {
   if (value === undefined) {
-    return value;
+    return value as StripUndefined<T>;
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => stripUndefined(item)) as T;
+    return value.map((item) => stripUndefined(item)) as StripUndefined<T>;
   }
 
   if (value !== null && typeof value === "object" && !(value instanceof Date)) {
@@ -15,8 +30,8 @@ export function stripUndefined<T>(value: T): T {
         result[key] = stripUndefined(nested);
       }
     }
-    return result as T;
+    return result as StripUndefined<T>;
   }
 
-  return value;
+  return value as StripUndefined<T>;
 }

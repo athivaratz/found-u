@@ -28,12 +28,10 @@ export function useMapView({
   const [userLocation, setUserLocation] = useState<LocationCoords | null>(null);
   const shouldLocate = enabled && locateUser && !preferPolygonFit;
   const [locating, setLocating] = useState(shouldLocate);
-  const [trackedShouldLocate, setTrackedShouldLocate] = useState(shouldLocate);
 
-  if (shouldLocate !== trackedShouldLocate) {
-    setTrackedShouldLocate(shouldLocate);
+  useEffect(() => {
     setLocating(shouldLocate);
-  }
+  }, [shouldLocate]);
 
   useEffect(() => {
     if (!shouldLocate) return;
