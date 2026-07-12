@@ -18,26 +18,35 @@ const EMPTY_WIZARD_STATE: SetupWizardInitialState = {
   ai: { provider: "auto" },
 };
 
-async function loadWizardInitialState(): Promise<SetupWizardInitialState> {
-  const status = await fetchSetupStatusAdmin();
-  const branding = await getSchoolBrandingData();
-  const aiCreds = await getAiCredentialsData();
+async function loadWizardInitialState(
+  status: Awaited<ReturnType<typeof fetchSetupStatusAdmin>>
+): Promise<SetupWizardInitialState> {
+  if (!status.databaseReady) {
+    return EMPTY_WIZARD_STATE;
+  }
 
-  return {
-    initialStep: dbStepToWizardIndex(status.currentStep),
-    branding: {
-      schoolName: branding?.school_name ?? "",
-      existingLogoUrl: branding?.logo_url,
-    },
-    ai: {
-      provider:
-        aiCreds?.provider === "none"
-          ? "none"
-          : (aiCreds?.provider ?? "auto"),
-      openrouterModel: aiCreds?.openrouter_model,
-      skippedAi: aiCreds?.provider === "none",
-    },
-  };
+  try {
+    const branding = await getSchoolBrandingData();
+    const aiCreds = await getAiCredentialsData();
+
+    return {
+      initialStep: dbStepToWizardIndex(status.currentStep),
+      branding: {
+        schoolName: branding?.school_name ?? "",
+        existingLogoUrl: branding?.logo_url,
+      },
+      ai: {
+        provider:
+          aiCreds?.provider === "none"
+            ? "none"
+            : (aiCreds?.provider ?? "auto"),
+        openrouterModel: aiCreds?.openrouter_model,
+        skippedAi: aiCreds?.provider === "none",
+      },
+    };
+  } catch {
+    return EMPTY_WIZARD_STATE;
+  }
 }
 
 export default async function SetupPage() {
@@ -56,11 +65,11 @@ export default async function SetupPage() {
   }
 
   const status = await fetchSetupStatusAdmin();
-  if (status.setupCompleted && hasMinimumSetupEnv()) {
+  if (status.setupCompleted) {
     redirect("/");
   }
 
-  const initialState = await loadWizardInitialState();
+  const initialState = await loadWizardInitialState(status);
 
   return (
     <Suspense
@@ -70,12 +79,12 @@ export default async function SetupPage() {
         </main>
       }
     >
-        <SetupPageClient
-          initialState={{
-            ...initialState,
-            databaseReady: status.databaseReady,
-          }}
-        />
+      <SetupPageClient
+        initialState={{
+          ...initialState,
+          databaseReady: status.databaseReady,
+        }}
+      />
     </Suspense>
   );
 }

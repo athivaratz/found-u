@@ -13,6 +13,7 @@ import {
   type SetupStatusData,
 } from "@/lib/setup/schemas/setup-status";
 import { fetchSetupStatusAdmin } from "@/lib/setup/setup-status-server";
+import { isUndefinedTableError } from "@/lib/setup/probe";
 
 export class SetupGuardError extends Error {
   constructor(
@@ -53,15 +54,23 @@ async function readConfigData<T>(
   id: string,
   parser: (value: unknown) => T | null
 ): Promise<T | null> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("system_config")
-    .select("config_data")
-    .eq("id", id)
-    .maybeSingle();
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("system_config")
+      .select("config_data")
+      .eq("id", id)
+      .maybeSingle();
 
-  if (error) throw error;
-  return parser(data?.config_data);
+    if (error) {
+      if (isUndefinedTableError(error)) return null;
+      throw error;
+    }
+    return parser(data?.config_data);
+  } catch (error) {
+    if (isUndefinedTableError(error)) return null;
+    throw error;
+  }
 }
 
 export async function getSetupStatusData(): Promise<SetupStatusData | null> {

@@ -12,6 +12,44 @@ export type SetupStatusSnapshot = {
   currentStep?: number;
 };
 
+async function hasAdminAccount(): Promise<boolean> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("accounts")
+      .select("id")
+      .eq("role", "admin")
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      if (isUndefinedTableError(error)) return false;
+      return false;
+    }
+    return Boolean(data);
+  } catch {
+    return false;
+  }
+}
+
+/** Backfill bug: is_completed=true but no wizard admin was ever created */
+async function repairStaleSetupComplete(): Promise<boolean> {
+  try {
+    const admin = createAdminClient();
+    const now = new Date().toISOString();
+    const { error } = await admin.from("system_config").upsert(
+      {
+        id: SETUP_STATUS_ID,
+        config_data: { is_completed: false, current_step: 1 },
+        updated_at: now,
+      },
+      { onConflict: "id" }
+    );
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchSetupStatusAdmin(): Promise<SetupStatusSnapshot> {
   try {
     const admin = createAdminClient();
@@ -33,10 +71,17 @@ export async function fetchSetupStatusAdmin(): Promise<SetupStatusSnapshot> {
     }
 
     const status = parseSetupStatusData(data?.config_data);
+    let setupCompleted = status?.is_completed ?? false;
+
+    if (setupCompleted && !(await hasAdminAccount())) {
+      await repairStaleSetupComplete();
+      setupCompleted = false;
+    }
+
     return {
       databaseReady: true,
-      setupCompleted: status?.is_completed ?? false,
-      currentStep: status?.current_step,
+      setupCompleted,
+      currentStep: setupCompleted ? status?.current_step : 1,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -65,5 +110,15 @@ export async function fetchSetupStatusAnon(
   }
 
   const status = parseSetupStatusData(data?.config_data);
-  return { setupCompleted: status?.is_completed ?? false };
+  const markedComplete = status?.is_completed ?? false;
+
+  if (markedComplete) {
+    const hasAdmin = await hasAdminAccount();
+    if (!hasAdmin) {
+      await repairStaleSetupComplete();
+      return { setupCompleted: false };
+    }
+  }
+
+  return { setupCompleted: markedComplete };
 }
