@@ -122,6 +122,22 @@ lib/
 4. รอ deploy เสร็จ → เปิด URL → ทำ **Setup Wizard** 3 ขั้น (โลโก้โรงเรียน, AI ไม่บังคับ, สร้างแอดมิน)
 5. ล็อกอินด้วยเลขแอดมินที่สร้าง → ใช้งานได้ทันที
 
+### เลือก Region และ Free Plan (Supabase)
+
+เมื่อติดตั้ง Supabase ผ่าน Vercel ให้เลือก:
+
+| รายการ | แนะนำ |
+|--------|--------|
+| **Region** | **Southeast Asia (Singapore)** — latency ดีสำหรับไทย และรองรับ **Free Plan** ได้ |
+| **หลีกเลี่ยง** | Tokyo / Seoul (region เฉพาะบางตัว) — อาจขึ้นข้อความ *"Upgrade your plan to support your selected configuration"* และเลือก Free ไม่ได้ |
+| **Plan** | **Supabase Free Plan ($0)** — เพียงพอสำหรับโรงเรียนขนาดเล็ก–กลาง |
+
+ถ้าเลือก Free ไม่ได้:
+
+1. เปลี่ยน Region เป็น **Singapore** แล้วลองใหม่
+2. ตรวจว่า Supabase organization ยังมีช่อง free project ว่าง (จำกัด 2 โปรเจกต์ฟรีต่อ org)
+3. หรือสร้าง project ฟรีที่ [supabase.com/dashboard](https://supabase.com/dashboard) (เลือก Singapore) แล้วกลับมา Vercel → **Connect existing Supabase account** (เมนู `...` ข้างปุ่ม Install)
+
 Supabase integration จะ inject `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, และ `POSTGRES_URL_NON_POOLING` ให้อัตโนมัติ — ไม่ต้อง copy เอง
 
 **ไม่บังคับตอน deploy:** `GEMMA_API_KEY`, `OPENROUTER_*`, `R2_*` — ตั้งผ่าน Setup Wizard หรือเพิ่มทีหลังใน Vercel env
@@ -205,6 +221,18 @@ Traditional school lost-and-found workflows are slow, fragmented, and hard to tr
 2. Set `NEXT_PUBLIC_APP_URL` and `SCHOOL_AUTH_DOMAIN`
 3. Wait for deploy → open the URL → complete the **3-step Setup Wizard**
 4. Log in with the admin account you created
+
+### Supabase region and Free Plan
+
+When installing Supabase via Vercel:
+
+| Setting | Recommendation |
+|---------|----------------|
+| **Region** | **Southeast Asia (Singapore)** — good latency for Thailand; supports **Free Plan** |
+| **Avoid** | Tokyo / some specific regions — may show *"Upgrade your plan to support your selected configuration"* and disable Free |
+| **Plan** | **Supabase Free Plan ($0)** — sufficient for small–medium schools |
+
+If Free Plan is greyed out: switch region to **Singapore**, check your org still has a free project slot (max 2 per org), or create a free project at [supabase.com/dashboard](https://supabase.com/dashboard) and use **Connect existing Supabase account** in Vercel (`...` menu).
 
 Supabase env vars and `POSTGRES_URL_NON_POOLING` are injected automatically.
 
