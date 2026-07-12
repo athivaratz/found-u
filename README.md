@@ -110,19 +110,47 @@ lib/
   validations/    Zod schemas
 ```
 
-## Deploy โรงเรียนใหม่ (1-Click)
+## Deploy โรงเรียนใหม่ (Fork + 1-Click)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D)
+> **ทำไมต้อง Fork?** ปุ่ม Deploy ของ Vercel สร้าง **clone** (repo แยก ไม่มี upstream) — sync อัปเดตจากเราไม่ได้  
+> แนะนำ **Fork บน GitHub ก่อน** แล้ว deploy จาก fork ของคุณ → ใช้ **Sync fork** ดึงอัปเดตได้
+
+[![Fork on GitHub](https://img.shields.io/badge/Fork-Found--U-181717?style=for-the-badge&logo=github)](https://github.com/bodin2/found-u/fork)
+
+**ขั้นที่ 1 — Fork (1 คลิก)**  
+กดปุ่มด้านบน → **Create fork** บน GitHub (ได้ repo `ชื่อคุณ/found-u` ที่เชื่อม upstream)
+
+**ขั้นที่ 2 — Deploy**  
+1. **ก็อปปี้** ลิงก์ด้านล่าง  
+2. แทน `YOUR_GITHUB_USERNAME` ด้วยชื่อ GitHub ของคุณ (เช่น `school-admin`)  
+3. วางในเบราว์เซอร์แล้ว Enter → ทำตามขั้นตอน Vercel (ติดตั้ง Supabase)
+
+```
+https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYOUR_GITHUB_USERNAME%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D
+```
+
+> **ทางเลือก:** [vercel.com/new](https://vercel.com/new) → Import → เลือก **`ชื่อคุณ/found-u`** → ติดตั้ง Supabase integration (Singapore + Free Plan)
 
 ขั้นตอนสำหรับแอดมินโรงเรียน:
 
-1. กดปุ่ม **Deploy with Vercel** → เชื่อม GitHub → ติดตั้ง **Supabase** integration (สร้างโปรเจกต์ DB อัตโนมัติ)
-2. **ไม่ต้องกรอก env เพิ่มตอน deploy** — ปุ่มนี้ไม่บังคับ `NEXT_PUBLIC_APP_URL` / `SCHOOL_AUTH_DOMAIN` แล้ว (Vercel ใส่ `VERCEL_URL` ให้อัตโนมัติ แอปใช้ค่านี้ชั่วคราวได้)
-3. รอ deploy เสร็จ → เปิด URL `https://<ชื่อโปรเจกต์>.vercel.app` → ทำ **Setup Wizard** 3 ขั้น
-4. *(แนะนำหลัง deploy)* ไปที่ Vercel → **Settings → Environment Variables** ตั้งค่าให้ตรงโดเมนจริง แล้ว **Redeploy**:
+1. **Fork** repo บน GitHub (ขั้นที่ 1 ด้านบน)
+2. **Deploy** — ก็อปปี้ลิงก์ขั้นที่ 2 แก้ชื่อ GitHub แล้วเปิดในเบราว์เซอร์
+3. ติดตั้ง **Supabase** integration ตอน deploy (สร้างโปรเจกต์ DB อัตโนมัติ) — **ไม่ต้องกรอก env เพิ่ม** (`NEXT_PUBLIC_APP_URL` / `SCHOOL_AUTH_DOMAIN` ไม่บังคับ แอปใช้ `VERCEL_URL` ชั่วคราวได้)
+4. รอ deploy เสร็จ → เปิด URL `https://<ชื่อโปรเจกต์>.vercel.app` → ทำ **Setup Wizard** 3 ขั้น
+5. *(แนะนำหลัง deploy)* ไปที่ Vercel → **Settings → Environment Variables** ตั้งค่าให้ตรงโดเมนจริง แล้ว **Redeploy**:
    - `NEXT_PUBLIC_APP_URL` = `https://found-u-test.vercel.app`
    - `SCHOOL_AUTH_DOMAIN` = `found-u-test.vercel.app` (ไม่มี `https://`)
-5. ล็อกอินด้วยเลขแอดมินที่สร้างใน Wizard → ใช้งานได้
+6. ล็อกอินด้วยเลขแอดมินที่สร้างใน Wizard → ใช้งานได้
+
+### อัปเดตโค้ดจาก upstream (Sync)
+
+เมื่อทีม Found-U ปล่อยเวอร์ชันใหม่:
+
+1. GitHub → repo **`ชื่อคุณ/found-u`** → **Sync fork** (หรือ Pull request จาก upstream)
+2. Vercel จะ **auto-deploy** เมื่อ push เข้า fork (ถ้าเชื่อม Git ไว้แล้ว)
+3. ถ้าไม่ auto-deploy → Vercel → **Deployments** → **Redeploy**
+
+**ถ้าเคย deploy ด้วยปุ่ม Clone เก่า** (repo ไม่มีปุ่ม Sync fork): [Fork](https://github.com/bodin2/found-u/fork) ใหม่ → Vercel → **Settings → Git** → เปลี่ยน repo เป็น fork ของคุณ → Redeploy
 
 ### เลือก Region และ Free Plan (Supabase)
 
@@ -229,15 +257,43 @@ Traditional school lost-and-found workflows are slow, fragmented, and hard to tr
 - **Admin dashboard** for items, users, settings, moderation, AI testing, and agent debug logs
 - **NFC tags** for register, scan/QR found reports, and owner messaging
 
-## Deploy a New School (1-Click)
+## Deploy a New School (Fork + 1-Click)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D)
+> **Why Fork?** Vercel's Deploy button **clones** the repo (no upstream link) — you cannot **Sync fork** for updates.  
+> **Fork on GitHub first**, then deploy from **your fork** to pull updates from `bodin2/found-u` later.
 
-1. Click **Deploy with Vercel** → connect GitHub → install **Supabase** integration
-2. **No extra env fields during deploy** — the button no longer requires `NEXT_PUBLIC_APP_URL` / `SCHOOL_AUTH_DOMAIN` (Vercel injects `VERCEL_URL` automatically)
-3. Wait for deploy → open `https://<project-name>.vercel.app` → complete the **3-step Setup Wizard**
-4. *(Recommended)* After deploy, set env in Vercel → **Settings → Environment Variables** and **Redeploy**
-5. Log in with the admin account you created
+[![Fork on GitHub](https://img.shields.io/badge/Fork-Found--U-181717?style=for-the-badge&logo=github)](https://github.com/bodin2/found-u/fork)
+
+**Step 1 — Fork (1 click)**  
+Click above → **Create fork** on GitHub (`your-username/found-u` with upstream link).
+
+**Step 2 — Deploy**  
+1. **Copy** the link below  
+2. Replace `YOUR_GITHUB_USERNAME` with your GitHub username (e.g. `school-admin`)  
+3. Paste in your browser and press Enter → follow Vercel (install Supabase)
+
+```
+https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYOUR_GITHUB_USERNAME%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D
+```
+
+> **Alternative:** [vercel.com/new](https://vercel.com/new) → Import → select **`your-username/found-u`** → install Supabase integration (Singapore + Free Plan)
+
+1. **Fork** the repo on GitHub (step 1 above)
+2. **Deploy** — copy the step 2 link, edit your GitHub username, open in browser
+3. Install **Supabase** during deploy — **no extra env required** on first deploy (`VERCEL_URL` works until you set `NEXT_PUBLIC_APP_URL` / `SCHOOL_AUTH_DOMAIN`)
+4. Wait for deploy → open `https://<project-name>.vercel.app` → complete the **3-step Setup Wizard**
+5. *(Recommended)* Set env in Vercel → **Settings → Environment Variables** and **Redeploy**
+6. Log in with the admin account you created
+
+### Sync updates from upstream
+
+When Found-U releases a new version:
+
+1. GitHub → **`your-username/found-u`** → **Sync fork**
+2. Vercel **auto-deploys** on push to your fork (if Git is connected)
+3. If not → Vercel → **Deployments** → **Redeploy**
+
+**If you deployed with the old Clone button** (no Sync fork): [Fork](https://github.com/bodin2/found-u/fork) again → Vercel → **Settings → Git** → switch repo to your fork → Redeploy
 
 ### Supabase region and Free Plan
 
