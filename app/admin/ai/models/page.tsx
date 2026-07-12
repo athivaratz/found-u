@@ -14,9 +14,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   Search,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
-import { getAppSettings, updateAppSettings } from "@/lib/database";
+import { getAppSettingsWithMeta, updateAppSettings } from "@/lib/database";
+import { pickSettingsKeys, GEMINI_PIPELINE_SETTING_KEYS } from "@/lib/admin/ai-settings-keys";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 
 interface ModelInfo {
@@ -36,11 +38,118 @@ function parseNumber(value: string) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+type ProviderName = "gemini" | "openrouter";
+
+type ProviderTestState = {
+  testing: boolean;
+  result: string | null;
+};
+
+function formatProviderResult(
+  name: string,
+  info: {
+    configured: boolean;
+    ok: boolean;
+    model?: string;
+    error?: string;
+  }
+): string {
+  const modelSuffix = info.model ? ` [${info.model}]` : "";
+  if (info.ok) return `${name}${modelSuffix}: OK`;
+  if (!info.configured) return `${name}: no key`;
+  return `${name}${modelSuffix}: ${info.error || "fail"}`;
+}
+
+function ProviderTestButton({
+  label,
+  provider,
+  settings,
+  className,
+}: {
+  label: string;
+  provider?: ProviderName;
+  settings: AppSettings;
+  className?: string;
+}) {
+  const [state, setState] = useState<ProviderTestState>({
+    testing: false,
+    result: null,
+  });
+
+  const runTest = async () => {
+    setState({ testing: true, result: null });
+    try {
+      const res = await fetch("/api/agent/test-providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings, provider }),
+      });
+      const data = await res.json();
+      const lines = Object.entries(data.providers || {}).map(([name, info]) =>
+        formatProviderResult(name, info as Parameters<typeof formatProviderResult>[1])
+      );
+      setState({ testing: false, result: lines.join(" · ") });
+    } catch {
+      setState({ testing: false, result: "ทดสอบไม่สำเร็จ" });
+    }
+  };
+
+  const isOk = state.result?.includes(": OK");
+  const isFail = state.result && !isOk;
+
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        onClick={runTest}
+        disabled={state.testing}
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-60"
+      >
+        {state.testing ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Activity className="w-4 h-4" />
+        )}
+        {label}
+      </button>
+      {state.result ? (
+        <p
+          className={`mt-1.5 text-xs flex items-center gap-1 ${
+            isOk
+              ? "text-green-600"
+              : isFail
+                ? "text-amber-600"
+                : "text-gray-500"
+          }`}
+        >
+          {isOk ? (
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          ) : isFail ? (
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          ) : null}
+          <span>{state.result}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function AgentProviderTestPanel({ settings }: { settings: AppSettings }) {
+  return (
+    <div className="mt-4 flex flex-wrap items-start gap-4">
+      <ProviderTestButton label="ทดสอบ Gemini" provider="gemini" settings={settings} />
+      <ProviderTestButton label="ทดสอบ OpenRouter" provider="openrouter" settings={settings} />
+      <ProviderTestButton label="ทดสอบทั้งหมด" settings={settings} />
+    </div>
+  );
+}
+
 export default function AdminAIModelsPage() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [settingsLoadError, setSettingsLoadError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -74,9 +183,16 @@ export default function AdminAIModelsPage() {
   useEffect(() => {
     let mounted = true;
 
-    getAppSettings()
-      .then((data) => {
-        if (mounted) setSettings(data);
+    getAppSettingsWithMeta()
+      .then(({ settings: data, loadError }) => {
+        if (mounted) {
+          setSettings(data);
+          if (loadError) {
+            setSettingsLoadError(
+              "โหลดการตั้งค่าจากฐานข้อมูลไม่สำเร็จ — กำลังแสดงค่าเริ่มต้น กรุณาตรวจสอบสิทธิ์หรือลองใหม่"
+            );
+          }
+        }
       })
       .catch((error) => {
         console.error("Error loading settings:", error);
@@ -126,26 +242,20 @@ export default function AdminAIModelsPage() {
     );
   }, [generateContentModels, settings.aiVisionModel]);
 
+  const agentModelValid = useMemo(() => {
+    if (!settings.agentModel) return false;
+    return generateContentModels.some(
+      (model) => normalizeModelName(model.name) === normalizeModelName(settings.agentModel || "")
+    );
+  }, [generateContentModels, settings.agentModel]);
+
   const handleSave = async () => {
     if (!user?.uid) return;
 
     setSaving(true);
     try {
       await updateAppSettings(
-        {
-          aiNerModel: settings.aiNerModel,
-          aiNerTemperature: settings.aiNerTemperature,
-          aiNerTopP: settings.aiNerTopP,
-          aiNerMaxOutputTokens: settings.aiNerMaxOutputTokens,
-          aiMatchingModel: settings.aiMatchingModel,
-          aiMatchingTemperature: settings.aiMatchingTemperature,
-          aiMatchingTopP: settings.aiMatchingTopP,
-          aiMatchingMaxOutputTokens: settings.aiMatchingMaxOutputTokens,
-          aiVisionModel: settings.aiVisionModel,
-          aiVisionTemperature: settings.aiVisionTemperature,
-          aiVisionTopP: settings.aiVisionTopP,
-          aiVisionMaxOutputTokens: settings.aiVisionMaxOutputTokens,
-        },
+        pickSettingsKeys(settings, GEMINI_PIPELINE_SETTING_KEYS),
         user.uid
       );
       setShowSuccess(true);
@@ -196,6 +306,13 @@ export default function AdminAIModelsPage() {
               บันทึก
             </button>
           </div>
+
+          {settingsLoadError ? (
+            <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              {settingsLoadError}
+            </div>
+          ) : null}
 
           {showSuccess && (
             <div className="mt-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
@@ -466,6 +583,41 @@ export default function AdminAIModelsPage() {
         </div>
 
         <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            Gemini Agent Model
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">
+            ตั้งค่าโมเดล Gemini สำหรับผู้ช่วย — provider, context, OpenRouter อยู่ที่{" "}
+            <Link href="/admin/ai/settings" className="text-[#06C755] hover:underline">
+              ตั้งค่า AI รวม
+            </Link>
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs text-gray-500">Gemini Agent Model</label>
+                {!agentModelValid && settings.agentModel && (
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    ไม่อยู่ในรายการ
+                  </span>
+                )}
+              </div>
+              <input
+                list="ai-models"
+                value={settings.agentModel || ""}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, agentModel: e.target.value }))
+                }
+                placeholder="models/gemini-2.5-flash"
+                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+              />
+            </div>
+          </div>
+          <AgentProviderTestPanel settings={settings} />
+        </div>
+
+        <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -563,6 +715,14 @@ export default function AdminAIModelsPage() {
                       className="px-3 py-2 rounded-xl text-sm bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
                     >
                       ใช้กับ Vision
+                    </button>
+                    <button
+                      onClick={() =>
+                        setSettings((prev) => ({ ...prev, agentModel: model.name }))
+                      }
+                      className="px-3 py-2 rounded-xl text-sm bg-violet-500/10 text-violet-600 hover:bg-violet-500/20"
+                    >
+                      ใช้กับ Agent
                     </button>
                   </div>
                 </div>

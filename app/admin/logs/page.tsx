@@ -15,6 +15,7 @@ import {
   Edit,
   Eye,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatThaiDate } from "@/lib/utils";
 
@@ -34,7 +35,7 @@ interface ActivityLog {
 }
 
 // Action icons
-const ACTION_ICONS: Record<string, any> = {
+const ACTION_ICONS: Record<string, { icon: LucideIcon; color: string; bg: string }> = {
   create: { icon: Package, color: "text-green-500", bg: "bg-green-100 dark:bg-green-900/30" },
   update: { icon: Edit, color: "text-blue-500", bg: "bg-blue-100 dark:bg-blue-900/30" },
   delete: { icon: Trash2, color: "text-red-500", bg: "bg-red-100 dark:bg-red-900/30" },
@@ -143,7 +144,7 @@ export default function AdminLogsPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [dateRange]);
+  }, [dateRange, supabase]);
 
   // Filter logs
   const filteredLogs = logs.filter((log) => {
@@ -247,7 +248,7 @@ export default function AdminLogsPage() {
           <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <select
             value={dateRange}
-            onChange={(e) => setDateRange(e.target.value as any)}
+            onChange={(e) => setDateRange(e.target.value as typeof dateRange)}
             className="pl-12 pr-8 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#06C755] text-gray-900 dark:text-white appearance-none min-w-[140px]"
           >
             <option value="all">ทั้งหมด</option>

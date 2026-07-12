@@ -129,7 +129,8 @@ function ResponsiveModalInner({
               "relative flex flex-col bg-bg-card border border-border-light shadow-2xl outline-none w-full",
               isDesktop
                 ? cn("rounded-2xl max-h-[85vh]", sizeClasses[size])
-                : "rounded-t-2xl max-h-[min(85dvh,100%)] safe-bottom border-b-0"
+                : "rounded-t-2xl max-h-[min(85dvh,100%)] safe-bottom border-b-0",
+              className
             )}
             variants={isDesktop ? dialogVariants : sheetVariants}
             onClick={(e) => e.stopPropagation()}

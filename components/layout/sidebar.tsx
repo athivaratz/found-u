@@ -8,10 +8,12 @@ import { useMounted } from "@/hooks/use-mounted";
 import { Settings, Shield, LogOut, Sun, Moon, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { menuItems } from "@/lib/menu";
-import { getUserPublicEmail, getUserShownName } from "@/lib/user-display";
+import { getUserShownName } from "@/lib/user-display";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
+import { ModeSwitcher } from "@/components/agent/mode-switcher";
+import { shellSidebarWidth } from "@/components/layout/shell-layout";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -36,13 +38,16 @@ export default function Sidebar() {
     }
   };
 
-  const publicEmail = user ? getUserPublicEmail(appUser, user) : null;
-
   return (
-    <aside className="w-72 bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen overflow-y-auto hidden md:flex flex-col z-50">
-      {/* Sidebar Header */}
-      <div className="p-6 border-b border-border-light">
-        <Link href="/home" className="flex items-center gap-3 mb-6">
+    <aside
+      className={cn(
+        shellSidebarWidth,
+        "bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen overflow-y-auto",
+        "hidden md:flex flex-col z-50"
+      )}
+    >
+      <div className="flex flex-col gap-5 p-6 border-b border-border-light">
+        <Link href="/home" className="flex items-center gap-3">
           <Image
             src="/logo.png"
             alt="Found-U"
@@ -56,10 +61,13 @@ export default function Sidebar() {
           </div>
         </Link>
 
-        {/* User Section */}
-        <div className="bg-bg-secondary rounded-xl p-3 min-h-[3.75rem]">
-          {authLoading ? (
-            <div className="flex items-center gap-3" aria-hidden>
+        <div className="flex justify-center">
+          <ModeSwitcher variant="compact" />
+        </div>
+
+        <div className="bg-bg-secondary rounded-xl p-3 min-h-16 flex items-center">
+          {authLoading && !user ? (
+            <div className="flex items-center gap-3 w-full" aria-hidden>
               <div className="h-10 w-10 rounded-full bg-bg-tertiary animate-pulse shrink-0" />
               <div className="flex-1 space-y-2">
                 <div className="h-3.5 w-28 rounded bg-bg-tertiary animate-pulse" />
@@ -67,27 +75,17 @@ export default function Sidebar() {
               </div>
             </div>
           ) : user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full min-w-0">
               <UserAvatar user={user} appUser={appUser} />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-text-primary text-sm truncate">
-                  {getUserShownName(appUser, user)}
-                </p>
-                {publicEmail ? (
-                  <p className="text-xs text-text-secondary truncate">
-                    {publicEmail}
-                  </p>
-                ) : (
-                  <p className="text-xs text-text-tertiary truncate">
-                    ยังไม่มีอีเมล
-                  </p>
-                )}
-              </div>
+              <p className="font-medium text-text-primary text-sm truncate">
+                {getUserShownName(appUser, user)}
+              </p>
             </div>
           ) : (
             <button
+              type="button"
               onClick={handleSignIn}
-              className="w-full px-4 py-2 bg-line-green hover:bg-line-green text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              className="w-full px-4 py-2.5 bg-line-green hover:bg-line-green-hover text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
               <LogIn className="w-4 h-4" />
               เข้าสู่ระบบ
@@ -96,8 +94,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation Menu */}
-      <nav className="p-4 flex-1">
+      <nav className="flex flex-1 flex-col gap-2 p-4">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -106,28 +103,26 @@ export default function Sidebar() {
             <Link key={item.href} href={item.href}>
               <div
                 className={cn(
-                  "mb-2 px-4 py-3 rounded-lg transition-colors cursor-pointer group",
-                  isActive
-                    ? "bg-line-green/10"
-                    : "bg-bg-secondary hover:bg-bg-tertiary"
+                  "px-4 py-3 rounded-lg transition-colors cursor-pointer group",
+                  isActive ? "bg-line-green/10" : "bg-bg-secondary hover:bg-bg-tertiary"
                 )}
               >
                 <div className="flex items-center gap-3">
                   <Icon
                     className={cn(
-                      "w-5 h-5 transition-colors",
+                      "w-5 h-5 shrink-0 transition-colors",
                       isActive
                         ? "text-line-green"
                         : "text-text-secondary group-hover:text-line-green"
                     )}
                   />
                   <div className="flex-1 min-w-0">
-                    <p className={cn(
-                      "font-medium text-sm transition-colors",
-                      isActive
-                        ? "text-line-green"
-                        : "text-text-primary"
-                    )}>
+                    <p
+                      className={cn(
+                        "font-medium text-sm transition-colors",
+                        isActive ? "text-line-green" : "text-text-primary"
+                      )}
+                    >
                       {item.title}
                     </p>
                     <p className="text-xs text-text-secondary">{item.subtitle}</p>
@@ -139,38 +134,38 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer Actions */}
-      <div className="p-4 border-t border-border-light space-y-2">
-        {user && (
+      <div className="flex flex-col gap-2 p-4 border-t border-border-light">
+        {user ? (
           <Link href="/settings">
-            <div className="px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
-              <Settings className="w-4 h-4" />
+            <div className="px-4 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
+              <Settings className="w-4 h-4 shrink-0" />
               ตั้งค่า
             </div>
           </Link>
-        )}
-        {isAdmin && (
+        ) : null}
+        {isAdmin ? (
           <Link href="/admin">
-            <div className="px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
-              <Shield className="w-4 h-4" />
+            <div className="px-4 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
+              <Shield className="w-4 h-4 shrink-0" />
               Admin Panel
             </div>
           </Link>
-        )}
+        ) : null}
         <button
+          type="button"
           onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
-          className="w-full px-4 py-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors"
+          className="w-full px-4 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors"
           aria-label="สลับโหมดสว่าง/มืด"
         >
           {themeMounted ? (
             isDarkTheme ? (
               <>
-                <Sun className="w-4 h-4" />
+                <Sun className="w-4 h-4 shrink-0" />
                 Light Mode
               </>
             ) : (
               <>
-                <Moon className="w-4 h-4" />
+                <Moon className="w-4 h-4 shrink-0" />
                 Dark Mode
               </>
             )
@@ -181,15 +176,16 @@ export default function Sidebar() {
             </>
           )}
         </button>
-        {user && (
+        {user ? (
           <button
+            type="button"
             onClick={handleLogout}
-            className="w-full px-4 py-2 rounded-lg bg-status-error-light hover:bg-status-error/10 text-status-error text-sm font-medium flex items-center gap-2 transition-colors"
+            className="w-full px-4 py-2.5 rounded-lg bg-status-error-light hover:bg-status-error/10 text-status-error text-sm font-medium flex items-center gap-2 transition-colors"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4 shrink-0" />
             ออกจากระบบ
           </button>
-        )}
+        ) : null}
       </div>
     </aside>
   );

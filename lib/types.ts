@@ -36,6 +36,34 @@ export interface AppSettings {
   aiVisionTopP?: number;
   aiVisionMaxOutputTokens?: number;
 
+  // Agentic AI Settings
+  agentProvider?: "gemini" | "openrouter" | "auto";
+  agentFallbackProvider?: "gemini" | "openrouter";
+  agentModel?: string;
+  agentOpenRouterModel?: string;
+  /** Lock OpenRouter to specific upstream providers (provider.order / only) */
+  agentOpenRouterLockProvider?: boolean;
+  /** OpenRouter provider slugs in priority order */
+  agentOpenRouterProviderOrder?: string[];
+  /** Allow OpenRouter to fail over to other providers for the same model */
+  agentOpenRouterAllowFallbacks?: boolean;
+  /** OpenRouter provider slugs to skip */
+  agentOpenRouterProviderIgnore?: string[];
+  /** OpenRouter reasoning effort; prefer none/minimal for agent chat */
+  agentOpenRouterReasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  /** When not locking provider: route by price, throughput, or latency */
+  agentOpenRouterProviderSort?: "price" | "throughput" | "latency";
+  agentMaxSteps?: number;
+  agentMaxOutputTokens?: number;
+  agentTemperature?: number;
+  agentContextMaxMessages?: number;
+  agentContextMaxTokens?: number;
+  agentContextStrategy?: "messages" | "tokens" | "hybrid";
+  agentMemoryMaxFacts?: number;
+
+  /** pg_trgm similarity threshold for fuzzy item search (0–1, default 0.15) */
+  searchSimilarityThreshold?: number;
+
   // Map & Geofence Settings
   mapsEnabled?: boolean;
   mapTileUrl?: string;
@@ -74,6 +102,9 @@ export interface AppSettings {
   updatedBy?: string;
 }
 
+/** Verified minimum for multi-step agent replies (512 truncates Thai summaries). */
+export const AGENT_DEFAULT_MAX_OUTPUT_TOKENS = 2048;
+
 // Default settings
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   ogTitle: "Found-U | ระบบแจ้งของหาย-ของเจอ",
@@ -97,6 +128,24 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   aiVisionTemperature: 0.1,
   aiVisionTopP: 0.8,
   aiVisionMaxOutputTokens: 256,
+  agentProvider: "auto",
+  agentFallbackProvider: "openrouter",
+  agentModel: "gemini-2.0-flash",
+  agentOpenRouterModel: "google/gemini-2.0-flash-exp:free",
+  agentOpenRouterLockProvider: false,
+  agentOpenRouterProviderOrder: [],
+  agentOpenRouterAllowFallbacks: false,
+  agentOpenRouterProviderIgnore: [],
+  agentOpenRouterReasoningEffort: "none",
+  agentOpenRouterProviderSort: "latency",
+  agentMaxSteps: 4,
+  agentMaxOutputTokens: 2048,
+  agentTemperature: 0.3,
+  agentContextMaxMessages: 8,
+  agentContextMaxTokens: 6000,
+  agentContextStrategy: "hybrid",
+  agentMemoryMaxFacts: 5,
+  searchSimilarityThreshold: 0.15,
   mapsEnabled: true,
   mapTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   mapAttribution: "© OpenStreetMap contributors",
@@ -480,28 +529,28 @@ export function isFoundPendingRoomConfirm(status: ItemStatus): boolean {
 export const STATUS_CONFIG: Record<ItemStatus, { label: string; color: string; bgColor: string }> = {
   searching: {
     label: "กำลังตามหา",
-    color: "text-gray-600 dark:text-gray-300",
-    bgColor: "bg-gray-100 dark:bg-gray-800"
+    color: "text-text-secondary",
+    bgColor: "bg-bg-tertiary",
   },
   pending_room_confirm: {
     label: "รอส่งห้องบุคคล",
-    color: "text-amber-700 dark:text-amber-400",
-    bgColor: "bg-amber-50 dark:bg-amber-900/30"
+    color: "text-status-warning",
+    bgColor: "bg-status-warning-light",
   },
   found: {
     label: "ถึงห้องบุคคลแล้ว",
-    color: "text-[#06C755] dark:text-[#4ade80]",
-    bgColor: "bg-[#e8f8ef] dark:bg-[#06C755]/20"
+    color: "text-line-green",
+    bgColor: "bg-line-green-light dark:bg-line-green/20",
   },
   claimed: {
     label: "รับคืนแล้ว",
-    color: "text-blue-600 dark:text-blue-400",
-    bgColor: "bg-blue-50 dark:bg-blue-900/30"
+    color: "text-status-info",
+    bgColor: "bg-status-info-light",
   },
   expired: {
     label: "หมดอายุ",
-    color: "text-red-500 dark:text-red-400",
-    bgColor: "bg-red-50 dark:bg-red-900/30"
+    color: "text-status-error",
+    bgColor: "bg-status-error-light",
   },
 };
 

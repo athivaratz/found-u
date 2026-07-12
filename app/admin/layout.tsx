@@ -56,7 +56,7 @@ export default function AdminLayout({
   };
 
   // Loading state
-  if (authLoading) {
+  if (authLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">

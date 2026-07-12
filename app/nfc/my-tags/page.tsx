@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -24,7 +24,7 @@ import {
   type NfcFoundReport,
 } from "@/lib/types";
 import { cn, formatThaiDate, generateTrackingCode } from "@/lib/utils";
-import { buildTagUrl, isWebNfcSupported } from "@/lib/nfc";
+import { buildTagUrl } from "@/lib/nfc";
 import {
   addLostItem,
 } from "@/lib/database";
@@ -48,7 +48,7 @@ export default function NfcMyTagsPage() {
   const [loadError, setLoadError] = useState("");
   const [expandedTag, setExpandedTag] = useState<string | null>(null);
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     if (!user?.uid) return;
     try {
       setLoadError("");
@@ -60,7 +60,7 @@ export default function NfcMyTagsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -75,7 +75,7 @@ export default function NfcMyTagsPage() {
 
     const interval = setInterval(loadDashboard, 30000);
     return () => clearInterval(interval);
-  }, [user?.uid]);
+  }, [user?.uid, loadDashboard]);
 
   const reportsByTag = useMemo(() => {
     const map = new Map<string, NfcFoundReport[]>();
@@ -176,7 +176,7 @@ export default function NfcMyTagsPage() {
     );
   };
 
-  if (authLoading || loading) {
+  if ((authLoading && !user) || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />

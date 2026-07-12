@@ -7,6 +7,50 @@ import { Ban, Clock, LogOut, Loader2 } from "lucide-react";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 
+function TimeoutCountdown({ initialMinutes }: { initialMinutes: number }) {
+  const [countdown, setCountdown] = useState(initialMinutes);
+
+  useEffect(() => {
+    if (initialMinutes <= 0) return;
+
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          window.location.reload();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [initialMinutes]);
+
+  const formatCountdown = (minutes: number) => {
+    if (minutes < 60) {
+      return `${minutes} นาที`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours < 24) {
+      return `${hours} ชั่วโมง ${mins > 0 ? `${mins} นาที` : ""}`;
+    }
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return `${days} วัน ${remainingHours > 0 ? `${remainingHours} ชั่วโมง` : ""}`;
+  };
+
+  return (
+    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 mb-6">
+      <p className="text-sm text-amber-600 dark:text-amber-400 mb-1">เวลาที่เหลือ:</p>
+      <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+        {formatCountdown(countdown)}
+      </p>
+    </div>
+  );
+}
+
 export default function BannedPage() {
   const router = useRouter();
   const { 
@@ -19,7 +63,6 @@ export default function BannedPage() {
     banReason, 
     timeoutRemaining 
   } = useAuth();
-  const [countdown, setCountdown] = useState(timeoutRemaining);
 
   // Redirect if not banned
   useEffect(() => {
@@ -35,45 +78,9 @@ export default function BannedPage() {
     }
   }, [user, loading, isBanned, router]);
 
-  // Countdown timer for timeout
-  useEffect(() => {
-    if (banStatus !== "timeout" || timeoutRemaining <= 0) return;
-
-    setCountdown(timeoutRemaining);
-
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          // Refresh the page to check if timeout is over
-          window.location.reload();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, [banStatus, timeoutRemaining]);
-
   const handleLogout = async () => {
     await logout();
     router.push(AUTH_ROUTES.hub);
-  };
-
-  // Format countdown
-  const formatCountdown = (minutes: number) => {
-    if (minutes < 60) {
-      return `${minutes} นาที`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours < 24) {
-      return `${hours} ชั่วโมง ${mins > 0 ? `${mins} นาที` : ""}`;
-    }
-    const days = Math.floor(hours / 24);
-    const remainingHours = hours % 24;
-    return `${days} วัน ${remainingHours > 0 ? `${remainingHours} ชั่วโมง` : ""}`;
   };
 
   if (loading) {
@@ -133,15 +140,8 @@ export default function BannedPage() {
           )}
 
           {/* Timeout Countdown */}
-          {isTimeout && countdown > 0 && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 mb-6">
-              <p className="text-sm text-amber-600 dark:text-amber-400 mb-1">
-                เวลาที่เหลือ:
-              </p>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                {formatCountdown(countdown)}
-              </p>
-            </div>
+          {isTimeout && timeoutRemaining > 0 && (
+            <TimeoutCountdown key={timeoutRemaining} initialMinutes={timeoutRemaining} />
           )}
 
           {/* Banned Date */}

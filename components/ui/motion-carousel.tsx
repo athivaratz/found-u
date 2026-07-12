@@ -115,8 +115,9 @@ function CarouselNavButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-light bg-bg-card text-text-primary transition-colors",
-        "hover:bg-bg-secondary disabled:pointer-events-none disabled:opacity-40"
+        "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border-light bg-bg-card text-text-primary transition-colors",
+        "hover:bg-bg-secondary disabled:pointer-events-none disabled:opacity-40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2"
       )}
     >
       {children}
@@ -146,7 +147,8 @@ function DotButton({
       aria-label={label}
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "flex cursor-pointer select-none items-center justify-center overflow-hidden rounded-full border-none text-xs font-medium",
+        "flex min-h-11 min-w-11 cursor-pointer select-none items-center justify-center overflow-hidden rounded-full border-none p-2 text-xs font-medium",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2",
         selected ? "bg-line-green text-white" : "bg-bg-tertiary text-text-tertiary"
       )}
       animate={{

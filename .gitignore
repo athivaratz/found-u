@@ -48,9 +48,11 @@ service-account*.json
 *.tsbuildinfo
 next-env.d.ts
 
+# development
 docs/
 .vscode/
 .cursor/
+supabase/.temp/
 ืtools/
 *.csv
 tools/tools.txt
@@ -61,3 +63,6 @@ Mermaid_Flowchart/
 .audit/
 .VSCodeCounter/
 tests/
+AGENTS.md
+DESIGN.md
+PRODUCT.md

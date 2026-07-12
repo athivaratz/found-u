@@ -21,3 +21,9 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    will-change: auto;
+  }
+}

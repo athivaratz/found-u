@@ -4,15 +4,11 @@
 import { DEFAULT_APP_SETTINGS } from './types';
 import type { LostItem, FoundItem, ItemCategory } from './types';
 import { calculateSimilarity } from './ner';
+import { resolveAiCredentials, getGeminiApiKey } from '@/lib/ai/credentials-resolver';
+import { timestampToDate } from '@/lib/database';
 
-// Helper to convert Firestore Timestamp or Date to Date
-function toDate(date: any): Date {
-  if (!date) return new Date();
-  if (date.toDate && typeof date.toDate === 'function') {
-    return date.toDate();
-  }
-  if (date instanceof Date) return date;
-  return new Date(date);
+function toDate(date: Date | undefined | unknown): Date {
+  return timestampToDate(date);
 }
 
 function toRadians(value: number): number {
@@ -49,6 +45,7 @@ export interface MatchScore {
   lostItem: LostItem;
   foundItem: FoundItem;
   score: number;
+  scorePercentage?: number;
   reasons: string[];
   confidence: 'high' | 'medium' | 'low';
 }
@@ -282,9 +279,13 @@ export function findMatchesForLostItem(
     return [];
   }
 
-  // Step 1: Filter by status (only found/claimed items)
-  let candidates = foundItems.filter(f =>
-    (f.status === 'found' || f.status === 'claimed') && !f.matchedLostId
+  // Step 1: Filter by status (found, claimed, or pending handover)
+  let candidates = foundItems.filter(
+    (f) =>
+      (f.status === "found" ||
+        f.status === "claimed" ||
+        f.status === "pending_room_confirm") &&
+      !f.matchedLostId
   );
 
   // Step 2: (Optional) Filter by category if known
@@ -329,8 +330,13 @@ export function findMatchesForFoundItem(
   foundItem: FoundItem,
   lostItems: LostItem[]
 ): MatchScore[] {
-  // Skip if item is not found/claimed
-  if ((foundItem.status !== 'found' && foundItem.status !== 'claimed') || foundItem.matchedLostId) {
+  // Skip if item cannot be matched yet
+  if (
+    (foundItem.status !== "found" &&
+      foundItem.status !== "claimed" &&
+      foundItem.status !== "pending_room_confirm") ||
+    foundItem.matchedLostId
+  ) {
     return [];
   }
 
@@ -398,7 +404,6 @@ export function getTopMatches(matches: MatchScore[], limit: number = 5): MatchSc
 // ============ AI-BASED MATCHING ============
 
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
 
 interface AIGenerationConfig {
   model?: string;
@@ -428,7 +433,9 @@ function resolveMatchConfig(config?: AIGenerationConfig) {
 
 const AI_MATCH_PROMPT = `คุณเป็น AI สำหรับจับคู่ของหายกับของที่เจอ
 
-เปรียบเทียบรายการ "ของหาย" กับ "ของเจอ" แล้วให้คะแนนความตรงกัน
+เปรียบเทียบรายการ "ของหาย" กับ "ของเจอ" แล้วให้คะแนนความตรงกัน (0.0-1.0)
+- score >= 0.7 และ isMatch: true เมื่อมั่นใจว่าน่าจะเป็นคู่กัน
+- ห้ามเดาข้อมูลที่ไม่มีในรายการ
 
 ของหาย:
 - ชื่อ: {lostItem}
@@ -441,12 +448,12 @@ const AI_MATCH_PROMPT = `คุณเป็น AI สำหรับจับค
 
 ตอบเป็น JSON เท่านั้น:
 {
-  "score": 0.0-1.0 (ความน่าจะเป็นที่ตรงกัน),
+  "score": 0.0-1.0,
   "reasons": ["เหตุผล1", "เหตุผล2"],
   "isMatch": true/false
 }
 
-JSON:`;
+ตัวอย่าง: หูฟังซัมซุงหายหน้าห้องสมุด vs เจอหูฟังสีดำหน้าห้องสมุด → score 0.85, isMatch: true`;
 
 interface AIMatchResult {
   score: number;
@@ -462,8 +469,10 @@ async function aiCompareItems(
   foundItem: FoundItem,
   config?: AIGenerationConfig
 ): Promise<AIMatchResult | null> {
-  if (!GEMINI_API_KEY) {
-    console.error("GEMMA_API_KEY not found for AI matching");
+  const credentials = await resolveAiCredentials();
+  const geminiApiKey = getGeminiApiKey(credentials);
+  if (!geminiApiKey) {
+    console.error("Gemini API key not found for AI matching");
     return null;
   }
 
@@ -476,7 +485,7 @@ async function aiCompareItems(
 
   try {
     const resolvedConfig = resolveMatchConfig(config);
-    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${geminiApiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -485,6 +494,7 @@ async function aiCompareItems(
           temperature: resolvedConfig.temperature,
           maxOutputTokens: resolvedConfig.maxOutputTokens,
           topP: resolvedConfig.topP,
+          responseMimeType: "application/json",
         },
       }),
     });

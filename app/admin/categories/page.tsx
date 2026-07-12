@@ -3,7 +3,7 @@
 // Force dynamic rendering for security
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Plus,
   Trash2,
@@ -110,7 +110,7 @@ export default function AdminCategoriesPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiTarget, setEmojiTarget] = useState<"new" | "edit">("new");
 
-  const loadConfigData = async () => {
+  const loadConfigData = useCallback(async () => {
     const [categoriesResult, locationsResult, contactTypesResult] = await Promise.all([
       supabase.from("categories").select("*").order("sort_order", { ascending: true }),
       supabase.from("locations").select("*").order("sort_order", { ascending: true }),
@@ -167,7 +167,7 @@ export default function AdminCategoriesPage() {
         );
       }
     }
-  };
+  }, [supabase]);
 
   // Load data
   useEffect(() => {
@@ -201,7 +201,7 @@ export default function AdminCategoriesPage() {
       isMounted = false;
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [loadConfigData, supabase]);
 
   // Initialize defaults in Firestore
   const initializeDefaults = async () => {
@@ -542,7 +542,7 @@ export default function AdminCategoriesPage() {
 
         {/* Items List */}
         <div className="divide-y divide-gray-100 dark:divide-gray-700">
-          {getCurrentItems().map((item: any) => (
+          {getCurrentItems().map((item) => (
             <div key={item.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
               <GripVertical className="w-5 h-5 text-gray-300 cursor-grab" />
 
@@ -596,20 +596,25 @@ export default function AdminCategoriesPage() {
                 </>
               ) : (
                 <>
-                  {activeTab === "categories" && <span className="text-2xl">{item.icon}</span>}
+                  {activeTab === "categories" && <span className="text-2xl">{(item as Category).icon}</span>}
                   {activeTab === "locations" && <MapPin className="w-5 h-5 text-[#06C755]" />}
-                  {activeTab === "contacts" && <span className="text-2xl">{item.icon}</span>}
+                  {activeTab === "contacts" && <span className="text-2xl">{(item as ContactType).icon}</span>}
                   <div className="flex-1">
                     <p className="font-medium text-gray-900 dark:text-white">{item.label}</p>
                     <p className="text-sm text-gray-500">
                       {item.value}
-                      {activeTab === "contacts" && item.placeholder && ` • ${item.placeholder}`}
+                      {activeTab === "contacts" && (item as ContactType).placeholder && ` • ${(item as ContactType).placeholder}`}
                     </p>
                   </div>
                   <button
                     onClick={() => {
                       setEditingId(item.id);
-                      setEditForm({ value: item.value, label: item.label, icon: item.icon || "📦", placeholder: item.placeholder || "" });
+                      setEditForm({
+                        value: item.value,
+                        label: item.label,
+                        icon: activeTab === "locations" ? "📍" : (item as Category | ContactType).icon || "📦",
+                        placeholder: activeTab === "contacts" ? (item as ContactType).placeholder || "" : "",
+                      });
                     }}
                     className="p-2 text-gray-400 hover:text-[#06C755] hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
@@ -628,7 +633,7 @@ export default function AdminCategoriesPage() {
       {/* Info Card */}
       <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
         <p className="text-sm text-blue-700 dark:text-blue-400">
-          💡 <strong>หมายเหตุ:</strong> สถานที่จะใช้ร่วมกันทั้งในฟอร์ม "สถานที่หาย" และ "สถานที่ส่งคืน"
+          💡 <strong>หมายเหตุ:</strong> สถานที่จะใช้ร่วมกันทั้งในฟอร์ม &quot;สถานที่หาย&quot; และ &quot;สถานที่ส่งคืน&quot;
         </p>
       </div>
       {dialog}

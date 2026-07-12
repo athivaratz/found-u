@@ -59,6 +59,9 @@ export default function AdminStudentsPage() {
   const [newStudentId, setNewStudentId] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newGradeLevel, setNewGradeLevel] = useState("");
+  const [newRoomNumber, setNewRoomNumber] = useState("");
   const [newRole, setNewRole] = useState<"user" | "admin">("user");
   const [creating, setCreating] = useState(false);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
@@ -158,7 +161,9 @@ export default function AdminStudentsPage() {
     newStudentId.replace(/\D/g, "").length >= 1 &&
     isValidNewStudentId &&
     isValidNewPassword &&
-    newFirstName.trim().length > 0;
+    newFirstName.trim().length > 0 &&
+    newLastName.trim().length > 0 &&
+    (/^\d{1,2}$/.test(newRoomNumber) || newRoomNumber.length === 0);
 
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,6 +183,9 @@ export default function AdminStudentsPage() {
           studentId: newStudentId,
           password: newPassword || undefined,
           firstName: newFirstName.trim(),
+          lastName: newLastName.trim(),
+          gradeLevel: newGradeLevel || undefined,
+          roomNumber: newRoomNumber || undefined,
           role: newRole,
         }),
       });
@@ -189,6 +197,9 @@ export default function AdminStudentsPage() {
       setNewStudentId("");
       setNewPassword("");
       setNewFirstName("");
+      setNewLastName("");
+      setNewGradeLevel("");
+      setNewRoomNumber("");
       setNewRole("user");
       await loadStats();
     } catch (e) {
@@ -307,7 +318,7 @@ export default function AdminStudentsPage() {
           สร้างผู้ใช้ใหม่
         </h2>
         <p className="text-sm text-gray-500 mb-4">
-          กรอกเลขประจำตัวและชื่อ — ปล่อยรหัสผ่านว่างเพื่อให้นักเรียนสมัครเองผ่านหน้าเริ่มใช้งาน
+          กรอกเลขประจำตัว ชื่อ และนามสกุล — ปล่อยรหัสผ่านว่างเพื่อให้นักเรียนสมัครเองผ่านหน้าเริ่มใช้งาน
         </p>
 
         <form onSubmit={handleCreateStudent} className="space-y-4">
@@ -352,9 +363,56 @@ export default function AdminStudentsPage() {
                 type="text"
                 value={newFirstName}
                 onChange={(e) => setNewFirstName(e.target.value)}
-                placeholder="ชื่อที่แสดงเริ่มต้น"
+                placeholder="ชื่อ"
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
                 required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                นามสกุล <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newLastName}
+                onChange={(e) => setNewLastName(e.target.value)}
+                placeholder="นามสกุล"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                ระดับชั้น
+              </label>
+              <select
+                value={newGradeLevel}
+                onChange={(e) => setNewGradeLevel(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
+              >
+                <option value="">— ไม่ระบุ —</option>
+                {["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6"].map((grade) => (
+                  <option key={grade} value={grade}>
+                    {grade}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                ห้อง
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={2}
+                value={newRoomNumber}
+                onChange={(e) => setNewRoomNumber(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                placeholder="เช่น 1, 12"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
               />
             </div>
             <div>

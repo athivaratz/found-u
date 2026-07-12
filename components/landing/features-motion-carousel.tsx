@@ -26,19 +26,19 @@ export function FeaturesMotionCarousel({ features }: FeaturesMotionCarouselProps
       content: (
         <article
           className={cn(
-            "flex h-full w-full flex-col rounded-2xl border border-border-light bg-bg-card p-6 shadow-card",
+            "flex h-full w-full flex-col rounded-2xl border border-border-light bg-bg-secondary p-6",
             "md:p-7"
           )}
         >
           <div
             className={cn(
-              "mb-4 flex h-12 w-12 items-center justify-center rounded-xl",
+              "mb-4 flex h-11 w-11 items-center justify-center rounded-xl",
               feature.tint
             )}
           >
-            <Icon className="h-6 w-6" aria-hidden />
+            <Icon className="h-5 w-5" aria-hidden />
           </div>
-          <h3 className="text-lg font-semibold text-text-primary md:text-xl">
+          <h3 className="text-lg font-semibold text-text-primary">
             {feature.title}
           </h3>
           <p className="mt-2 flex-1 text-sm leading-relaxed text-text-secondary md:text-base">

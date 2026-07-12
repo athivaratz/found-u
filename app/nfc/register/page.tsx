@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Lock, Plus, X } from "lucide-react";
 import Header from "@/components/layout/header";
@@ -15,24 +15,23 @@ import { type ContactInfo, type ContactType, type ItemCategory } from "@/lib/typ
 import { cn } from "@/lib/utils";
 import { buildTagUrl, isWebNfcSupported, writeTagUrl, getNfcErrorMessage } from "@/lib/nfc";
 import { registerNfcTagApi } from "@/lib/nfc-api";
-import {
-  subscribeToCategories,
-  subscribeToContactTypes,
-  type CategoryConfig,
-  type ContactTypeConfig,
-} from "@/lib/database";
 import { useAuth } from "@/contexts/auth-context";
+import { useCategories, useContactTypes } from "@/contexts/DataContext";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { logNfcTagRegistered } from "@/lib/logger";
+import { FieldValidationMessage } from "@/components/ui/field-validation-message";
+import { inputStateClass } from "@/components/ui/validated-field";
+import { ValidationSummary } from "@/components/ui/validation-summary";
+import { fieldErrorId, fieldId, recordToIssues } from "@/lib/feedback/types";
 
 export default function NfcRegisterPage() {
   const router = useRouter();
-  const { user, loading: authLoading, appSettings } = useAuth();
+  const { user, loading: authLoading, authHydrating, appSettings } = useAuth();
+  const authPending = authLoading || authHydrating;
+  const { categories } = useCategories();
+  const { contactTypes } = useContactTypes();
   const { showAlert, showConfirm, dialog } = useAppDialog();
-
-  const [categories, setCategories] = useState<CategoryConfig[]>([]);
-  const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
   const [formData, setFormData] = useState({
     itemName: "",
     category: "" as ItemCategory | "",
@@ -49,6 +48,7 @@ export default function NfcRegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [nfcSupported, setNfcSupported] = useState(false);
   const [nfcChecked, setNfcChecked] = useState(false);
+  const contactTypeSeededRef = useRef(false);
 
   useEffect(() => {
     setNfcSupported(isWebNfcSupported());
@@ -56,27 +56,26 @@ export default function NfcRegisterPage() {
   }, []);
 
   useEffect(() => {
-    const unsubCategories = subscribeToCategories(setCategories);
-    const unsubContactTypes = subscribeToContactTypes((types) => {
-      setContactTypes(types);
-      if (types.length > 0) {
-        setContacts([{ type: types[0].value as ContactType, value: "" }]);
-      }
-    });
-    return () => {
-      unsubCategories();
-      unsubContactTypes();
-    };
-  }, []);
+    if (contactTypeSeededRef.current || contactTypes.length === 0) return;
+    contactTypeSeededRef.current = true;
+    setContacts([{ type: contactTypes[0].value as ContactType, value: "" }]);
+  }, [contactTypes]);
 
   useEffect(() => {
-    if (!authLoading && !user) router.push(AUTH_ROUTES.hub);
-  }, [user, authLoading, router]);
+    if (!authPending && !user) router.push(AUTH_ROUTES.hub);
+  }, [user, authPending, router]);
 
   const handleContactChange = (index: number, field: "type" | "value", value: string) => {
     const next = [...contacts];
     next[index] = { ...next[index], [field]: value };
     setContacts(next);
+    if (errors.contacts) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated.contacts;
+        return updated;
+      });
+    }
   };
 
   const validate = () => {
@@ -170,7 +169,7 @@ export default function NfcRegisterPage() {
     }
   };
 
-  if (authLoading || !nfcChecked) {
+  if ((authLoading && !user) || !nfcChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
@@ -287,26 +286,54 @@ export default function NfcRegisterPage() {
             {nfcSupported ? "ขั้นตอนที่ 2: ข้อมูลสิ่งของ" : "ข้อมูลสิ่งของ"}
           </p>
 
+          <ValidationSummary issues={recordToIssues(errors)} />
+
           <div>
-            <label className="text-sm text-gray-600 dark:text-gray-400">ชื่อสิ่งของ</label>
+            <label htmlFor={fieldId("itemName")} className="text-sm text-gray-600 dark:text-gray-400">
+              ชื่อสิ่งของ
+            </label>
             <input
+              id={fieldId("itemName")}
               name="itemName"
               value={formData.itemName}
-              onChange={(e) => setFormData((p) => ({ ...p, itemName: e.target.value }))}
-              className="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent"
+              onChange={(e) => {
+                setFormData((p) => ({ ...p, itemName: e.target.value }));
+                if (errors.itemName) {
+                  setErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.itemName;
+                    return next;
+                  });
+                }
+              }}
+              aria-invalid={errors.itemName ? true : undefined}
+              aria-describedby={errors.itemName ? fieldErrorId("itemName") : undefined}
+              className={cn("w-full mt-1 input-line", inputStateClass(errors.itemName))}
               placeholder="เช่น กระเป๋าสตางค์"
             />
-            {errors.itemName && <p className="text-red-500 text-sm mt-1">{errors.itemName}</p>}
+            <FieldValidationMessage id={fieldErrorId("itemName")} message={errors.itemName} />
           </div>
 
           <div>
-            <label className="text-sm text-gray-600 dark:text-gray-400">ประเภท</label>
+            <label htmlFor={fieldId("category")} className="text-sm text-gray-600 dark:text-gray-400">
+              ประเภท
+            </label>
             <select
+              id={fieldId("category")}
               value={formData.category}
-              onChange={(e) =>
-                setFormData((p) => ({ ...p, category: e.target.value as ItemCategory }))
-              }
-              className="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent"
+              onChange={(e) => {
+                setFormData((p) => ({ ...p, category: e.target.value as ItemCategory }));
+                if (errors.category) {
+                  setErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.category;
+                    return next;
+                  });
+                }
+              }}
+              aria-invalid={errors.category ? true : undefined}
+              aria-describedby={errors.category ? fieldErrorId("category") : undefined}
+              className={cn("w-full mt-1 input-line", inputStateClass(errors.category))}
             >
               <option value="">เลือกประเภท</option>
               {categories.map((c) => (
@@ -315,7 +342,7 @@ export default function NfcRegisterPage() {
                 </option>
               ))}
             </select>
-            {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
+            <FieldValidationMessage id={fieldErrorId("category")} message={errors.category} />
           </div>
 
           <div>
@@ -328,7 +355,7 @@ export default function NfcRegisterPage() {
             />
           </div>
 
-          <div>
+          <div id={fieldId("contacts")}>
             <label className="text-sm text-gray-600 dark:text-gray-400">ช่องทางติดต่อ</label>
             {contacts.map((contact, index) => (
               <div key={index} className="flex gap-2 mt-2">
@@ -368,7 +395,7 @@ export default function NfcRegisterPage() {
                 <Plus className="w-4 h-4" /> เพิ่มช่องทาง
               </button>
             )}
-            {errors.contacts && <p className="text-red-500 text-sm mt-1">{errors.contacts}</p>}
+            <FieldValidationMessage id={fieldErrorId("contacts")} message={errors.contacts} />
           </div>
         </section>
 

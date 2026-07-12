@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { coerceToDate, normalizeGeoPoint, normalizeGeoPolygon } from "@/lib/utils";
 import { stripUndefined } from "@/lib/strip-undefined";
+import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
 import {
   DEFAULT_APP_SETTINGS,
   type AIUsageRecord,
@@ -198,91 +199,83 @@ function mapNfcFoundReportRow(row: DbRow): NfcFoundReport {
   };
 }
 
-function mapAppSettingsFromRow(row: DbRow | null): AppSettings {
-  if (!row) return DEFAULT_APP_SETTINGS;
+function normalizeStringList(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((entry): entry is string => typeof entry === "string");
+        }
+      } catch {
+        // fall through to comma split
+      }
+    }
+    return trimmed.split(",").map((entry) => entry.trim()).filter(Boolean);
+  }
+  return undefined;
+}
 
-  const settingsBlob = row.settings && typeof row.settings === "object" ? (row.settings as DbRow) : {};
+function normalizeAppSettingsBlob(
+  settingsBlob: DbRow,
+  rowMeta?: DbRow | null
+): AppSettings {
+  const base = {
+    ...DEFAULT_APP_SETTINGS,
+    ...(settingsBlob as Record<string, unknown>),
+  } as AppSettings;
+
   const mapCenter =
     normalizeGeoPoint(settingsBlob.mapDefaultCenter) ||
     normalizeGeoPoint(settingsBlob.map_default_center) ||
     DEFAULT_APP_SETTINGS.mapDefaultCenter;
 
-  const updatedAt = settingsBlob.updatedAt ?? settingsBlob.updated_at ?? row.updated_at;
-  const updatedBy = settingsBlob.updatedBy ?? settingsBlob.updated_by ?? row.updated_by;
+  const updatedAt =
+    settingsBlob.updatedAt ?? settingsBlob.updated_at ?? rowMeta?.updated_at;
+  const updatedBy =
+    settingsBlob.updatedBy ?? settingsBlob.updated_by ?? rowMeta?.updated_by;
 
-  return {
-    ogTitle: (settingsBlob.ogTitle as string) || DEFAULT_APP_SETTINGS.ogTitle,
-    ogDescription: (settingsBlob.ogDescription as string) || DEFAULT_APP_SETTINGS.ogDescription,
-    ogImage: (settingsBlob.ogImage as string) || DEFAULT_APP_SETTINGS.ogImage,
-    aiRateLimitEnabled:
-      (settingsBlob.aiRateLimitEnabled as boolean | undefined) ?? DEFAULT_APP_SETTINGS.aiRateLimitEnabled,
-    aiRateLimitPerMinute:
-      (settingsBlob.aiRateLimitPerMinute as number | undefined) ?? DEFAULT_APP_SETTINGS.aiRateLimitPerMinute,
-    aiRateLimitPerHour:
-      (settingsBlob.aiRateLimitPerHour as number | undefined) ?? DEFAULT_APP_SETTINGS.aiRateLimitPerHour,
-    aiRateLimitMessage:
-      (settingsBlob.aiRateLimitMessage as string | undefined) ?? DEFAULT_APP_SETTINGS.aiRateLimitMessage,
-    systemAiRateLimitEnabled:
-      (settingsBlob.systemAiRateLimitEnabled as boolean | undefined) ??
-      DEFAULT_APP_SETTINGS.systemAiRateLimitEnabled,
-    systemAiRateLimitPerMinute:
-      (settingsBlob.systemAiRateLimitPerMinute as number | undefined) ??
-      DEFAULT_APP_SETTINGS.systemAiRateLimitPerMinute,
-    systemAiRateLimitPerHour:
-      (settingsBlob.systemAiRateLimitPerHour as number | undefined) ??
-      DEFAULT_APP_SETTINGS.systemAiRateLimitPerHour,
-    aiNerModel: (settingsBlob.aiNerModel as string) || DEFAULT_APP_SETTINGS.aiNerModel,
-    aiNerTemperature:
-      (settingsBlob.aiNerTemperature as number | undefined) ?? DEFAULT_APP_SETTINGS.aiNerTemperature,
-    aiNerTopP: (settingsBlob.aiNerTopP as number | undefined) ?? DEFAULT_APP_SETTINGS.aiNerTopP,
-    aiNerMaxOutputTokens:
-      (settingsBlob.aiNerMaxOutputTokens as number | undefined) ?? DEFAULT_APP_SETTINGS.aiNerMaxOutputTokens,
-    aiMatchingModel: (settingsBlob.aiMatchingModel as string) || DEFAULT_APP_SETTINGS.aiMatchingModel,
-    aiMatchingTemperature:
-      (settingsBlob.aiMatchingTemperature as number | undefined) ?? DEFAULT_APP_SETTINGS.aiMatchingTemperature,
-    aiMatchingTopP:
-      (settingsBlob.aiMatchingTopP as number | undefined) ?? DEFAULT_APP_SETTINGS.aiMatchingTopP,
-    aiMatchingMaxOutputTokens:
-      (settingsBlob.aiMatchingMaxOutputTokens as number | undefined) ??
-      DEFAULT_APP_SETTINGS.aiMatchingMaxOutputTokens,
-    aiVisionModel: (settingsBlob.aiVisionModel as string) || DEFAULT_APP_SETTINGS.aiVisionModel,
-    aiVisionTemperature:
-      (settingsBlob.aiVisionTemperature as number | undefined) ?? DEFAULT_APP_SETTINGS.aiVisionTemperature,
-    aiVisionTopP: (settingsBlob.aiVisionTopP as number | undefined) ?? DEFAULT_APP_SETTINGS.aiVisionTopP,
-    aiVisionMaxOutputTokens:
-      (settingsBlob.aiVisionMaxOutputTokens as number | undefined) ?? DEFAULT_APP_SETTINGS.aiVisionMaxOutputTokens,
-    mapsEnabled: (settingsBlob.mapsEnabled as boolean | undefined) ?? DEFAULT_APP_SETTINGS.mapsEnabled,
-    mapTileUrl: (settingsBlob.mapTileUrl as string) || DEFAULT_APP_SETTINGS.mapTileUrl,
-    mapAttribution: (settingsBlob.mapAttribution as string) || DEFAULT_APP_SETTINGS.mapAttribution,
+  const normalized: AppSettings = {
+    ...base,
     mapDefaultCenter: mapCenter,
-    mapDefaultZoom: (settingsBlob.mapDefaultZoom as number | undefined) ?? DEFAULT_APP_SETTINGS.mapDefaultZoom,
-    mapSchoolBoundary: normalizeGeoPolygon(settingsBlob.mapSchoolBoundary ?? settingsBlob.map_school_boundary),
-    mapEnforceFoundInSchool:
-      (settingsBlob.mapEnforceFoundInSchool as boolean | undefined) ??
-      DEFAULT_APP_SETTINGS.mapEnforceFoundInSchool,
-    notifyOnNewReport:
-      (settingsBlob.notifyOnNewReport as boolean | undefined) ?? DEFAULT_APP_SETTINGS.notifyOnNewReport,
-    notifyOnStatusChange:
-      (settingsBlob.notifyOnStatusChange as boolean | undefined) ?? DEFAULT_APP_SETTINGS.notifyOnStatusChange,
-    requireApproval: (settingsBlob.requireApproval as boolean | undefined) ?? DEFAULT_APP_SETTINGS.requireApproval,
-    foundHandoverDeadlineEnabled:
-      (settingsBlob.foundHandoverDeadlineEnabled as boolean | undefined) ??
-      DEFAULT_APP_SETTINGS.foundHandoverDeadlineEnabled,
-    foundHandoverDeadlineMinutes:
-      (settingsBlob.foundHandoverDeadlineMinutes as number | undefined) ??
-      DEFAULT_APP_SETTINGS.foundHandoverDeadlineMinutes,
-    autoDeleteDays: (settingsBlob.autoDeleteDays as number | undefined) ?? DEFAULT_APP_SETTINGS.autoDeleteDays,
-    maxImageSize: (settingsBlob.maxImageSize as number | undefined) ?? DEFAULT_APP_SETTINGS.maxImageSize,
-    compressionQuality:
-      (settingsBlob.compressionQuality as number | undefined) ?? DEFAULT_APP_SETTINGS.compressionQuality,
-    nfcEnabled: (settingsBlob.nfcEnabled as boolean | undefined) ?? DEFAULT_APP_SETTINGS.nfcEnabled,
-    nfcPublicBaseUrl: (settingsBlob.nfcPublicBaseUrl as string) || DEFAULT_APP_SETTINGS.nfcPublicBaseUrl,
-    nfcRequireLoginToReport:
-      (settingsBlob.nfcRequireLoginToReport as boolean | undefined) ??
-      DEFAULT_APP_SETTINGS.nfcRequireLoginToReport,
+    mapSchoolBoundary: normalizeGeoPolygon(
+      settingsBlob.mapSchoolBoundary ?? settingsBlob.map_school_boundary
+    ),
+    agentOpenRouterProviderOrder:
+      normalizeStringList(
+        settingsBlob.agentOpenRouterProviderOrder ??
+          settingsBlob.agent_open_router_provider_order
+      ) ?? base.agentOpenRouterProviderOrder,
+    agentOpenRouterProviderIgnore:
+      normalizeStringList(
+        settingsBlob.agentOpenRouterProviderIgnore ??
+          settingsBlob.agent_open_router_provider_ignore
+      ) ?? base.agentOpenRouterProviderIgnore,
     updatedAt: updatedAt ? timestampToDate(updatedAt) : undefined,
     updatedBy: typeof updatedBy === "string" ? updatedBy : undefined,
   };
+
+  return normalizeAgentSettings(normalized);
+}
+
+function mapAppSettingsFromRow(row: DbRow | null): AppSettings {
+  if (!row) return DEFAULT_APP_SETTINGS;
+
+  const settingsBlob =
+    row.settings && typeof row.settings === "object" ? (row.settings as DbRow) : {};
+
+  return normalizeAppSettingsBlob(settingsBlob, row);
+}
+
+export function coerceAppSettings(
+  settingsBlob: Record<string, unknown> | null | undefined
+): AppSettings {
+  return normalizeAppSettingsBlob(settingsBlob ?? {});
 }
 
 function applyConstraints<T>(query: T, constraints: SupabaseConstraint<T>[]): T {
@@ -544,10 +537,48 @@ export async function getAppSettings(): Promise<AppSettings> {
   return mapAppSettingsFromRow((data as DbRow | null) ?? null);
 }
 
+export type AppSettingsLoadResult = {
+  settings: AppSettings;
+  loadError?: string;
+};
+
+export async function getAppSettingsWithMeta(): Promise<AppSettingsLoadResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from(COLLECTIONS.SETTINGS)
+    .select("*")
+    .eq("id", APP_SETTINGS_DOC_ID)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching app settings:", error);
+    return {
+      settings: DEFAULT_APP_SETTINGS,
+      loadError: error.message,
+    };
+  }
+
+  return { settings: mapAppSettingsFromRow((data as DbRow | null) ?? null) };
+}
+
 export async function updateAppSettings(settings: Partial<AppSettings>, updatedBy: string): Promise<void> {
   const supabase = createClient();
-  const current = await getAppSettings();
-  const { updatedAt: _omitUpdatedAt, updatedBy: _omitUpdatedBy, ...payload } = settings;
+  const { data: row, error: fetchError } = await supabase
+    .from(COLLECTIONS.SETTINGS)
+    .select("settings")
+    .eq("id", APP_SETTINGS_DOC_ID)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+
+  const rawBlob =
+    row?.settings && typeof row.settings === "object"
+      ? (row.settings as DbRow)
+      : {};
+  const current = normalizeAppSettingsBlob(rawBlob);
+  const { updatedAt: settingsUpdatedAt, updatedBy: settingsUpdatedBy, ...payload } = settings;
+  void settingsUpdatedAt;
+  void settingsUpdatedBy;
 
   const mergedSettings: AppSettings = stripUndefined({
     ...current,
@@ -648,7 +679,7 @@ export async function getLostItemByTrackingCode(trackingCode: string) {
 }
 
 export async function getLostItems(
-  constraints: Array<SupabaseConstraint<ReturnType<typeof createClient>["from"] extends never ? never : any>> = []
+  constraints: SupabaseConstraint<unknown>[] = []
 ) {
   const supabase = createClient();
   let query = supabase.from(COLLECTIONS.LOST_ITEMS).select("*").order("created_at", { ascending: false });
@@ -809,7 +840,7 @@ export async function getFoundItem(id: string) {
 }
 
 export async function getFoundItems(
-  constraints: Array<SupabaseConstraint<ReturnType<typeof createClient>["from"] extends never ? never : any>> = []
+  constraints: SupabaseConstraint<unknown>[] = []
 ) {
   const supabase = createClient();
   let query = supabase.from(COLLECTIONS.FOUND_ITEMS).select("*").order("created_at", { ascending: false });

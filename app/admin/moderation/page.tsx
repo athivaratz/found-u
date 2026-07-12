@@ -14,11 +14,7 @@ import {
   Eye,
   AlertTriangle,
   Loader2,
-  Filter,
   ThumbsUp,
-  ThumbsDown,
-  Flag,
-  MessageSquare,
 } from "lucide-react";
 import Image from "next/image";
 import {
@@ -34,17 +30,26 @@ import {
 } from "@/lib/database";
 import {
   STATUS_CONFIG,
-  getItemDisplayName,
   isFoundItem,
   isLostItem,
   type LostItem,
   type FoundItem,
-  type ItemStatus,
 } from "@/lib/types";
 import type { CategoryConfig, LocationConfig } from "@/lib/database";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { useAppDialog } from "@/hooks/use-app-dialog";
+
+function isStaleSearchingItem(
+  item: LostItem | FoundItem,
+  nowMs: number
+): boolean {
+  if (!item.createdAt || item.status !== "searching") return false;
+  const createdDate = timestampToDate(item.createdAt);
+  const daysSinceCreated =
+    (nowMs - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+  return daysSinceCreated > 7;
+}
 
 export default function AdminModerationPage() {
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
@@ -85,10 +90,12 @@ export default function AdminModerationPage() {
     };
   }, []);
 
+  const [nowMs] = useState(() => Date.now());
+
   // Combine and sort items by date (newest first)
   const allItems = [...lostItems, ...foundItems].sort((a, b) => {
-    const dateA = a.createdAt ? timestampToDate(a.createdAt as any).getTime() : 0;
-    const dateB = b.createdAt ? timestampToDate(b.createdAt as any).getTime() : 0;
+    const dateA = a.createdAt ? timestampToDate(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? timestampToDate(b.createdAt).getTime() : 0;
     return dateB - dateA;
   });
 
@@ -102,13 +109,7 @@ export default function AdminModerationPage() {
       );
     }
     if (filter === "flagged") {
-      // Items that might need attention (e.g., old items still searching)
-      if (item.createdAt) {
-        const createdDate = timestampToDate(item.createdAt as any);
-        const daysSinceCreated = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
-        return daysSinceCreated > 7 && item.status === "searching";
-      }
-      return false;
+      return isStaleSearchingItem(item, nowMs);
     }
     return true;
   });
@@ -122,14 +123,7 @@ export default function AdminModerationPage() {
         i.status === "found" ||
         i.status === "pending_room_confirm"
     ).length,
-    flagged: allItems.filter((item) => {
-      if (item.createdAt) {
-        const createdDate = timestampToDate(item.createdAt as any);
-        const daysSinceCreated = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
-        return daysSinceCreated > 7 && item.status === "searching";
-      }
-      return false;
-    }).length,
+    flagged: allItems.filter((item) => isStaleSearchingItem(item, nowMs)).length,
     resolved: allItems.filter((i) => i.status === "claimed").length,
   };
 
@@ -299,7 +293,7 @@ export default function AdminModerationPage() {
               const isLost = isLostItem(item);
               const isOld = (() => {
                 if (item.createdAt) {
-                  const createdDate = timestampToDate(item.createdAt as any);
+                  const createdDate = timestampToDate(item.createdAt);
                   const daysSinceCreated = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
                   return daysSinceCreated > 7 && item.status === "searching";
                 }
@@ -382,7 +376,7 @@ export default function AdminModerationPage() {
 
                       <p className="text-sm text-gray-400 mt-2">
                         {item.createdAt
-                          ? formatThaiDate(timestampToDate(item.createdAt as any))
+                          ? formatThaiDate(timestampToDate(item.createdAt))
                           : "-"}
                       </p>
                     </div>

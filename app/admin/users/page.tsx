@@ -10,10 +10,8 @@ import {
   Ban,
   Clock,
   CheckCircle,
-  Shield,
   Loader2,
   RefreshCw,
-  UserX,
   UserCheck,
   AlertTriangle,
 } from "lucide-react";
@@ -28,7 +26,7 @@ import {
 import { logUserBanned, logUserUnbanned, logUserTimeout } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
 import type { AppUser, BanStatus } from "@/lib/types";
-import { cn, formatThaiDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 
 const BAN_STATUS_CONFIG: Record<BanStatus, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
@@ -367,6 +365,7 @@ export default function AdminUsersPage() {
                 >
                   {/* User Info */}
                   <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- external avatar URL */}
                     <img
                       src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}&background=06C755&color=fff`}
                       alt=""

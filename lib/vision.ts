@@ -1,4 +1,5 @@
 import { DEFAULT_APP_SETTINGS, type ItemCategory } from "@/lib/types";
+import { resolveAiCredentials, getGeminiApiKey } from "@/lib/ai/credentials-resolver";
 
 export interface VisionExtractedData {
   itemName: string;
@@ -55,7 +56,6 @@ export const VISION_CATEGORY_LABELS: Record<ItemCategory, string> = {
 };
 
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
 
 const DEFAULT_VISION_MODEL = DEFAULT_APP_SETTINGS.aiVisionModel || "gemini-1.5-flash";
 
@@ -88,25 +88,24 @@ function resolveVisionConfig(config?: AIVisionConfig) {
   };
 }
 
-const VISION_PROMPT = `You are an AI that identifies a found item from a photo.
+const VISION_PROMPT = `คุณเป็น AI วิเคราะห์รูปสิ่งของ (Found Item Vision)
 
-Return ONLY JSON that follows this schema. No extra text.
+ตอบเป็น JSON เท่านั้น ห้ามมีข้อความอื่น
 
 --- Schema ---
-1. itemName (String): Short item name, e.g., "wallet", "phone", "earbuds"
-2. category (String): Must be one of:
-  - "wallet", "phone", "keys", "bag", "electronics", "documents", "clothing", "accessories", "other"
-3. color (String/null): Primary color if visible, otherwise null
-4. brand (String/null): Brand if visible, otherwise null
-5. details (String/null): Extra visible details, otherwise null
-6. confidence (String): "low" | "medium" | "high" overall confidence
+1. itemName (String): ชื่อสิ่งของสั้นๆ เช่น กระเป๋าสตางค์ โทรศัพท์ หูฟัง
+2. category (String): ต้องเป็นหนึ่งใน wallet, phone, keys, bag, electronics, documents, clothing, accessories, other
+3. color (String/null): สีหลักที่เห็น หรือ null
+4. brand (String/null): ยี่ห้อที่เห็น หรือ null
+5. details (String/null): รายละเอียดที่เห็น หรือ null
+6. confidence (String): "low" | "medium" | "high"
 
---- Rules ---
-- Output JSON only
-- If unclear, use null or "other"
-- Do not guess from context not visible in the image
+--- กฎ ---
+- ห้ามเดาสิ่งที่มองไม่เห็นในรูป
+- ถ้าไม่ชัด ใช้ null หรือ "other"
 
-JSON Output:`;
+ตัวอย่าง output:
+{"itemName":"หูฟัง","category":"electronics","color":"ดำ","brand":null,"details":"ไร้สาย","confidence":"high"}`;
 
 function normalizeVisionPayload(parsedData: Record<string, unknown>): VisionExtractedData {
   const rawCategory = String(parsedData.category || "");
@@ -146,8 +145,10 @@ export async function extractVisionData(
   config?: AIVisionConfig,
   options?: { includeDebug?: boolean }
 ): Promise<VisionExtractedData | VisionExtractResult | null> {
-  if (!GEMINI_API_KEY) {
-    console.error("GEMMA_API_KEY not found");
+  const credentials = await resolveAiCredentials();
+  const geminiApiKey = getGeminiApiKey(credentials);
+  if (!geminiApiKey) {
+    console.error("Gemini API key not configured");
     return null;
   }
 
@@ -157,9 +158,10 @@ export async function extractVisionData(
       temperature: resolvedConfig.temperature,
       maxOutputTokens: resolvedConfig.maxOutputTokens,
       topP: resolvedConfig.topP,
+      responseMimeType: "application/json",
     };
 
-    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${geminiApiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -7,7 +7,6 @@ import { useState, useEffect } from "react";
 import {
   Search,
   Package,
-  Edit,
   Trash2,
   Loader2,
   Filter,
@@ -418,7 +417,7 @@ export default function AdminItemsPage() {
                     {"locationLost" in item ? item.locationLost : item.locationFound}
                   </td>
                   <td className="py-4 px-6 text-gray-500 dark:text-gray-400">
-                    {item.createdAt ? formatThaiDate(timestampToDate(item.createdAt as any)) : "-"}
+                    {item.createdAt ? formatThaiDate(timestampToDate(item.createdAt)) : "-"}
                   </td>
                   <td className="py-4 px-6">
                     <span
@@ -484,7 +483,7 @@ export default function AdminItemsPage() {
                     {"locationLost" in item ? item.locationLost : item.locationFound}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {item.createdAt ? formatThaiDate(timestampToDate(item.createdAt as any)) : "-"}
+                    {item.createdAt ? formatThaiDate(timestampToDate(item.createdAt)) : "-"}
                   </p>
                 </div>
                 <span

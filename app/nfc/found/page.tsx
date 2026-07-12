@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { logNfcFoundReported } from "@/lib/logger";
+import { StatusAlert } from "@/components/ui/status-alert";
 
 function NfcFoundContent() {
   const router = useRouter();
@@ -54,7 +55,6 @@ function NfcFoundContent() {
       setTagId(fromUrl.toUpperCase());
       void loadTag(fromUrl);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   useEffect(() => {
@@ -106,7 +106,7 @@ function NfcFoundContent() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
@@ -164,7 +164,7 @@ function NfcFoundContent() {
           </div>
         )}
 
-        {error && <p className="text-center text-red-500 text-sm">{error}</p>}
+        {error && <StatusAlert variant="error" message={error} centered className="mt-2" />}
 
         {resolved && (
           <section className="space-y-4">

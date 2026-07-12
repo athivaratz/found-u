@@ -5,6 +5,12 @@ import { cn } from "@/lib/utils";
 import Sidebar from "@/components/layout/sidebar";
 import BottomNav from "@/components/layout/bottom-nav";
 import Header from "@/components/layout/header";
+import { ManualModeBar } from "@/components/layout/manual-mode-bar";
+import {
+  shellDesktopMain,
+  shellDesktopPadding,
+  shellSidebarInset,
+} from "@/components/layout/shell-layout";
 
 export type StudentShellMaxWidth = "sm" | "md" | "lg" | "full";
 
@@ -40,25 +46,21 @@ export function StudentAppShell({
   return (
     <div className={cn("min-h-screen bg-bg-secondary transition-colors", className)}>
       {/* Mobile */}
-      <div className={cn("md:hidden", showBottomNav && "main-with-bottom-nav")}>
-        {headerTitle && (
+      <div className={cn("md:hidden flex flex-col min-h-screen", showBottomNav && "main-with-bottom-nav")}>
+        <ManualModeBar />
+        {headerTitle ? (
           <Header title={headerTitle} showBack backHref={headerBackHref} />
-        )}
-        <main className={cn("page-padding py-4", mainClassName)}>
+        ) : null}
+        <main className={cn("flex-1 page-padding py-4 min-w-0 overflow-x-clip", mainClassName)}>
           <div className={contentClass}>{children}</div>
         </main>
-        {showBottomNav && <BottomNav />}
+        {showBottomNav ? <BottomNav /> : null}
       </div>
 
-      {/* Desktop — scroll via document, not a clipped inner pane */}
+      {/* Desktop */}
       <div className="hidden md:flex min-h-screen">
         <Sidebar />
-        <main
-          className={cn(
-            "flex-1 ml-72 bg-bg-secondary px-8 py-8 min-h-screen",
-            mainClassName
-          )}
-        >
+        <main className={cn(shellDesktopMain, shellSidebarInset, shellDesktopPadding, "min-w-0 overflow-x-clip", mainClassName)}>
           <div className={contentClass}>{children}</div>
         </main>
       </div>

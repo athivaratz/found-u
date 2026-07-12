@@ -1,3 +1,5 @@
+// Supabase JSON columns store heterogeneous app payloads at the DB boundary.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches generated Supabase client expectations
 export type Json = any;
 
 export interface Database {
@@ -97,6 +99,31 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["ai_usage"]["Row"]>;
         Relationships: [];
       };
+      agent_chat_logs: {
+        Row: {
+          id: string;
+          user_id: string;
+          session_id: string | null;
+          provider: string;
+          model: string | null;
+          settings_snapshot: Json | null;
+          routing: Json | null;
+          request_messages: Json | null;
+          response_parts: Json | null;
+          steps: Json | null;
+          truncated: boolean;
+          finish_reason: string | null;
+          error: string | null;
+          duration_ms: number | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["agent_chat_logs"]["Row"]> & {
+          user_id: string;
+          provider: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["agent_chat_logs"]["Row"]>;
+        Relationships: [];
+      };
       error_logs: {
         Row: Record<string, Json | undefined>;
         Insert: Record<string, Json | undefined>;
@@ -137,6 +164,31 @@ export interface Database {
         Row: Record<string, Json | undefined>;
         Insert: Record<string, Json | undefined>;
         Update: Record<string, Json | undefined>;
+        Relationships: [];
+      };
+      drop_off_locations: {
+        Row: {
+          id: string;
+          value: string;
+          label: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["drop_off_locations"]["Row"]> & {
+          value: string;
+          label: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["drop_off_locations"]["Row"]>;
+        Relationships: [];
+      };
+      system_config: {
+        Row: {
+          id: string;
+          config_data: Json;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["system_config"]["Row"]> & { id: string };
+        Update: Partial<Database["public"]["Tables"]["system_config"]["Row"]>;
         Relationships: [];
       };
     };

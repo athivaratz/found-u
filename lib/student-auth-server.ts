@@ -331,28 +331,36 @@ export async function getStudentAccount(studentId: string): Promise<StudentAccou
     throw error;
   }
   if (!data) return null;
-  const row = data as Record<string, any>;
+  const row = data as Record<string, unknown>;
 
-  const createdAt = row.created_at ?? row.createdAt ?? new Date().toISOString();
-  const updatedAt = row.updated_at ?? row.updatedAt ?? new Date().toISOString();
+  const readString = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = row[key];
+      if (typeof value === "string") return value;
+    }
+    return undefined;
+  };
+
+  const createdAt = readString("created_at", "createdAt") ?? new Date().toISOString();
+  const updatedAt = readString("updated_at", "updatedAt") ?? new Date().toISOString();
 
   return {
-    studentId: row.student_id ?? row.studentId,
-    firstName: row.first_name ?? row.firstName,
-    lastName: row.last_name ?? row.lastName,
-    nickname: row.nickname,
-    gradeLevel: row.grade_level ?? row.gradeLevel ?? undefined,
-    roomNumber: row.room_number ?? row.roomNumber ?? undefined,
+    studentId: readString("student_id", "studentId") ?? "",
+    firstName: readString("first_name", "firstName") ?? "",
+    lastName: readString("last_name", "lastName") ?? "",
+    nickname: readString("nickname") ?? "",
+    gradeLevel: readString("grade_level", "gradeLevel"),
+    roomNumber: readString("room_number", "roomNumber"),
     isRegistered: (row.is_registered ?? row.isRegistered) === true,
-    schoolPasswordHash: row.school_password_hash ?? row.schoolPasswordHash ?? undefined,
-    currentPasswordHash: row.current_password_hash ?? row.currentPasswordHash ?? undefined,
-    mustChangePassword: (row.must_change_password ?? row.mustChangePassword) ?? false,
-    hasLoggedInOnce: (row.has_logged_in_once ?? row.hasLoggedInOnce) ?? false,
-    linkedUid: row.linked_uid ?? row.linkedUid ?? undefined,
-    pinHash: row.pin_hash ?? row.pinHash ?? undefined,
-    passkeyCredentials: (row.passkey_credentials ?? row.passkeyCredentials) ?? undefined,
-    status: (row.status ?? "active") as StudentAccount["status"],
-    importBatchId: row.import_batch_id ?? row.importBatchId ?? undefined,
+    schoolPasswordHash: readString("school_password_hash", "schoolPasswordHash"),
+    currentPasswordHash: readString("current_password_hash", "currentPasswordHash"),
+    mustChangePassword: (row.must_change_password ?? row.mustChangePassword) === true,
+    hasLoggedInOnce: (row.has_logged_in_once ?? row.hasLoggedInOnce) === true,
+    linkedUid: readString("linked_uid", "linkedUid"),
+    pinHash: readString("pin_hash", "pinHash"),
+    passkeyCredentials: (row.passkey_credentials ?? row.passkeyCredentials) as StudentAccount["passkeyCredentials"],
+    status: (readString("status") ?? "active") as StudentAccount["status"],
+    importBatchId: readString("import_batch_id", "importBatchId"),
     createdAt: new Date(createdAt),
     updatedAt: new Date(updatedAt),
   };
@@ -990,11 +998,15 @@ export async function createStudentAccountManual(input: {
   studentId: string;
   password?: string;
   firstName: string;
+  lastName: string;
+  gradeLevel?: string;
+  roomNumber?: string;
   role: "user" | "admin";
   adminUid: string;
 }): Promise<{ studentId: string; uid: string }> {
   const id = normalizeStudentId(input.studentId);
   const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
 
   if (!isValidStudentId(id)) {
     throw new Error("เลขประจำตัวต้องเป็นตัวเลข 5 หลัก");
@@ -1004,6 +1016,9 @@ export async function createStudentAccountManual(input: {
   }
   if (!firstName) {
     throw new Error("กรุณากรอกชื่อ");
+  }
+  if (!lastName) {
+    throw new Error("กรุณากรอกนามสกุล");
   }
 
   const admin = createAdminClient();
@@ -1017,9 +1032,10 @@ export async function createStudentAccountManual(input: {
     throw new Error(`เลขประจำตัว ${id} มีในระบบแล้ว`);
   }
 
-  const lastName = "-";
   const nickname = firstName;
-  const displayName = firstName;
+  const displayName = `${firstName} ${lastName}`.trim();
+  const gradeLevel = input.gradeLevel?.trim() || null;
+  const roomNumber = input.roomNumber?.trim() || null;
   const importBatchId = `manual_${Date.now()}`;
   const now = new Date().toISOString();
 
@@ -1034,6 +1050,8 @@ export async function createStudentAccountManual(input: {
       first_name: firstName,
       last_name: lastName,
       nickname,
+      grade_level: gradeLevel,
+      room_number: roomNumber,
       must_change_password: false,
       has_logged_in_once: false,
       is_registered: false,
@@ -1063,6 +1081,8 @@ export async function createStudentAccountManual(input: {
     first_name: firstName,
     last_name: lastName,
     nickname,
+    grade_level: gradeLevel,
+    room_number: roomNumber,
     school_password_hash: schoolHash,
     current_password_hash: schoolHash,
     must_change_password: false,

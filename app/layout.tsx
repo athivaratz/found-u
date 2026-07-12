@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Kanit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/auth-context";
+import { AppModeProvider } from "@/contexts/app-mode-context";
 import { DataProvider } from "@/contexts/DataContext";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -29,6 +30,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
   themeColor: "#06C755",
 };
 
@@ -54,21 +56,23 @@ export default function RootLayout({
             storageKey="theme"
           >
             <AuthProvider>
-              <BfcacheRestoreHandler />
-              <DataProvider>
-                <AuthGuard>
-                  {/* 
-                    Responsive layout wrapper
-                    - Mobile: max-w-md centered
-                    - Desktop: Full width for better experience
-                  */}
-                  <div className="min-h-screen bg-bg-secondary transition-colors">
-                    <div className="w-full min-h-screen bg-bg-primary transition-colors">
-                      {children}
+              <AppModeProvider>
+                <BfcacheRestoreHandler />
+                <DataProvider>
+                  <AuthGuard>
+                    {/* 
+                      Responsive layout wrapper
+                      - Mobile: max-w-md centered
+                      - Desktop: Full width for better experience
+                    */}
+                    <div className="min-h-screen bg-bg-secondary transition-colors">
+                      <div className="w-full min-h-screen bg-bg-primary transition-colors">
+                        {children}
+                      </div>
                     </div>
-                  </div>
-                </AuthGuard>
-              </DataProvider>
+                  </AuthGuard>
+                </DataProvider>
+              </AppModeProvider>
             </AuthProvider>
           </ThemeProvider>
         </ErrorBoundary>

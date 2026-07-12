@@ -1,0 +1,95 @@
+@import "./globals.css";
+
+/* Assistant layout: desktop only on landscape tablet+ (portrait stays immersive, incl. iPad Pro) */
+@custom-variant assistant-desktop {
+  @media (min-width: 768px) and (orientation: landscape) and (min-height: 600px) {
+    @slot;
+  }
+}
+
+/* Agent workspace — tonal surfaces only (no mesh / glass) */
+.agent-surface-bg {
+  background: var(--bg-secondary);
+}
+
+.dark .agent-surface-bg {
+  background: var(--bg-secondary);
+}
+
+.agent-chat-pane {
+  background: var(--bg-primary);
+}
+
+.agent-stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--line-green);
+  animation: agent-cursor-blink 1s step-end infinite;
+}
+
+@keyframes agent-cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.agent-thinking-panel {
+  background: var(--agent-thinking-bg, rgba(0, 0, 0, 0.03));
+}
+
+.dark .agent-thinking-panel {
+  --agent-thinking-bg: rgba(255, 255, 255, 0.04);
+}
+
+.agent-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--line-green-light);
+  color: var(--line-green);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-stream-cursor {
+    animation: none;
+  }
+
+  .agent-typing-dot {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.agent-typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--text-tertiary);
+  animation: agent-typing-pulse 1.2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+.dark .agent-typing-dot {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+@keyframes agent-typing-pulse {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}

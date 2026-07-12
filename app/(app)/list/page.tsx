@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -16,6 +16,7 @@ import {
 import Header from "@/components/layout/header";
 import BottomNav from "@/components/layout/bottom-nav";
 import AppShell from "@/components/layout/app-shell";
+import { StatusAlert } from "@/components/ui/status-alert";
 import { useAuth } from "@/contexts/auth-context";
 import {
   CATEGORIES,
@@ -24,83 +25,98 @@ import {
   type LostItem,
   type FoundItem,
   type ItemStatus,
+  type ContactInfo,
 } from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { subscribeToLostItems, subscribeToFoundItems, timestampToDate } from "@/lib/database";
 
-// Type guard สำหรับตรวจสอบว่าเป็น Timestamp หรือ Date
-function isTimestamp(value: any): value is { toDate: () => Date } {
-  return value && typeof value.toDate === 'function';
-}
-
-// Type guard สำหรับตรวจสอบว่าเป็น Date หรือ Timestamp
-function toDate(value: Date | { toDate: () => Date } | undefined): Date {
-  if (!value) return new Date();
-  if (isTimestamp(value)) return value.toDate();
-  if (value instanceof Date) return value;
-  return new Date();
-}
-
-type FilterType = 'all' | 'lost' | 'found';
+type FilterType = "all" | "lost" | "found";
 
 type CombinedItem = {
   id: string;
-  type: 'lost' | 'found';
+  type: "lost" | "found";
   name: string;
   description?: string;
   location: string;
   status: ItemStatus;
   category?: string;
   photoUrl?: string;
-  contacts?: any[];
+  contacts?: ContactInfo[];
   trackingCode: string;
   createdAt: Date;
 };
 
+const LIST_LOAD_TIMEOUT_MS = 20_000;
+const SEARCH_MAX_LENGTH = 80;
+
+function itemPhotoAlt(item: CombinedItem): string {
+  const kind = item.type === "lost" ? "ของหาย" : "ของที่เจอ";
+  return `รูป${kind}: ${item.name}`;
+}
+
 export default function ListPage() {
   const { isAdmin } = useAuth();
-  const [filter, setFilter] = useState<FilterType>('all');
+  const searchInputId = useId();
+  const categorySelectId = useId();
+  const resultsStatusId = useId();
+
+  const [filter, setFilter] = useState<FilterType>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
   const [foundItems, setFoundItems] = useState<FoundItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [subscriptionKey, setSubscriptionKey] = useState(0);
 
-  // Subscribe to real-time updates
+  const retryLoad = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
+    setSubscriptionKey((key) => key + 1);
+  }, []);
+
   useEffect(() => {
     let loadedLost = false;
     let loadedFound = false;
+    let cancelled = false;
 
-    const checkLoaded = () => {
-      if (loadedLost && loadedFound) {
-        setLoading(false);
-      }
+    const markReady = () => {
+      if (cancelled || !loadedLost || !loadedFound) return;
+      setLoading(false);
+      setLoadError(null);
     };
+
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled || (loadedLost && loadedFound)) return;
+      setLoading(false);
+      setLoadError("โหลดรายการไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง");
+    }, LIST_LOAD_TIMEOUT_MS);
 
     const unsubLost = subscribeToLostItems((items) => {
       setLostItems(items);
       loadedLost = true;
-      checkLoaded();
+      markReady();
     });
 
     const unsubFound = subscribeToFoundItems((items) => {
       setFoundItems(items);
       loadedFound = true;
-      checkLoaded();
+      markReady();
     });
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
       unsubLost();
       unsubFound();
     };
-  }, []);
+  }, [subscriptionKey]);
 
-  // Combine and filter items
   const combinedItems: CombinedItem[] = [
     ...lostItems.map((item) => ({
       id: item.id,
-      type: 'lost' as const,
+      type: "lost" as const,
       name: item.itemName,
       description: item.description,
       location: item.locationLost,
@@ -108,11 +124,11 @@ export default function ListPage() {
       category: item.category,
       contacts: item.contacts,
       trackingCode: item.trackingCode,
-      createdAt: toDate(item.createdAt),
+      createdAt: timestampToDate(item.createdAt),
     })),
     ...foundItems.map((item) => ({
       id: item.id,
-      type: 'found' as const,
+      type: "found" as const,
       name: item.description,
       description: item.description,
       location: item.locationFound,
@@ -120,17 +136,13 @@ export default function ListPage() {
       photoUrl: item.photoUrl,
       contacts: item.finderContacts,
       trackingCode: item.trackingCode,
-      createdAt: toDate(item.createdAt),
+      createdAt: timestampToDate(item.createdAt),
     })),
   ]
     .filter((item) => {
-      // Security: Hide found items from public (unless admin)
-      if (!isAdmin && item.type === 'found') return false;
+      if (!isAdmin && item.type === "found") return false;
+      if (filter !== "all" && item.type !== filter) return false;
 
-      // Type filter
-      if (filter !== 'all' && item.type !== filter) return false;
-
-      // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchName = item.name.toLowerCase().includes(query);
@@ -140,8 +152,7 @@ export default function ListPage() {
         if (!matchName && !matchDesc && !matchLocation && !matchCode) return false;
       }
 
-      // Category filter (only for lost items)
-      if (categoryFilter && item.type === 'lost' && item.category !== categoryFilter) {
+      if (categoryFilter && item.type === "lost" && item.category !== categoryFilter) {
         return false;
       }
 
@@ -155,6 +166,7 @@ export default function ListPage() {
     return cat?.icon || "📦";
   };
 
+
   return (
     <AppShell>
       <div className="min-h-screen bg-bg-secondary pb-24 md:pb-8 transition-colors">
@@ -162,221 +174,283 @@ export default function ListPage() {
           <Header title="รายการทั้งหมด" showBack />
         </div>
 
-        {/* Desktop Header */}
         <div className="hidden md:block px-8 py-6 border-b border-border-light bg-bg-secondary sticky top-0 z-10">
-          <h1 className="text-2xl font-bold text-text-primary">รายการทั้งหมด</h1>
-          <p className="text-text-secondary text-sm mt-1">รายการของหายและของที่เจอทั้งหมดในระบบ</p>
+          <h1 className="text-2xl font-semibold text-text-primary text-balance">รายการทั้งหมด</h1>
+          <p className="text-text-secondary text-sm mt-1">
+            รายการของหายและของที่เจอทั้งหมดในระบบ
+          </p>
         </div>
 
-        <div className="w-full max-w-4xl mx-auto px-4 md:px-8 py-6">
-          {/* Filter Tabs - Only show if Admin */}
-          {isAdmin && (
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-              <button
-                onClick={() => setFilter('all')}
-                className={cn(
-                  "px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
-                  filter === 'all'
-                    ? "bg-[#06C755] text-white"
-                    : "bg-bg-card text-text-secondary border border-border-light"
-                )}
+        <div className="w-full max-w-4xl mx-auto px-4 md:px-8 py-6 min-w-0">
+          <section aria-label="ค้นหาและกรอง">
+            {isAdmin && (
+              <div
+                className="flex gap-2 mb-4 overflow-x-auto pb-2"
+                role="group"
+                aria-label="กรองประเภทรายการ"
               >
-                ทั้งหมด
-              </button>
-              <button
-                onClick={() => setFilter('lost')}
-                className={cn(
-                  "px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
-                  filter === 'lost'
-                    ? "bg-red-500 text-white"
-                    : "bg-bg-card text-text-secondary border border-border-light"
-                )}
-              >
-                🔍 ของหายทั้งหมด
-              </button>
-              <button
-                onClick={() => setFilter('found')}
-                className={cn(
-                  "px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
-                  filter === 'found'
-                    ? "bg-[#06C755] text-white"
-                    : "bg-bg-card text-text-secondary border border-border-light"
-                )}
-              >
-                📦 เจอของทั้งหมด
-              </button>
-            </div>
-          )}
-
-          {/* Search & Filter Bar */}
-          <div className="flex gap-2 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหา..."
-                className="w-full h-12 pl-10 pr-4 bg-bg-card rounded-xl text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-[#06C755] border border-border-light"
-              />
-            </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn(
-                "h-12 px-4 rounded-xl flex items-center gap-2 transition-colors",
-                showFilters
-                  ? "bg-[#06C755] text-white"
-                  : "bg-bg-card text-text-secondary border border-border-light"
-              )}
-            >
-              <Filter className="w-5 h-5" />
-              <ChevronDown className={cn("w-4 h-4 transition-transform", showFilters && "rotate-180")} />
-            </button>
-          </div>
-
-          {/* Advanced Filters */}
-          {showFilters && (
-            <div className="bg-bg-card rounded-xl p-4 mb-4 animate-fade-in border border-border-light">
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                หมวดหมู่
-              </label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full h-10 px-3 bg-bg-secondary rounded-lg text-text-primary border-0 focus:outline-none focus:ring-2 focus:ring-[#06C755]"
-              >
-                <option value="">ทั้งหมด</option>
-                {CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.icon} {cat.label}
-                  </option>
+                {(
+                  [
+                    { id: "all" as const, label: "ทั้งหมด", activeClass: "bg-line-green text-white" },
+                    {
+                      id: "lost" as const,
+                      label: "ของหายทั้งหมด",
+                      activeClass: "bg-status-error text-white",
+                    },
+                    {
+                      id: "found" as const,
+                      label: "เจอของทั้งหมด",
+                      activeClass: "bg-line-green text-white",
+                    },
+                  ] as const
+                ).map(({ id, label, activeClass }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setFilter(id)}
+                    aria-pressed={filter === id}
+                    className={cn(
+                      "min-h-11 px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35",
+                      filter === id
+                        ? activeClass
+                        : "bg-bg-card text-text-secondary border border-border-light"
+                    )}
+                  >
+                    {label}
+                  </button>
                 ))}
-              </select>
+              </div>
+            )}
+
+            <div className="flex gap-2 mb-4">
+              <div className="relative flex-1 min-w-0">
+                <label htmlFor={searchInputId} className="sr-only">
+                  ค้นหารายการ
+                </label>
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none"
+                  aria-hidden
+                />
+                <input
+                  id={searchInputId}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ค้นหาชื่อ สถานที่ หรือรหัสติดตาม"
+                  maxLength={SEARCH_MAX_LENGTH}
+                  autoComplete="off"
+                  enterKeyHint="search"
+                  aria-describedby={resultsStatusId}
+                  className="w-full h-12 pl-10 pr-4 bg-bg-card rounded-xl text-text-primary placeholder-text-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green border border-border-light"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilters((open) => !open)}
+                aria-label="แสดงตัวกรองหมวดหมู่"
+                aria-expanded={showFilters}
+                aria-controls="list-advanced-filters"
+                className={cn(
+                  "min-h-12 min-w-12 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35",
+                  showFilters
+                    ? "bg-line-green text-white"
+                    : "bg-bg-card text-text-secondary border border-border-light"
+                )}
+              >
+                <Filter className="w-5 h-5" aria-hidden />
+                <ChevronDown
+                  className={cn("w-4 h-4 transition-transform", showFilters && "rotate-180")}
+                  aria-hidden
+                />
+              </button>
             </div>
-          )}
 
-          {/* Results Count */}
-          <div className="text-sm text-text-tertiary mb-4">
-            พบ {combinedItems.length} รายการ
-          </div>
+            {showFilters && (
+              <div
+                id="list-advanced-filters"
+                className="bg-bg-card rounded-xl p-4 mb-4 border border-border-light"
+              >
+                <label
+                  htmlFor={categorySelectId}
+                  className="block text-sm font-medium text-text-secondary mb-2"
+                >
+                  หมวดหมู่
+                </label>
+                <select
+                  id={categorySelectId}
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full min-h-11 px-3 bg-bg-secondary rounded-lg text-text-primary border border-border-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green"
+                >
+                  <option value="">ทั้งหมด</option>
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.icon} {cat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </section>
 
-          {/* Items List */}
+          <p
+            id={resultsStatusId}
+            className="text-sm text-text-tertiary mb-4"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {loading ? "กำลังโหลด..." : `พบ ${combinedItems.length} รายการ`}
+          </p>
+
+          {loadError ? (
+            <StatusAlert
+              variant="error"
+              message={loadError}
+              action={{ label: "ลองอีกครั้ง", onClick: retryLoad }}
+              className="mb-4"
+            />
+          ) : null}
+
           {loading ? (
-            <div className="text-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-[#06C755] mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">กำลังโหลด...</p>
+            <div
+              className="text-center py-12 bg-bg-card rounded-2xl border border-border-light"
+              aria-busy="true"
+              aria-live="polite"
+            >
+              <Loader2
+                className="w-8 h-8 animate-spin text-line-green mx-auto mb-4"
+                aria-hidden
+              />
+              <p className="text-text-secondary">กำลังโหลดรายการ...</p>
             </div>
           ) : combinedItems.length === 0 ? (
             <div className="text-center py-12 bg-bg-card rounded-2xl border border-border-light">
               <div className="w-16 h-16 rounded-full bg-bg-secondary flex items-center justify-center mx-auto mb-4">
-                <Package className="w-8 h-8 text-text-tertiary" />
+                <Package className="w-8 h-8 text-text-tertiary" aria-hidden />
               </div>
               <p className="text-text-secondary font-medium">ไม่พบรายการ</p>
               <p className="text-sm text-text-tertiary mt-1">
-                ลองเปลี่ยนตัวกรองหรือคำค้นหา
+                {searchQuery || categoryFilter || filter !== "all"
+                  ? "ลองเปลี่ยนตัวกรองหรือคำค้นหา"
+                  : "ยังไม่มีรายการในระบบ"}
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {combinedItems.map((item) => (
-                <div
-                  key={`${item.type}-${item.id}`}
-                  className="bg-bg-card rounded-xl p-4 hover:shadow-md transition-all border border-border-light hover:border-line-green cursor-pointer"
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Icon/Image */}
-                    <div className="w-12 h-12 rounded-xl bg-bg-secondary flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden">
-                      {item.photoUrl ? (
-                        <Image
-                          src={item.photoUrl}
-                          alt=""
-                          width={48}
-                          height={48}
-                          className="w-full h-full object-cover"
-                          unoptimized
-                        />
-                      ) : (
-                        getCategoryIcon(item.category)
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className={cn(
-                            "px-2 py-0.5 rounded text-xs font-medium",
-                            item.type === 'lost'
-                              ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                              : "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
-                          )}
-                        >
-                          {item.type === 'lost' ? 'ของหาย' : 'เจอของ'}
-                        </span>
-                        <span className="text-xs text-gray-400">{item.trackingCode}</span>
-                      </div>
-                      <h4 className="font-medium text-gray-900 dark:text-white truncate">
-                        {item.name}
-                      </h4>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {item.location}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatThaiDate(item.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Status */}
-                    <span
-                      className={cn(
-                        "px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0",
-                        getStatusDisplayConfig(item.status, item.type).bgColor || "bg-gray-100",
-                        getStatusDisplayConfig(item.status, item.type).color || "text-gray-600"
-                      )}
-                    >
-                      {getStatusDisplayConfig(item.status, item.type).label || "ไม่ทราบ"}
-                    </span>
-                  </div>
-
-                  {/* Contact Info */}
-                  {item.contacts && item.contacts.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">ติดต่อ:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {item.contacts.map((contact, idx) => {
-                          const contactType = CONTACT_TYPES.find(t => t.value === contact.type);
-                          return (
-                            <span
-                              key={idx}
-                              className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs text-gray-700 dark:text-gray-300"
-                            >
-                              {contactType?.icon} {contact.value}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Report Found Button (Only for Lost Items) */}
-                  {item.type === 'lost' && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+            <ul className="space-y-3" role="list">
+              {combinedItems.map((item) => {
+                const statusConfig = getStatusDisplayConfig(item.status, item.type);
+                return (
+                  <li key={`${item.type}-${item.id}`}>
+                    <article className="bg-bg-card rounded-xl border border-border-light overflow-hidden">
                       <Link
-                        href="/found"
-                        className="flex items-center justify-center gap-2 w-full py-2 bg-[#e8f8ef] dark:bg-[#06C755]/20 text-[#06C755] rounded-lg text-sm font-medium hover:bg-[#d1f0dd] dark:hover:bg-[#06C755]/30 transition-colors"
+                        href={`/tracking?code=${encodeURIComponent(item.trackingCode)}`}
+                        className="block p-4 hover:border-line-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-line-green/35"
+                        aria-label={`ดูรายละเอียด ${item.name} รหัส ${item.trackingCode}`}
                       >
-                        <AlertCircle className="w-4 h-4" />
-                        ฉันเจอของชิ้นนี้
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="w-12 h-12 rounded-xl bg-bg-secondary flex items-center justify-center text-2xl shrink-0 overflow-hidden"
+                            aria-hidden={!item.photoUrl}
+                          >
+                            {item.photoUrl ? (
+                              <Image
+                                src={item.photoUrl}
+                                alt={itemPhotoAlt(item)}
+                                width={48}
+                                height={48}
+                                className="w-full h-full object-cover"
+                                unoptimized
+                              />
+                            ) : (
+                              <span aria-hidden>{getCategoryIcon(item.category)}</span>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded text-xs font-medium",
+                                  item.type === "lost"
+                                    ? "bg-status-error-light text-status-error"
+                                    : "bg-line-green-light text-line-green"
+                                )}
+                              >
+                                {item.type === "lost" ? "ของหาย" : "เจอของ"}
+                              </span>
+                              <span className="text-xs text-text-tertiary break-all">
+                                {item.trackingCode}
+                              </span>
+                            </div>
+                            <h2 className="font-medium text-text-primary truncate">
+                              {item.name}
+                            </h2>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-text-secondary">
+                              <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
+                                <MapPin className="w-3 h-3 shrink-0" aria-hidden />
+                                <span className="truncate">{item.location}</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1 shrink-0">
+                                <Calendar className="w-3 h-3" aria-hidden />
+                                {formatThaiDate(item.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span
+                            className={cn(
+                              "px-2.5 py-1 rounded-full text-xs font-medium shrink-0",
+                              statusConfig.bgColor || "bg-bg-tertiary",
+                              statusConfig.color || "text-text-secondary"
+                            )}
+                          >
+                            {statusConfig.label || "ไม่ทราบ"}
+                          </span>
+                        </div>
                       </Link>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+
+                      {item.contacts && item.contacts.length > 0 && (
+                        <div className="px-4 pb-4 pt-0">
+                          <div className="pt-3 border-t border-border-light">
+                            <p className="text-xs text-text-secondary mb-1">ติดต่อ:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {item.contacts.map((contact, idx) => {
+                                const contactType = CONTACT_TYPES.find(
+                                  (t) => t.value === contact.type
+                                );
+                                return (
+                                  <span
+                                    key={`${contact.type}-${contact.value}-${idx}`}
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-bg-secondary rounded-lg text-xs text-text-primary break-all"
+                                  >
+                                    <span aria-hidden>{contactType?.icon}</span>
+                                    {contact.value}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {item.type === "lost" && (
+                        <div className="px-4 pb-4 pt-0">
+                          <div className="pt-3 border-t border-border-light">
+                            <Link
+                              href="/found"
+                              className="flex items-center justify-center gap-2 w-full min-h-11 py-2 bg-line-green-light text-line-green rounded-lg text-sm font-medium hover:bg-line-green-light/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
+                            >
+                              <AlertCircle className="w-4 h-4" aria-hidden />
+                              ฉันเจอของชิ้นนี้
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
 

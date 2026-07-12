@@ -26,16 +26,17 @@ export function useMapView({
   locateUser = true,
 }: UseMapViewOptions) {
   const [userLocation, setUserLocation] = useState<LocationCoords | null>(null);
-  const [locating, setLocating] = useState(Boolean(locateUser && enabled));
+  const shouldLocate = enabled && locateUser && !preferPolygonFit;
+  const [locating, setLocating] = useState(shouldLocate);
 
   useEffect(() => {
-    if (!enabled || !locateUser || preferPolygonFit) {
-      setLocating(false);
-      return;
-    }
+    setLocating(shouldLocate);
+  }, [shouldLocate]);
+
+  useEffect(() => {
+    if (!shouldLocate) return;
 
     let cancelled = false;
-    setLocating(true);
 
     void getCurrentPosition((coords) => {
       if (!cancelled) setUserLocation(coords);
@@ -48,7 +49,9 @@ export function useMapView({
     return () => {
       cancelled = true;
     };
-  }, [enabled, locateUser, preferPolygonFit]);
+  }, [shouldLocate]);
+
+  const activeLocating = shouldLocate && locating;
 
   const view: MapViewTarget = useMemo(
     () =>
@@ -65,7 +68,7 @@ export function useMapView({
 
   return {
     userLocation,
-    locating,
+    locating: activeLocating,
     center: view.center,
     zoom: view.zoom,
     fitPoints: view.fitPoints,

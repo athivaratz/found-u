@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
+import { coerceAppSettings } from "@/lib/database";
+import type { AppSettings } from "@/lib/types";
 
 export interface RateLimitCheckResult {
   allowed: boolean;
@@ -17,7 +18,7 @@ export async function getAppSettingsAdmin(): Promise<AppSettings> {
   const admin = createAdminClient();
   const { data } = await admin.from("app_settings").select("settings").eq("id", "default").maybeSingle();
   const settings = (data?.settings as Record<string, unknown> | null | undefined) || {};
-  return { ...DEFAULT_APP_SETTINGS, ...settings } as AppSettings;
+  return coerceAppSettings(settings);
 }
 
 export async function checkAndRecordRateLimitAtomic(

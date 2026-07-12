@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-09T16:30:00.000Z",
+  "title": "Design System: Found-U",
+  "extensions": {
+    "colorMeta": {
+      "line-green": {
+        "role": "primary",
+        "displayName": "Campus Green",
+        "canonical": "#06C755",
+        "tonalRamp": ["#024d20", "#036b2c", "#049c42", "#05b34d", "#06C755", "#3dd47a", "#6ee09a", "#e8f8ef"]
+      },
+      "bg-secondary": {
+        "role": "neutral",
+        "displayName": "Hall Gray",
+        "canonical": "#F7F8FA",
+        "tonalRamp": ["#111111", "#1A1A1A", "#262626", "#374151", "#6B7280", "#9CA3AF", "#E5E7EB", "#F7F8FA"]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#191919",
+        "tonalRamp": ["#0A0A0A", "#111111", "#191919", "#374151", "#4B5563", "#6B7280", "#9CA3AF", "#D1D5DB"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page greetings and primary headings." },
+      "body": { "displayName": "Body", "purpose": "Forms, lists, assistant messages—always Ink on light surfaces." }
+    },
+    "shadows": [
+      { "name": "card-rest", "value": "0 1px 2px 0 rgba(0, 0, 0, 0.05)", "purpose": "Default card separation—minimal elevation only." },
+      { "name": "shadow-md", "value": "0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05)", "purpose": "Modals and elevated overlays sparingly." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default UI transitions (200ms)." },
+      { "name": "ease-entrance", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Scale-up entrance animations (280ms)." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "768px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main CTA—report lost, submit, confirm match.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">แจ้งของหาย</button>",
+      "css": ".ds-btn-primary { background: #06C755; color: #fff; border: none; border-radius: 9999px; padding: 14px 32px; font-family: Kanit, sans-serif; font-size: 1rem; font-weight: 500; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease; } .ds-btn-primary:hover { background: #05b34d; transform: translateY(-1px); } .ds-btn-primary:active { transform: translateY(0); } .ds-btn-primary:focus-visible { outline: 2px solid #e8f8ef; outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Cancel, back, low-emphasis actions.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">ยกเลิก</button>",
+      "css": ".ds-btn-secondary { background: #ECEEF1; color: #191919; border: none; border-radius: 9999px; padding: 14px 32px; font-family: Kanit, sans-serif; font-size: 1rem; font-weight: 500; cursor: pointer; transition: background 0.2s ease; } .ds-btn-secondary:hover { background: #e5e5e5; } .ds-btn-secondary:focus-visible { outline: 2px solid #e8f8ef; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Filled input for forms—lost/found reports, search.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"ชื่อสิ่งของ\" />",
+      "css": ".ds-input { width: 100%; background: #f5f5f5; border: none; border-radius: 0.75rem; padding: 14px 16px; font-family: Kanit, sans-serif; font-size: 1rem; color: #191919; transition: background 0.2s ease, box-shadow 0.2s ease; } .ds-input::placeholder { color: #9CA3AF; } .ds-input:focus { outline: none; background: #eeeeee; box-shadow: 0 0 0 2px #e8f8ef; }"
+    },
+    {
+      "name": "Card Surface",
+      "kind": "card",
+      "refersTo": "card-surface",
+      "description": "List items, dashboard rows, content grouping.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">กระเป๋าสตางค์สีดำ</h3><p class=\"ds-card-body\">พบที่ห้องสมุด ชั้น 2</p></div>",
+      "css": ".ds-card { background: #FFFFFF; border-radius: 1rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 20px; } .ds-card-title { margin: 0 0 8px; font-family: Kanit, sans-serif; font-size: 1rem; font-weight: 500; color: #191919; } .ds-card-body { margin: 0; font-family: Kanit, sans-serif; font-size: 0.875rem; color: #6B7280; line-height: 1.5; }"
+    },
+    {
+      "name": "Status Badge Found",
+      "kind": "chip",
+      "refersTo": "badge-found",
+      "description": "Found/success status—always with label text.",
+      "html": "<span class=\"ds-badge-found\">พบแล้ว</span>",
+      "css": ".ds-badge-found { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 9999px; font-family: Kanit, sans-serif; font-size: 0.75rem; font-weight: 500; background: #e8f8ef; color: #06C755; }"
+    },
+    {
+      "name": "Bottom Nav Item Active",
+      "kind": "nav",
+      "refersTo": "nav-bottom-active",
+      "description": "Active tab in mobile bottom navigation.",
+      "html": "<a class=\"ds-nav-item ds-nav-item--active\" href=\"#\"><span class=\"ds-nav-icon-wrap\"><svg class=\"ds-nav-icon\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><path d=\"M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5z\"/></svg></span><span class=\"ds-nav-label\">หน้าแรก</span></a>",
+      "css": ".ds-nav-item { display: flex; flex-direction: column; align-items: center; padding: 8px 16px; text-decoration: none; color: #9CA3AF; font-family: Kanit, sans-serif; } .ds-nav-item--active { color: #06C755; } .ds-nav-icon-wrap { padding: 8px; border-radius: 9999px; } .ds-nav-item--active .ds-nav-icon-wrap { background: #e8f8ef; } .ds-nav-label { font-size: 0.75rem; font-weight: 500; margin-top: 4px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Campus Companion",
+    "overview": "Found-U looks and feels like a helpful classmate at the lost-and-found desk: warm enough to ease anxiety when something is missing, clear enough that a hurried student knows what to tap next. The visual language borrows messaging-app familiarity without copying LINE's brand. Surfaces stay light and legible for Thai text on phones between classes.",
+    "keyCharacteristics": [
+      "Mobile-first density with fixed bottom nav",
+      "Campus Green as sole action accent",
+      "Kanit single-family typography",
+      "Pill-primary actions, 12–16px cards/inputs",
+      "Minimal elevation—tonal backgrounds over shadows",
+      "Color-blind-safe status labels"
+    ],
+    "rules": [
+      { "name": "The One Green Rule", "body": "Campus Green appears on primary CTAs, active navigation, and success—not on decorative backgrounds.", "section": "colors" },
+      { "name": "The Status Pair Rule", "body": "Lost, found, matched, and claimed states must include text label or icon—not hue alone.", "section": "colors" },
+      { "name": "The Ink Body Rule", "body": "Body text uses Ink on light backgrounds—not Whisper—for WCAG AA.", "section": "typography" },
+      { "name": "The Flat Button Rule", "body": "Buttons have no drop shadow; hover uses color shift only.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Campus Green for the single primary action per screen.",
+      "Do keep body copy in Ink with 1rem / 1.5 line-height for Thai readability.",
+      "Do pair status colors with labels.",
+      "Do respect prefers-reduced-motion.",
+      "Do use safe-area insets on bottom nav."
+    ],
+    "donts": [
+      "Don't use over-hyped AI aesthetics—purple gradients, magic marketing copy.",
+      "Don't clone LINE literally.",
+      "Don't use childish illustration or cartoon mascots.",
+      "Don't pair 1px borders with wide soft drop shadows.",
+      "Don't use card radius above 16px on containers.",
+      "Don't rely on color alone for lost/found/matched states."
+    ]
+  }
+}

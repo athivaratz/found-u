@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server";
+import { resolveAiCredentials, getGeminiApiKey } from "@/lib/ai/credentials-resolver";
 
 export const dynamic = "force-dynamic";
 
-const GEMINI_API_KEY = process.env.GEMMA_API_KEY;
 const LIST_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export async function GET() {
   try {
-    if (!GEMINI_API_KEY) {
+    const credentials = await resolveAiCredentials();
+    const apiKey = getGeminiApiKey(credentials);
+    if (!apiKey) {
       return NextResponse.json(
-        { error: "GEMMA_API_KEY not configured" },
+        { error: "Gemini API key not configured" },
         { status: 500 }
       );
     }
 
-    const response = await fetch(`${LIST_MODELS_URL}?key=${GEMINI_API_KEY}`);
+    const response = await fetch(`${LIST_MODELS_URL}?key=${apiKey}`);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -24,8 +26,15 @@ export async function GET() {
       );
     }
 
-    const data = await response.json();
-    const models = (data.models || []).map((model: any) => ({
+    const data = await response.json() as {
+      models?: Array<{
+        name?: string;
+        displayName?: string;
+        description?: string;
+        supportedGenerationMethods?: string[];
+      }>;
+    };
+    const models = (data.models || []).map((model) => ({
       name: model.name,
       displayName: model.displayName,
       description: model.description,

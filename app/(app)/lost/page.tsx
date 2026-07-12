@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -17,23 +17,25 @@ import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
 import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
 import { PageHeader } from "@/components/layout/page-header";
 import { AnimatePresence, m } from "framer-motion";
-import { slideUp } from "@/lib/motion";
+import { slideUp, scaleIn, staggerContainer, staggerItem, fade, motionSafe, duration, easeOut } from "@/lib/motion";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { type ContactInfo, type ContactType, type ItemCategory, type LocationCoords } from "@/lib/types";
 import { cn, generateTrackingCode, isPointInPolygon, normalizeGeoPolygon } from "@/lib/utils";
 import {
   addLostItem,
-  subscribeToCategories,
-  subscribeToContactTypes,
-  type CategoryConfig,
-  type ContactTypeConfig,
 } from "@/lib/database";
 import { useAuth } from "@/contexts/auth-context";
+import { useCategories, useContactTypes } from "@/contexts/DataContext";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
 import { getMapDisplayPosition } from "@/lib/geolocation";
 import { logItemCreated } from "@/lib/logger";
+import type { MatchScore } from "@/lib/matching";
+import { FieldValidationMessage } from "@/components/ui/field-validation-message";
+import { inputStateClass } from "@/components/ui/validated-field";
+import { ValidationSummary } from "@/components/ui/validation-summary";
+import { fieldErrorId, fieldId, recordToIssues } from "@/lib/feedback/types";
 
 const LOST_FORM_STEPS = [
   { id: "details", label: "รายละเอียด" },
@@ -43,14 +45,23 @@ const LOST_FORM_STEPS = [
 
 export default function ReportLostPage() {
   const router = useRouter();
-  const { user, loading: authLoading, appSettings } = useAuth();
+  const { user, loading: authLoading, authHydrating, appSettings } = useAuth();
+  const authPending = authLoading || authHydrating;
+  const { categories, loading: categoriesLoading } = useCategories();
+  const { contactTypes, loading: contactTypesLoading } = useContactTypes();
+  const configLoading = categoriesLoading || contactTypesLoading;
   const { showAlert, dialog } = useAppDialog();
   const reduced = useReducedMotion();
+  const successMotion = motionSafe(scaleIn, reduced);
+  const successIconMotion = motionSafe(
+    {
+      initial: { opacity: 0, scale: 0.88 },
+      animate: { opacity: 1, scale: 1 },
+      transition: { duration: duration.normal, ease: easeOut, delay: 0.06 },
+    },
+    reduced
+  );
   const [formStep, setFormStep] = useState(0);
-
-  const [categories, setCategories] = useState<CategoryConfig[]>([]);
-  const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
-  const [configLoading, setConfigLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     itemName: "",
@@ -67,7 +78,8 @@ export default function ReportLostPage() {
   const [trackingCode, setTrackingCode] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showMatches, setShowMatches] = useState(false);
-  const [matches, setMatches] = useState<any[]>([]);
+  const [matches, setMatches] = useState<MatchScore[]>([]);
+  const contactTypeSeededRef = useRef(false);
 
   const mapFallbackCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
   const mapFallbackZoom = appSettings.mapDefaultZoom ?? 17;
@@ -78,6 +90,18 @@ export default function ReportLostPage() {
   );
 
   const boundaryEnforced = schoolBoundary.length >= 3;
+
+  const stepErrorIssues = useMemo(() => {
+    const keys =
+      formStep === 0
+        ? ["itemName", "category"]
+        : formStep === 1
+          ? ["locationLost"]
+          : ["contacts"];
+    return recordToIssues(errors).filter((issue) =>
+      keys.includes(issue.fieldId.replace("field-", ""))
+    );
+  }, [errors, formStep]);
 
   const isWithinSchoolBoundary = (coords: { lat: number; lng: number }) =>
     !boundaryEnforced || isPointInPolygon(coords, schoolBoundary);
@@ -96,36 +120,16 @@ export default function ReportLostPage() {
   });
 
   useEffect(() => {
-    let loadedCount = 0;
-    const checkLoaded = () => {
-      loadedCount++;
-      if (loadedCount >= 2) setConfigLoading(false);
-    };
-
-    const unsubCategories = subscribeToCategories((cats) => {
-      setCategories(cats);
-      checkLoaded();
-    });
-
-    const unsubContactTypes = subscribeToContactTypes((types) => {
-      setContactTypes(types);
-      if (types.length > 0 && contacts[0]?.type === "phone") {
-        setContacts([{ type: types[0].value as ContactType, value: "" }]);
-      }
-      checkLoaded();
-    });
-
-    return () => {
-      unsubCategories();
-      unsubContactTypes();
-    };
-  }, []);
+    if (contactTypeSeededRef.current || contactTypes.length === 0) return;
+    contactTypeSeededRef.current = true;
+    setContacts([{ type: contactTypes[0].value as ContactType, value: "" }]);
+  }, [contactTypes]);
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authPending && !user) {
       router.push(AUTH_ROUTES.hub);
     }
-  }, [user, authLoading, router]);
+  }, [user, authPending, router]);
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -284,10 +288,10 @@ export default function ReportLostPage() {
     }
   };
 
-  if (authLoading || configLoading) {
+  if ((authLoading && !user) || configLoading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
+      <div className="min-h-screen bg-bg-secondary dark:bg-bg-primary flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-line-green" aria-label="กำลังโหลด" />
       </div>
     );
   }
@@ -308,40 +312,70 @@ export default function ReportLostPage() {
     return (
       <StudentAppShell headerTitle="แจ้งของหายสำเร็จ" showBottomNav maxWidth="lg">
           <div className="flex flex-col items-center justify-center py-4 md:py-8">
-            <div className="w-full max-w-lg bg-bg-card rounded-2xl shadow-sm border border-border-light p-6 md:p-8 animate-fade-in text-center">
-              <div className="w-20 h-20 rounded-full bg-[#e8f8ef] dark:bg-[#06C755]/20 flex items-center justify-center mb-6 mx-auto animate-fade-in">
-                <CheckCircle2 className="w-10 h-10 text-[#06C755]" />
-              </div>
+            <m.div
+              className="w-full max-w-lg bg-bg-card rounded-xl border border-border-light p-6 md:p-8 text-center"
+              initial={reduced ? false : successMotion.initial}
+              animate={successMotion.animate}
+              transition={successMotion.transition}
+            >
+              <m.div
+                className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 mx-auto"
+                initial={reduced ? false : successIconMotion.initial}
+                animate={successIconMotion.animate}
+                transition={successIconMotion.transition}
+              >
+                <CheckCircle2 className="w-7 h-7 text-line-green" aria-hidden />
+              </m.div>
 
-              <h2 className="text-xl font-semibold text-text-primary mb-2">แจ้งของหายเรียบร้อย!</h2>
-              <p className="text-text-secondary text-center mb-8">
+              <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
+                แจ้งของหายเรียบร้อย!
+              </h2>
+              <p className="text-text-secondary text-center text-sm mb-6 text-pretty">
                 เราจะแจ้งเตือนคุณเมื่อมีคนพบของ
               </p>
 
-              <div className="w-full bg-bg-secondary rounded-2xl p-6 mb-8 border border-border-light">
-                <p className="text-sm text-text-secondary text-center mb-2">รหัสติดตาม</p>
-                <p className="text-2xl font-bold text-[#06C755] text-center tracking-wider font-mono">
+              <div className="w-full bg-bg-secondary rounded-xl p-5 mb-6 border border-border-light">
+                <p className="text-sm text-text-secondary text-center mb-1">รหัสติดตาม</p>
+                <p className="text-xl font-semibold text-text-primary text-center tracking-wider font-mono">
                   {trackingCode}
                 </p>
-                <p className="text-xs text-text-tertiary text-center mt-3">
+                <p className="text-xs text-text-tertiary text-center mt-2">
                   กรุณาบันทึกรหัสนี้ไว้เพื่อติดตามสถานะ
                 </p>
               </div>
 
               {showMatches && matches.length > 0 && (
-                <div className="mt-6 text-left">
-                  <div className="bg-[#e8f8ef] dark:bg-[#06C755]/10 rounded-xl p-4 border border-[#06C755]/20">
+                <m.div
+                  className="mt-6 text-left"
+                  initial={reduced ? false : fade.initial}
+                  animate={fade.animate}
+                  transition={{ ...fade.transition, delay: reduced ? 0 : 0.12 }}
+                >
+                  <div className="rounded-xl border border-border-light bg-bg-secondary p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <Search className="w-5 h-5 text-[#06C755]" />
-                      <h3 className="font-semibold text-text-primary">
+                      <Search className="w-4 h-4 text-text-tertiary" aria-hidden />
+                      <h3 className="text-sm font-medium text-text-primary">
                         พบของที่อาจตรงกัน ({matches.length} รายการ)
                       </h3>
                     </div>
-                    <div className="space-y-3">
-                      {matches.slice(0, 3).map((match: any) => (
-                        <div
+                    <m.div
+                      className="space-y-2"
+                      variants={
+                        reduced
+                          ? undefined
+                          : {
+                              initial: {},
+                              animate: staggerContainer.animate,
+                            }
+                      }
+                      initial={reduced ? false : "initial"}
+                      animate="animate"
+                    >
+                      {matches.slice(0, 3).map((match) => (
+                        <m.div
                           key={match.foundItem.id}
-                          className="bg-bg-card rounded-lg p-3 border border-border-light shadow-sm"
+                          variants={reduced ? undefined : staggerItem}
+                          className="bg-bg-card rounded-lg p-3 border border-border-light"
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
@@ -356,53 +390,57 @@ export default function ReportLostPage() {
                                   className={cn(
                                     "text-xs px-2 py-0.5 rounded-full",
                                     match.confidence === "high"
-                                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                                      ? "bg-status-success-light text-line-green"
                                       : match.confidence === "medium"
-                                        ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
-                                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
+                                        ? "bg-status-warning-light text-status-warning"
+                                        : "bg-bg-tertiary text-text-secondary"
                                   )}
                                 >
-                                  ความน่าจะเป็น {match.scorePercentage}%
+                                  ความน่าจะเป็น {match.scorePercentage ?? Math.round(match.score * 100)}%
                                 </span>
                               </div>
                             </div>
                             <button
+                              type="button"
                               onClick={() =>
                                 router.push(`/tracking?code=${match.foundItem.trackingCode}`)
                               }
-                              className="ml-3 px-3 py-1.5 bg-[#06C755] text-white text-xs rounded-lg hover:bg-[#05b34d] transition-colors flex-shrink-0"
+                              className="ml-3 min-h-11 px-3 border border-line-green text-line-green text-sm rounded-lg hover:bg-line-green-light transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                             >
                               ดู
                             </button>
                           </div>
-                        </div>
+                        </m.div>
                       ))}
-                    </div>
+                    </m.div>
                     <button
+                      type="button"
                       onClick={() => router.push(`/tracking?code=${trackingCode}`)}
-                      className="w-full mt-3 py-2 text-sm text-[#06C755] hover:text-[#05b34d] font-medium"
+                      className="w-full mt-3 py-2 text-sm text-line-green hover:text-line-green-hover font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                     >
                       ดูทั้งหมด →
                     </button>
                   </div>
-                </div>
+                </m.div>
               )}
 
               <div className="w-full space-y-3 mt-8">
                 <button
+                  type="button"
                   onClick={() => router.push("/tracking")}
-                  className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors shadow-sm"
+                  className="w-full min-h-11 py-2.5 bg-line-green text-white rounded-xl font-medium hover:bg-line-green-hover transition-[transform,colors] duration-150 active:scale-[0.98] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                 >
                   ติดตามสถานะ
                 </button>
                 <button
+                  type="button"
                   onClick={() => router.push("/home")}
-                  className="w-full py-3 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light"
+                  className="w-full min-h-11 py-2.5 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                 >
                   กลับหน้าหลัก
                 </button>
               </div>
-            </div>
+            </m.div>
           </div>
       </StudentAppShell>
     );
@@ -424,7 +462,7 @@ export default function ReportLostPage() {
             if (formStep < LOST_FORM_STEPS.length - 1) goNextStep();
             else void handleSubmit();
           }}
-          className="pb-4"
+          className="form-sticky-footer-padding md:pb-4"
         >
           <AnimatePresence mode="wait">
             <m.div
@@ -435,36 +473,46 @@ export default function ReportLostPage() {
               transition={slideUp.transition}
               className="space-y-5"
             >
+            <ValidationSummary issues={stepErrorIssues} className="mb-1" />
             {formStep === 0 && (
             <>
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                ชื่อสิ่งของ <span className="text-red-500">*</span>
+              <label htmlFor={fieldId("itemName")} className="block text-sm font-medium text-text-secondary mb-2">
+                ชื่อสิ่งของ <span className="text-status-error">*</span>
               </label>
               <input
+                id={fieldId("itemName")}
                 type="text"
                 name="itemName"
                 value={formData.itemName}
                 onChange={handleFormChange}
                 placeholder="เช่น โทรศัพท์, กระเป๋าสตางค์"
-                className={cn("input-line", errors.itemName && "ring-2 ring-red-200 bg-red-50")}
+                aria-invalid={errors.itemName ? true : undefined}
+                aria-describedby={errors.itemName ? fieldErrorId("itemName") : undefined}
+                className={cn("input-line", inputStateClass(errors.itemName))}
               />
-              {errors.itemName && <p className="text-xs text-red-500 mt-1.5">{errors.itemName}</p>}
+              <FieldValidationMessage
+                id={fieldErrorId("itemName")}
+                message={errors.itemName}
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                ประเภท <span className="text-red-500">*</span>
+              <label htmlFor={fieldId("category")} className="block text-sm font-medium text-text-secondary mb-2">
+                ประเภท <span className="text-status-error">*</span>
               </label>
               <div className="relative">
                 <select
+                  id={fieldId("category")}
                   name="category"
                   value={formData.category}
                   onChange={handleFormChange}
+                  aria-invalid={errors.category ? true : undefined}
+                  aria-describedby={errors.category ? fieldErrorId("category") : undefined}
                   className={cn(
                     "input-line appearance-none pr-10",
-                    errors.category && "ring-2 ring-red-200 bg-red-50",
-                    !formData.category && "text-gray-400"
+                    inputStateClass(errors.category),
+                    !formData.category && "text-text-tertiary"
                   )}
                 >
                   <option value="">เลือกประเภท</option>
@@ -474,13 +522,16 @@ export default function ReportLostPage() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
               </div>
-              {errors.category && <p className="text-xs text-red-500 mt-1.5">{errors.category}</p>}
+              <FieldValidationMessage
+                id={fieldErrorId("category")}
+                message={errors.category}
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
                 รายละเอียดเพิ่มเติม
               </label>
               <textarea
@@ -498,23 +549,24 @@ export default function ReportLostPage() {
             {formStep === 1 && (
             <>
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                สถานที่ทำหาย <span className="text-red-500">*</span>
+              <label htmlFor={fieldId("locationLost")} className="block text-sm font-medium text-text-secondary mb-2">
+                สถานที่ทำหาย <span className="text-status-error">*</span>
               </label>
               <input
+                id={fieldId("locationLost")}
                 type="text"
                 name="locationLost"
                 value={formData.locationLost}
                 onChange={handleFormChange}
                 placeholder="เช่น ตึก 2 ชั้น 3"
-                className={cn(
-                  "input-line",
-                  errors.locationLost && "ring-2 ring-red-200 bg-red-50"
-                )}
+                aria-invalid={errors.locationLost ? true : undefined}
+                aria-describedby={errors.locationLost ? fieldErrorId("locationLost") : undefined}
+                className={cn("input-line", inputStateClass(errors.locationLost))}
               />
-              {errors.locationLost && (
-                <p className="text-xs text-red-500 mt-1.5">{errors.locationLost}</p>
-              )}
+              <FieldValidationMessage
+                id={fieldErrorId("locationLost")}
+                message={errors.locationLost}
+              />
             </div>
 
             {appSettings.mapsEnabled && (
@@ -526,7 +578,7 @@ export default function ReportLostPage() {
                   <button
                     type="button"
                     onClick={handleUseCurrentLocation}
-                    className="text-xs text-line-green hover:text-line-green-hover flex items-center gap-1 shrink-0"
+                    className="inline-flex items-center gap-1 min-h-11 px-2 -mr-2 text-sm text-line-green hover:text-line-green-hover shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                   >
                     <MapPin className="w-3 h-3" />
                     ใช้ตำแหน่งปัจจุบัน
@@ -560,16 +612,16 @@ export default function ReportLostPage() {
             <div className="pt-1">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    ช่องทางติดต่อ <span className="text-red-500">*</span>
+                  <p className="text-sm font-medium text-text-primary">
+                    ช่องทางติดต่อ <span className="text-status-error">*</span>
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">อย่างน้อย 1 ช่องทาง</p>
+                  <p className="text-xs text-text-tertiary mt-0.5">อย่างน้อย 1 ช่องทาง</p>
                 </div>
                 {contacts.length < 3 && (
                   <button
                     type="button"
                     onClick={addContact}
-                    className="flex items-center gap-1 text-sm text-[#06C755] font-medium hover:underline"
+                    className="inline-flex items-center gap-1 min-h-11 px-2 -mr-2 text-sm text-line-green font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                   >
                     <Plus className="w-4 h-4" />
                     เพิ่ม
@@ -578,13 +630,18 @@ export default function ReportLostPage() {
               </div>
             </div>
 
-            {errors.contacts && <p className="text-xs text-red-500">{errors.contacts}</p>}
+            <div id={fieldId("contacts")}>
+              <FieldValidationMessage
+                id={fieldErrorId("contacts")}
+                message={errors.contacts}
+              />
+            </div>
 
             <div className="space-y-3">
               {contacts.map((contact, index) => (
                 <div
                   key={index}
-                  className="grid grid-cols-[minmax(7rem,auto)_1fr_auto] gap-2 items-center"
+                  className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(7rem,auto)_1fr_auto] sm:items-center"
                 >
                   <div className="relative min-w-0">
                     <select
@@ -614,7 +671,7 @@ export default function ReportLostPage() {
                   <button
                     type="button"
                     onClick={() => removeContact(index)}
-                    className="w-11 h-11 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition-colors shrink-0"
+                    className="w-full min-h-11 h-11 sm:w-11 flex items-center justify-center rounded-xl bg-status-error-light text-status-error hover:bg-status-error-light/80 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error/35"
                     aria-label="ลบช่องทางติดต่อ"
                   >
                     <X className="w-5 h-5" />

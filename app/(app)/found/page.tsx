@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -10,6 +10,7 @@ import {
   ImagePlus,
   Loader2,
   MapPin,
+  PenLine,
   Plus,
   Search,
   X,
@@ -23,7 +24,7 @@ import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
 import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { AnimatePresence, m } from "framer-motion";
-import { slideUp } from "@/lib/motion";
+import { slideUp, scaleIn, staggerContainer, staggerItem, fade, motionSafe, duration, easeOut } from "@/lib/motion";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   type ContactInfo,
@@ -41,10 +42,6 @@ import {
 } from "@/lib/utils";
 import {
   addFoundItem,
-  subscribeToCategories,
-  subscribeToContactTypes,
-  type CategoryConfig,
-  type ContactTypeConfig,
 } from "@/lib/database";
 import { uploadFoundItemImage } from "@/lib/storage";
 import {
@@ -59,11 +56,13 @@ import {
   watchGeolocationPermission,
 } from "@/lib/geolocation";
 import { useAuth } from "@/contexts/auth-context";
+import { useCategories, useContactTypes } from "@/contexts/DataContext";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
 import { resolveMapView } from "@/lib/map-utils";
 import { logItemCreated } from "@/lib/logger";
+import type { MatchScore } from "@/lib/matching";
 import {
   computeHandoverDeadlineFromNow,
   formatHandoverCountdown,
@@ -72,6 +71,10 @@ import {
   isFoundHandoverDeadlineEnabled,
 } from "@/lib/found-handover";
 import { triggerFoundHandoverExpirySweep } from "@/lib/found-handover-client";
+import { FieldValidationMessage } from "@/components/ui/field-validation-message";
+import { inputStateClass } from "@/components/ui/validated-field";
+import { ValidationSummaryGroup } from "@/components/ui/validation-summary";
+import { fieldErrorId, fieldId, recordToIssues } from "@/lib/feedback/types";
 
 type ReportMode = "vision" | "manual";
 
@@ -86,17 +89,38 @@ const PERSONNEL_OFFICE_LABEL = getDropOffLocationLabel(DEFAULT_FOUND_DROP_OFF_LO
 export default function ReportFoundPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user, loading: authLoading, appSettings, appSettingsReady, isAdmin } = useAuth();
+  const { user, loading: authLoading, authHydrating, appSettings, appSettingsReady, isAdmin } = useAuth();
+  const authPending = authLoading || authHydrating;
+  const { categories, loading: categoriesLoading } = useCategories();
+  const { contactTypes, loading: contactTypesLoading } = useContactTypes();
+  const configLoading = categoriesLoading || contactTypesLoading;
   const { showAlert, dialog } = useAppDialog();
   const reduced = useReducedMotion();
+  const stepMotion = motionSafe(slideUp, reduced);
+  const panelMotion = motionSafe(
+    {
+      initial: { opacity: 0, y: 8 },
+      animate: { opacity: 1, y: 0 },
+      exit: { opacity: 0, y: -6 },
+      transition: { duration: duration.fast, ease: easeOut },
+    },
+    reduced
+  );
+  const successMotion = motionSafe(scaleIn, reduced);
+  const successIconMotion = motionSafe(
+    {
+      initial: { opacity: 0, scale: 0.88 },
+      animate: { opacity: 1, scale: 1 },
+      transition: { duration: duration.normal, ease: easeOut, delay: 0.06 },
+    },
+    reduced
+  );
+  const reportModeLayoutId = "found-report-mode-indicator";
   const [formStep, setFormStep] = useState(0);
-
-  const [categories, setCategories] = useState<CategoryConfig[]>([]);
-  const [contactTypes, setContactTypes] = useState<ContactTypeConfig[]>([]);
-  const [configLoading, setConfigLoading] = useState(true);
 
   const [gpsLoading, setGpsLoading] = useState(false);
   const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
+  const [adminGpsBypassed, setAdminGpsBypassed] = useState(false);
   const [locationErrorType, setLocationErrorType] = useState<
     | "permission"
     | "timeout"
@@ -138,39 +162,46 @@ export default function ReportFoundPage() {
   const [trackingCode, setTrackingCode] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<Record<string, string>>({});
+
+  const stepFieldKeys = useMemo(() => {
+    if (formStep === 0) {
+      return {
+        errors: ["image", "description"],
+        warnings: ["itemName", "category", "color", "brand"],
+      };
+    }
+    if (formStep === 1) {
+      return { errors: ["locationFound", "locationCoords"], warnings: [] as string[] };
+    }
+    return { errors: [] as string[], warnings: ["contacts"] };
+  }, [formStep]);
+
+  const stepErrorIssues = useMemo(
+    () =>
+      recordToIssues(errors).filter((issue) =>
+        stepFieldKeys.errors.includes(issue.fieldId.replace("field-", ""))
+      ),
+    [errors, stepFieldKeys.errors]
+  );
+
+  const stepWarningIssues = useMemo(
+    () =>
+      recordToIssues(warnings, "warning").filter((issue) =>
+        stepFieldKeys.warnings.includes(issue.fieldId.replace("field-", ""))
+      ),
+    [warnings, stepFieldKeys.warnings]
+  );
+
   const [showMatches, setShowMatches] = useState(false);
-  const [matches, setMatches] = useState<any[]>([]);
+  const [matches, setMatches] = useState<MatchScore[]>([]);
   const [submittedHandoverDeadline, setSubmittedHandoverDeadline] = useState<Date | null>(null);
   const [handoverCountdownMs, setHandoverCountdownMs] = useState<number | null>(null);
 
   useEffect(() => {
-    let loadedCount = 0;
-    const checkLoaded = () => {
-      loadedCount++;
-      if (loadedCount >= 2) setConfigLoading(false);
-    };
-
-    const unsubCategories = subscribeToCategories((cats) => {
-      setCategories(cats);
-      checkLoaded();
-    });
-
-    const unsubContactTypes = subscribeToContactTypes((types) => {
-      setContactTypes(types);
-      checkLoaded();
-    });
-
-    return () => {
-      unsubCategories();
-      unsubContactTypes();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authPending && !user) {
       router.push(AUTH_ROUTES.hub);
     }
-  }, [user, authLoading, router]);
+  }, [user, authPending, router]);
 
   useEffect(() => {
     if (user) {
@@ -213,11 +244,19 @@ export default function ReportFoundPage() {
   const enforcementRequired = appSettingsReady && !!appSettings.mapEnforceFoundInSchool;
   const waitingForSettings =
     !authLoading && !configLoading && !!user && !appSettingsReady;
-  const showLocationGate = waitingForSettings || (enforcementRequired && locationVerified !== true);
+  const showLocationGate =
+    waitingForSettings ||
+    (enforcementRequired && !adminGpsBypassed && locationVerified !== true);
 
-  const mapFallbackCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
+  const mapFallbackCenter = useMemo(
+    () => appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 },
+    [appSettings.mapDefaultCenter]
+  );
   const mapFallbackZoom = appSettings.mapDefaultZoom ?? 17;
-  const schoolPolygon = appSettings.mapSchoolBoundary || [];
+  const schoolPolygon = useMemo(
+    () => appSettings.mapSchoolBoundary || [],
+    [appSettings.mapSchoolBoundary]
+  );
 
   const {
     center: formMapCenter,
@@ -244,7 +283,7 @@ export default function ReportFoundPage() {
     [mapFallbackCenter, mapFallbackZoom, schoolPolygon, userCurrentCoords]
   );
 
-  const verifyLocation = async () => {
+  const verifyLocation = useCallback(async () => {
     const polygon = appSettings.mapSchoolBoundary || [];
 
     if (!appSettings.mapEnforceFoundInSchool) {
@@ -312,25 +351,28 @@ export default function ReportFoundPage() {
       setLocationErrorType("outside");
     }
     setGpsLoading(false);
-  };
+  }, [appSettings.mapEnforceFoundInSchool, appSettings.mapSchoolBoundary]);
 
   const boundaryString = JSON.stringify(appSettings?.mapSchoolBoundary || []);
 
   useEffect(() => {
-    if (!authLoading && !configLoading && appSettingsReady && user) {
+    if (adminGpsBypassed) return;
+    if (!authPending && !configLoading && appSettingsReady && user) {
       void verifyLocation();
     }
   }, [
-    authLoading,
+    adminGpsBypassed,
+    authPending,
     configLoading,
     appSettingsReady,
     user,
     appSettings.mapEnforceFoundInSchool,
     boundaryString,
+    verifyLocation,
   ]);
 
   useEffect(() => {
-    if (!enforcementRequired) return;
+    if (!enforcementRequired || adminGpsBypassed) return;
 
     const unwatch = watchGeolocationPermission((state) => {
       if (state === "denied") {
@@ -343,7 +385,7 @@ export default function ReportFoundPage() {
     });
 
     return unwatch;
-  }, [enforcementRequired]);
+  }, [enforcementRequired, adminGpsBypassed, locationVerified, verifyLocation]);
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -628,10 +670,10 @@ export default function ReportFoundPage() {
     }
   };
 
-  if (authLoading || configLoading) {
+  if ((authLoading && !user) || configLoading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
+      <div className="min-h-screen bg-bg-secondary dark:bg-bg-primary flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-line-green" aria-label="กำลังโหลด" />
       </div>
     );
   }
@@ -654,45 +696,60 @@ export default function ReportFoundPage() {
     return (
       <StudentAppShell headerTitle="แจ้งเจอของสำเร็จ" showBottomNav maxWidth="lg">
           <div className="flex flex-col items-center justify-center py-4 md:py-8">
-            <div className="w-full max-w-lg bg-bg-card rounded-2xl shadow-sm border border-border-light p-6 md:p-8 animate-fade-in text-center">
-              <div className="w-20 h-20 rounded-full bg-[#e8f8ef] dark:bg-[#06C755]/20 flex items-center justify-center mb-6 mx-auto animate-fade-in">
-                <CheckCircle2 className="w-10 h-10 text-[#06C755]" />
-              </div>
+            <m.div
+              className="w-full max-w-lg bg-bg-card rounded-xl border border-border-light p-6 md:p-8 text-center"
+              initial={reduced ? false : successMotion.initial}
+              animate={successMotion.animate}
+              transition={successMotion.transition}
+            >
+              <m.div
+                className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 mx-auto"
+                initial={reduced ? false : successIconMotion.initial}
+                animate={successIconMotion.animate}
+                transition={successIconMotion.transition}
+              >
+                <CheckCircle2 className="w-7 h-7 text-line-green" aria-hidden />
+              </m.div>
 
-              <h2 className="text-xl font-semibold text-text-primary mb-2">
+              <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
                 ขอบคุณที่ช่วยส่งคืน!
               </h2>
-              <p className="text-text-secondary text-center mb-8">
+              <p className="text-text-secondary text-center text-sm mb-6 text-pretty">
                 ข้อมูลของคุณจะช่วยให้เจ้าของได้รับของคืน
               </p>
 
-              <div className="w-full bg-bg-secondary rounded-2xl p-6 mb-8 border border-border-light">
-                <p className="text-sm text-text-secondary text-center mb-2">รหัสอ้างอิง</p>
-                <p className="text-2xl font-bold text-[#06C755] text-center tracking-wider font-mono">
+              <div className="w-full bg-bg-secondary rounded-xl p-5 mb-6 border border-border-light">
+                <p className="text-sm text-text-secondary text-center mb-1">รหัสอ้างอิง</p>
+                <p className="text-xl font-semibold text-text-primary text-center tracking-wider font-mono">
                   {trackingCode}
                 </p>
-                <p className="text-xs text-text-tertiary text-center mt-3">
+                <p className="text-xs text-text-tertiary text-center mt-2">
                   ส่งรหัสนี้ให้เจ้าของเพื่อมารับของคืน
                 </p>
               </div>
 
-              <div className="w-full bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 mb-4 border border-amber-200 dark:border-amber-800">
-                <p className="text-sm text-amber-800 dark:text-amber-300 text-center font-medium">
-                  ขั้นตอนถัดไป: นำของไปส่งที่ {PERSONNEL_OFFICE_LABEL}
-                </p>
+              <div className="w-full rounded-xl border border-border-light bg-bg-secondary p-4 mb-6 text-left space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-text-primary">
+                    ขั้นตอนถัดไป: นำของไปส่งที่ {PERSONNEL_OFFICE_LABEL}
+                  </p>
+                  <p className="text-xs text-text-secondary mt-1.5 leading-relaxed text-pretty">
+                    เจ้าหน้าที่ห้องบุคคลจะยืนยันเมื่อรับของแล้ว จากนั้นเจ้าของจึงจะมารับคืนได้อย่างปลอดภัย
+                  </p>
+                </div>
                 {isFoundHandoverDeadlineEnabled(appSettings) && submittedHandoverDeadline && (
-                  <div className="mt-3 rounded-lg bg-white/70 dark:bg-black/20 px-3 py-2 text-center">
-                    <p className="text-xs text-amber-900 dark:text-amber-200 font-medium">
+                  <div className="rounded-lg border border-status-warning/20 bg-status-warning-light/50 px-3 py-2.5">
+                    <p className="text-xs text-text-secondary">
                       ภายใน {getFoundHandoverDeadlineMinutes(appSettings)} นาที (
                       {formatHandoverDeadlineThai(submittedHandoverDeadline)})
                     </p>
                     {handoverCountdownMs !== null && (
                       <p
                         className={cn(
-                          "text-sm font-semibold mt-1",
+                          "text-sm font-medium mt-1",
                           handoverCountdownMs <= 0
-                            ? "text-red-600 dark:text-red-400"
-                            : "text-amber-800 dark:text-amber-300"
+                            ? "text-status-error"
+                            : "text-status-warning"
                         )}
                       >
                         {handoverCountdownMs <= 0
@@ -700,36 +757,48 @@ export default function ReportFoundPage() {
                           : `เหลือเวลาอีก ${formatHandoverCountdown(handoverCountdownMs)}`}
                       </p>
                     )}
-                    <p className="text-xs text-amber-700/90 dark:text-amber-400/80 mt-2">
+                    <p className="text-xs text-text-secondary mt-1.5">
                       หากไม่นำของถึงห้องบุคคลภายในเวลาที่กำหนด คำขอแจ้งเจอของจะหมดอายุทันที
                     </p>
                   </div>
                 )}
-                <p className="text-xs text-amber-700/90 dark:text-amber-400/90 text-center mt-2 leading-relaxed">
-                  เจ้าหน้าที่ห้องบุคคลจะยืนยันเมื่อรับของแล้ว จากนั้นเจ้าของจึงจะมารับคืนได้อย่างปลอดภัย
-                </p>
-              </div>
-
-              <div className="w-full bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-8">
-                <p className="text-sm text-blue-700 dark:text-blue-400 text-center">
-                  สถานะปัจจุบัน: <span className="font-semibold">รอส่งห้องบุคคล</span>
+                <p className="text-xs text-text-tertiary pt-1 border-t border-border-light">
+                  สถานะปัจจุบัน: รอส่งห้องบุคคล
                 </p>
               </div>
 
               {showMatches && matches.length > 0 && (
-                <div className="mt-6 text-left">
-                  <div className="bg-[#e8f8ef] dark:bg-[#06C755]/10 rounded-xl p-4 border border-[#06C755]/20">
+                <m.div
+                  className="mt-6 text-left"
+                  initial={reduced ? false : fade.initial}
+                  animate={fade.animate}
+                  transition={{ ...fade.transition, delay: reduced ? 0 : 0.12 }}
+                >
+                  <div className="rounded-xl border border-border-light bg-bg-secondary p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <Search className="w-5 h-5 text-[#06C755]" />
-                      <h3 className="font-semibold text-text-primary">
+                      <Search className="w-4 h-4 text-text-tertiary" aria-hidden />
+                      <h3 className="text-sm font-medium text-text-primary">
                         พบของหายที่อาจตรงกัน ({matches.length} รายการ)
                       </h3>
                     </div>
-                    <div className="space-y-3">
-                      {matches.slice(0, 3).map((match: any) => (
-                        <div
+                    <m.div
+                      className="space-y-2"
+                      variants={
+                        reduced
+                          ? undefined
+                          : {
+                              initial: {},
+                              animate: staggerContainer.animate,
+                            }
+                      }
+                      initial={reduced ? false : "initial"}
+                      animate="animate"
+                    >
+                      {matches.slice(0, 3).map((match) => (
+                        <m.div
                           key={match.lostItem.id}
-                          className="bg-bg-card rounded-lg p-3 border border-border-light shadow-sm"
+                          variants={reduced ? undefined : staggerItem}
+                          className="bg-bg-card rounded-lg p-3 border border-border-light"
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
@@ -744,40 +813,43 @@ export default function ReportFoundPage() {
                                   className={cn(
                                     "text-xs px-2 py-0.5 rounded-full",
                                     match.confidence === "high"
-                                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                                      ? "bg-line-green-light text-line-green"
                                       : match.confidence === "medium"
-                                        ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
-                                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
+                                        ? "bg-status-warning-light text-status-warning"
+                                        : "bg-bg-tertiary text-text-secondary"
                                   )}
                                 >
-                                  ความน่าจะเป็น {match.scorePercentage}%
+                                  ความน่าจะเป็น {match.scorePercentage ?? Math.round(match.score * 100)}%
                                 </span>
                               </div>
                             </div>
                             <button
+                              type="button"
                               onClick={() =>
                                 router.push(`/tracking?code=${match.lostItem.trackingCode}`)
                               }
-                              className="ml-3 px-3 py-1.5 bg-[#06C755] text-white text-xs rounded-lg hover:bg-[#05b34d] transition-colors flex-shrink-0"
+                              className="ml-3 min-h-11 px-3 border border-line-green text-line-green text-sm rounded-lg hover:bg-line-green-light transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                             >
                               ดู
                             </button>
                           </div>
-                        </div>
+                        </m.div>
                       ))}
-                    </div>
+                    </m.div>
                     <button
+                      type="button"
                       onClick={() => router.push(`/tracking?code=${trackingCode}`)}
-                      className="w-full mt-3 py-2 text-sm text-[#06C755] hover:text-[#05b34d] font-medium"
+                      className="w-full mt-3 py-2 text-sm text-line-green hover:text-line-green-hover font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                     >
                       ดูทั้งหมด →
                     </button>
                   </div>
-                </div>
+                </m.div>
               )}
 
               <div className="w-full space-y-3 mt-8">
                 <button
+                  type="button"
                   onClick={() => {
                     setShowSuccess(false);
                     setFormData({
@@ -799,18 +871,19 @@ export default function ReportFoundPage() {
                     setErrors({});
                     setWarnings({});
                   }}
-                  className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors shadow-sm"
+                  className="w-full min-h-11 py-2.5 bg-line-green text-white rounded-xl font-medium hover:bg-line-green-hover transition-[transform,colors] duration-150 active:scale-[0.98] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                 >
                   แจ้งเจอของอีกชิ้น
                 </button>
                 <button
+                  type="button"
                   onClick={() => router.push("/home")}
-                  className="w-full py-3 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light"
+                  className="w-full min-h-11 py-2.5 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
                 >
                   กลับหน้าหลัก
                 </button>
               </div>
-            </div>
+            </m.div>
           </div>
       </StudentAppShell>
     );
@@ -818,7 +891,12 @@ export default function ReportFoundPage() {
 
   return (
     <StudentAppShell headerTitle="แจ้งเจอของ" headerBackHref="/home" showBottomNav maxWidth="lg">
-      <div className={cn(showLocationGate && "blur-sm pointer-events-none select-none")}>
+      <div
+        className={cn(
+          showLocationGate && "opacity-50 pointer-events-none select-none",
+          "transition-opacity duration-300 motion-reduce:transition-none"
+        )}
+      >
         <PageHeader
           title="แจ้งเจอของ"
           subtitle="กรอกข้อมูลให้ละเอียดเพื่อให้เจ้าของตามหาของได้ง่ายขึ้น"
@@ -833,52 +911,94 @@ export default function ReportFoundPage() {
             if (formStep < FOUND_FORM_STEPS.length - 1) goNextStep();
             else void handleSubmit();
           }}
-          className="pb-4"
+          className="form-sticky-footer-padding md:pb-4"
         >
           <AnimatePresence mode="wait">
             <m.div
               key={formStep}
-              initial={reduced ? false : slideUp.initial}
-              animate={slideUp.animate}
-              exit={slideUp.exit}
-              transition={slideUp.transition}
+              initial={reduced ? false : stepMotion.initial}
+              animate={stepMotion.animate}
+              exit={stepMotion.exit}
+              transition={stepMotion.transition}
               className="space-y-5"
             >
+          <ValidationSummaryGroup
+            errors={stepErrorIssues}
+            warnings={stepWarningIssues}
+            className="mb-1"
+          />
           {formStep === 0 && (
           <>
-          <div className="flex gap-2 mb-2">
+          <div className="flex gap-2 mb-2 p-1 bg-bg-secondary rounded-xl" role="tablist" aria-label="วิธีกรอกข้อมูล">
             <button
               type="button"
+              role="tab"
+              aria-selected={reportMode === "vision"}
               onClick={() => setReportMode("vision")}
               className={cn(
-                "flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2",
+                "relative flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 z-[1]",
                 reportMode === "vision"
-                  ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  ? "text-line-green"
+                  : "text-text-secondary hover:text-text-primary"
               )}
             >
-              <Camera className="w-4 h-4" />
-              ถ่ายรูปด้วย AI
+              {reportMode === "vision" && !reduced && (
+                <m.span
+                  layoutId={reportModeLayoutId}
+                  className="absolute inset-0 bg-bg-card rounded-lg border border-line-green"
+                  transition={{ duration: duration.fast, ease: easeOut }}
+                />
+              )}
+              {reportMode === "vision" && reduced && (
+                <span className="absolute inset-0 bg-bg-card rounded-lg border border-line-green" />
+              )}
+              <span className="relative flex items-center gap-2">
+                <Camera className="w-4 h-4" aria-hidden />
+                ถ่ายรูปด้วย AI
+              </span>
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={reportMode === "manual"}
               onClick={() => setReportMode("manual")}
               className={cn(
-                "flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2",
+                "relative flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 z-[1]",
                 reportMode === "manual"
-                  ? "bg-[#06C755] text-white"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  ? "text-line-green"
+                  : "text-text-secondary hover:text-text-primary"
               )}
             >
-              ✍️ กรอกเอง
+              {reportMode === "manual" && !reduced && (
+                <m.span
+                  layoutId={reportModeLayoutId}
+                  className="absolute inset-0 bg-bg-card rounded-lg border border-line-green"
+                  transition={{ duration: duration.fast, ease: easeOut }}
+                />
+              )}
+              {reportMode === "manual" && reduced && (
+                <span className="absolute inset-0 bg-bg-card rounded-lg border border-line-green" />
+              )}
+              <span className="relative flex items-center gap-2">
+                <PenLine className="w-4 h-4" aria-hidden />
+                กรอกเอง
+              </span>
             </button>
           </div>
 
+          <AnimatePresence mode="wait">
           {reportMode === "vision" && (
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-2xl p-4 mb-6 border border-green-200 dark:border-green-800">
+            <m.div
+              key="vision-panel"
+              initial={reduced ? false : panelMotion.initial}
+              animate={panelMotion.animate}
+              exit={panelMotion.exit}
+              transition={panelMotion.transition}
+              className="rounded-xl border border-border-light bg-bg-secondary p-4 mb-6"
+            >
               <div className="flex items-center gap-2 mb-3">
-                <Camera className="w-5 h-5 text-green-600" />
-                <h3 className="font-semibold text-gray-900 dark:text-white">ถ่ายรูปสิ่งของ</h3>
+                <Camera className="w-4 h-4 text-text-tertiary" aria-hidden />
+                <h3 className="text-sm font-medium text-text-primary">ถ่ายรูปสิ่งของ</h3>
                 <InfoTooltip
                   content="ระบบจะวิเคราะห์รูปเพื่อเดาชื่อของ หมวดหมู่ สี และยี่ห้อ"
                   position="bottom"
@@ -897,37 +1017,81 @@ export default function ReportFoundPage() {
                 }}
               />
               {errors.image && (
-                <div className="mt-2 text-xs text-red-500">{errors.image}</div>
+                <FieldValidationMessage message={errors.image} />
               )}
               {visionQuota && visionQuota.enabled && (
-                <div className="mt-3 text-xs text-green-700 dark:text-green-300">
+                <div className="mt-3 text-xs text-text-tertiary">
                   เหลือ {visionQuota.userRemainingMinute}/{visionQuota.userLimitPerMinute || 5} ครั้ง/นาที
                 </div>
               )}
+              <AnimatePresence>
               {isAnalyzingVision && (
-                <div className="mt-3 text-sm text-green-700">กำลังวิเคราะห์รูป...</div>
+                <m.div
+                  key="analyzing"
+                  initial={reduced ? false : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduced ? undefined : { opacity: 0 }}
+                  transition={{ duration: duration.fast, ease: easeOut }}
+                  className="mt-3 flex items-center gap-2 text-sm text-text-secondary"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <Loader2 className="w-4 h-4 animate-spin text-text-tertiary motion-reduce:animate-none" aria-hidden />
+                  กำลังวิเคราะห์รูป...
+                </m.div>
               )}
+              </AnimatePresence>
+              <AnimatePresence>
               {visionError && (
-                <div className="mt-3 text-sm text-red-500">{visionError}</div>
+                <m.div
+                  key={visionError}
+                  initial={reduced ? false : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduced ? undefined : { opacity: 0 }}
+                  transition={{ duration: duration.fast, ease: easeOut }}
+                  className="mt-3 text-sm text-status-error"
+                  role="alert"
+                >
+                  {visionError}
+                </m.div>
               )}
-            </div>
+              </AnimatePresence>
+            </m.div>
           )}
 
           {reportMode === "manual" && (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                รูปถ่ายสิ่งของ <span className="text-red-500">*</span>
+            <m.div
+              key="manual-panel"
+              id={fieldId("image")}
+              initial={reduced ? false : panelMotion.initial}
+              animate={panelMotion.animate}
+              exit={panelMotion.exit}
+              transition={panelMotion.transition}
+            >
+              <label className="block text-sm font-medium text-text-secondary mb-3">
+                รูปถ่ายสิ่งของ <span className="text-status-error">*</span>
               </label>
 
-              {errors.image && (
-                <p className="text-xs text-red-500 mb-2">{errors.image}</p>
-              )}
+              <FieldValidationMessage
+                id={fieldErrorId("image")}
+                message={errors.image}
+                className="mb-2"
+              />
 
               {imagePreview ? (
-                <div className="relative rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-700">
+                <m.div
+                  key="preview"
+                  initial={reduced ? false : fade.initial}
+                  animate={fade.animate}
+                  className="relative rounded-xl overflow-hidden bg-bg-tertiary"
+                >
                   <Image
                     src={imagePreview}
-                    alt="Preview"
+                    alt={
+                      formData.itemName.trim()
+                        ? `รูปถ่าย${formData.itemName.trim()}`
+                        : "รูปถ่ายสิ่งของที่เจอ"
+                    }
                     width={400}
                     height={300}
                     className="w-full h-48 object-cover"
@@ -936,25 +1100,26 @@ export default function ReportFoundPage() {
                   <button
                     type="button"
                     onClick={clearImage}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                    className="absolute top-3 right-3 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                    aria-label="ลบรูป"
                   >
                     <X className="w-4 h-4 text-white" />
                   </button>
-                </div>
+                </m.div>
               ) : (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-48 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 flex flex-col items-center justify-center gap-3 hover:border-[#06C755] hover:bg-[#e8f8ef]/30 dark:hover:bg-[#06C755]/10 transition-all"
+                  className="w-full h-48 rounded-xl border border-dashed border-border-light bg-bg-tertiary flex flex-col items-center justify-center gap-3 hover:border-text-tertiary hover:bg-bg-secondary transition-colors"
                 >
-                  <div className="w-14 h-14 rounded-full bg-white dark:bg-gray-600 flex items-center justify-center shadow-sm">
-                    <ImagePlus className="w-7 h-7 text-gray-400" />
+                  <div className="w-12 h-12 rounded-full bg-bg-card flex items-center justify-center border border-border-light">
+                    <ImagePlus className="w-6 h-6 text-text-tertiary" aria-hidden />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                    <p className="text-sm font-medium text-text-secondary">
                       แตะเพื่ออัปโหลดรูป
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">PNG, JPG สูงสุด 5MB</p>
+                    <p className="text-xs text-text-tertiary mt-1">PNG, JPG สูงสุด 5MB</p>
                   </div>
                 </button>
               )}
@@ -966,39 +1131,46 @@ export default function ReportFoundPage() {
                 onChange={handleImageSelect}
                 className="hidden"
               />
-            </div>
+            </m.div>
           )}
+          </AnimatePresence>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor={fieldId("itemName")} className="block text-sm font-medium text-text-secondary mb-2">
                 ชื่อของที่เจอ
               </label>
               <input
+                id={fieldId("itemName")}
                 type="text"
                 name="itemName"
                 value={formData.itemName}
                 onChange={handleFormChange}
                 placeholder="เช่น กระเป๋าสตางค์"
-                className={cn("input-line", warnings.itemName && "ring-1 ring-amber-300")}
+                aria-describedby={warnings.itemName ? fieldErrorId("itemName") : undefined}
+                className={cn("input-line", inputStateClass(undefined, warnings.itemName))}
               />
-              {warnings.itemName && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{warnings.itemName}</p>
-              )}
+              <FieldValidationMessage
+                id={fieldErrorId("itemName")}
+                message={warnings.itemName}
+                severity="warning"
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor={fieldId("category")} className="block text-sm font-medium text-text-secondary mb-2">
                 หมวดหมู่
               </label>
               <div className="relative">
                 <select
+                  id={fieldId("category")}
                   name="category"
                   value={formData.category}
                   onChange={handleFormChange}
+                  aria-describedby={warnings.category ? fieldErrorId("category") : undefined}
                   className={cn(
                     "input-line appearance-none pr-10",
-                    !formData.category && "text-gray-400",
-                    warnings.category && "ring-1 ring-amber-300"
+                    !formData.category && "text-text-tertiary",
+                    inputStateClass(undefined, warnings.category)
                   )}
                 >
                   <option value="">เลือกหมวดหมู่</option>
@@ -1008,66 +1180,77 @@ export default function ReportFoundPage() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
               </div>
-              {warnings.category && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{warnings.category}</p>
-              )}
+              <FieldValidationMessage
+                id={fieldErrorId("category")}
+                message={warnings.category}
+                severity="warning"
+              />
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor={fieldId("color")} className="block text-sm font-medium text-text-secondary mb-2">
                   สี
                 </label>
                 <input
+                  id={fieldId("color")}
                   type="text"
                   name="color"
                   value={formData.color}
                   onChange={handleFormChange}
                   placeholder="เช่น ดำ"
-                  className={cn("input-line", warnings.color && "ring-1 ring-amber-300")}
+                  aria-describedby={warnings.color ? fieldErrorId("color") : undefined}
+                  className={cn("input-line", inputStateClass(undefined, warnings.color))}
                 />
-                {warnings.color && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{warnings.color}</p>
-                )}
+                <FieldValidationMessage
+                  id={fieldErrorId("color")}
+                  message={warnings.color}
+                  severity="warning"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor={fieldId("brand")} className="block text-sm font-medium text-text-secondary mb-2">
                   ยี่ห้อ
                 </label>
                 <input
+                  id={fieldId("brand")}
                   type="text"
                   name="brand"
                   value={formData.brand}
                   onChange={handleFormChange}
                   placeholder="เช่น Apple"
-                  className={cn("input-line", warnings.brand && "ring-1 ring-amber-300")}
+                  aria-describedby={warnings.brand ? fieldErrorId("brand") : undefined}
+                  className={cn("input-line", inputStateClass(undefined, warnings.brand))}
                 />
-                {warnings.brand && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{warnings.brand}</p>
-                )}
+                <FieldValidationMessage
+                  id={fieldErrorId("brand")}
+                  message={warnings.brand}
+                  severity="warning"
+                />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                รายละเอียดของที่เจอ <span className="text-red-500">*</span>
+              <label htmlFor={fieldId("description")} className="block text-sm font-medium text-text-secondary mb-2">
+                รายละเอียดของที่เจอ <span className="text-status-error">*</span>
               </label>
               <textarea
+                id={fieldId("description")}
                 name="description"
                 value={formData.description}
                 onChange={handleFormChange}
                 placeholder="เช่น มีเคสสีดำ มีรอยสติกเกอร์"
                 rows={3}
-                className={cn(
-                  "input-line resize-none",
-                  errors.description && "ring-2 ring-red-200 bg-red-50"
-                )}
+                aria-invalid={errors.description ? true : undefined}
+                aria-describedby={errors.description ? fieldErrorId("description") : undefined}
+                className={cn("input-line resize-none", inputStateClass(errors.description))}
               />
-              {errors.description && (
-                <p className="text-xs text-red-500 mt-1.5">{errors.description}</p>
-              )}
+              <FieldValidationMessage
+                id={fieldErrorId("description")}
+                message={errors.description}
+              />
             </div>
           </>
           )}
@@ -1075,35 +1258,36 @@ export default function ReportFoundPage() {
           {formStep === 1 && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                สถานที่เจอ <span className="text-red-500">*</span>
+              <label htmlFor={fieldId("locationFound")} className="block text-sm font-medium text-text-secondary mb-2">
+                สถานที่เจอ <span className="text-status-error">*</span>
               </label>
               <input
+                id={fieldId("locationFound")}
                 type="text"
                 name="locationFound"
                 value={formData.locationFound}
                 onChange={handleFormChange}
                 placeholder="เช่น ม้านั่งหน้าห้องสมุด"
-                className={cn(
-                  "input-line",
-                  errors.locationFound && "ring-2 ring-red-200 bg-red-50"
-                )}
+                aria-invalid={errors.locationFound ? true : undefined}
+                aria-describedby={errors.locationFound ? fieldErrorId("locationFound") : undefined}
+                className={cn("input-line", inputStateClass(errors.locationFound))}
               />
-              {errors.locationFound && (
-                <p className="text-xs text-red-500 mt-1.5">{errors.locationFound}</p>
-              )}
+              <FieldValidationMessage
+                id={fieldErrorId("locationFound")}
+                message={errors.locationFound}
+              />
             </div>
 
             {appSettings.mapsEnabled && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-medium text-text-secondary">
                     ปักพิกัดบนแผนที่
                   </label>
                   <button
                     type="button"
                     onClick={handleUseCurrentLocation}
-                    className="text-xs text-[#06C755] hover:text-[#05b34d] flex items-center gap-1"
+                    className="inline-flex items-center gap-1 min-h-11 px-2 -mr-2 text-sm text-line-green hover:text-line-green-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                   >
                     <MapPin className="w-3 h-3" />
                     ใช้ตำแหน่งปัจจุบัน
@@ -1122,9 +1306,10 @@ export default function ReportFoundPage() {
                   showPolygonVertices={false}
                   className="h-[200px] sm:h-[240px] rounded-xl overflow-hidden"
                 />
-                {errors.locationCoords && (
-                  <p className="text-xs text-red-500">{errors.locationCoords}</p>
-                )}
+                <FieldValidationMessage
+                  id={fieldErrorId("locationCoords")}
+                  message={errors.locationCoords}
+                />
               </div>
             )}
           </>
@@ -1132,16 +1317,16 @@ export default function ReportFoundPage() {
 
           {formStep === 2 && (
           <>
-            <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+            <div className="rounded-xl border border-border-light bg-bg-secondary p-4">
+              <p className="text-sm font-medium text-text-primary">
                 ส่งมอบที่ {PERSONNEL_OFFICE_LABEL}
               </p>
-              <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-2 leading-relaxed">
+              <p className="text-xs text-text-secondary mt-2 leading-relaxed text-pretty">
                 หลังส่งแบบฟอร์ม กรุณานำของไปส่งที่ห้องบุคคลโดยตรง เจ้าหน้าที่จะยืนยันในระบบเมื่อรับของแล้ว
                 เพื่อให้เจ้าของมารับคืนได้อย่างปลอดภัย
               </p>
               {isFoundHandoverDeadlineEnabled(appSettings) && (
-                <p className="text-xs font-medium text-amber-900 dark:text-amber-200 mt-3 pt-3 border-t border-amber-200/80 dark:border-amber-700/50">
+                <p className="text-xs text-status-warning mt-3 pt-3 border-t border-border-light">
                   ต้องนำของถึงห้องบุคคลภายใน {getFoundHandoverDeadlineMinutes(appSettings)} นาที
                   มิฉะนั้นคำขอแจ้งเจอของจะหมดอายุทันที
                 </p>
@@ -1157,22 +1342,25 @@ export default function ReportFoundPage() {
               <p className="text-text-secondary">ส่งมอบ: {PERSONNEL_OFFICE_LABEL}</p>
             </div>
 
-            <div className="border-t border-gray-100 dark:border-gray-700 pt-5">
+            <div className="border-t border-border-light pt-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">ข้อมูลติดต่อผู้เจอ</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-sm font-medium text-text-primary">ข้อมูลติดต่อผู้เจอ</p>
+                  <p className="text-xs text-text-tertiary mt-0.5">
                     ไม่บังคับ - สำหรับติดต่อกลับหากต้องการข้อมูลเพิ่ม
                   </p>
-                  {warnings.contacts && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{warnings.contacts}</p>
-                  )}
+                  <FieldValidationMessage
+                    id={fieldErrorId("contacts")}
+                    message={warnings.contacts}
+                    severity="warning"
+                    className="mt-1"
+                  />
                 </div>
                 {contacts.length < 3 && (
                   <button
                     type="button"
                     onClick={addContact}
-                    className="flex items-center gap-1 text-sm text-[#06C755] font-medium hover:underline"
+                    className="inline-flex items-center gap-1 min-h-11 px-2 -mr-2 text-sm text-line-green font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 rounded-lg"
                   >
                     <Plus className="w-4 h-4" />
                     เพิ่ม
@@ -1184,12 +1372,15 @@ export default function ReportFoundPage() {
             {contacts.length > 0 && (
               <div className="space-y-3">
                 {contacts.map((contact, index) => (
-                  <div key={index} className="flex gap-2">
-                    <div className="relative w-36 flex-shrink-0">
+                  <div
+                    key={index}
+                    className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(7.5rem,auto)_1fr_auto] sm:items-center"
+                  >
+                    <div className="relative min-w-0 w-full sm:w-auto">
                       <select
                         value={contact.type}
                         onChange={(e) => handleContactChange(index, "type", e.target.value)}
-                        className="w-full h-12 px-3 bg-gray-50 dark:bg-gray-700 rounded-xl text-gray-900 dark:text-white appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-[#06C755] border border-gray-100 dark:border-gray-600"
+                        className="w-full min-h-11 h-12 px-3 bg-bg-tertiary rounded-xl text-text-primary appearance-none pr-8 focus:outline-none focus:ring-2 focus-visible:ring-line-green border border-border-light"
                       >
                         {contactTypes.map((type) => (
                           <option key={type.value} value={type.value}>
@@ -1197,7 +1388,7 @@ export default function ReportFoundPage() {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
                     </div>
 
                     <input
@@ -1207,13 +1398,14 @@ export default function ReportFoundPage() {
                       placeholder={
                         contactTypes.find((t) => t.value === contact.type)?.placeholder || ""
                       }
-                      className="flex-1 h-12 px-4 bg-gray-50 dark:bg-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#06C755] border border-gray-100 dark:border-gray-600"
+                      className="w-full min-w-0 min-h-11 h-12 px-4 bg-bg-tertiary rounded-xl text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus-visible:ring-line-green border border-border-light"
                     />
 
                     <button
                       type="button"
                       onClick={() => removeContact(index)}
-                      className="w-12 h-12 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                      className="w-full min-h-11 h-12 sm:w-12 flex items-center justify-center rounded-xl bg-status-error-light text-status-error hover:bg-status-error-light/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error/35"
+                      aria-label="ลบช่องทางติดต่อ"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -1247,28 +1439,47 @@ export default function ReportFoundPage() {
         showCloseButton={false}
         closeOnBackdrop={false}
       >
-          <div className="flex flex-col items-center text-center">
+          <AnimatePresence mode="wait">
             {waitingForSettings ? (
-              <>
-                <div className="w-20 h-20 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-6 border border-green-100 dark:border-green-900/30">
-                  <Loader2 className="w-10 h-10 text-[#06C755] animate-spin" />
+              <m.div
+                key="gate-settings"
+                initial={reduced ? false : fade.initial}
+                animate={fade.animate}
+                exit={reduced ? undefined : fade.exit}
+                transition={fade.transition}
+                className="flex flex-col items-center text-center"
+              >
+                <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light">
+                  <Loader2 className="w-7 h-7 text-line-green animate-spin motion-reduce:animate-none" aria-hidden />
                 </div>
-                <h2 className="text-xl font-bold text-text-primary mb-2">กำลังโหลดการตั้งค่า</h2>
+                <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">กำลังโหลดการตั้งค่า</h2>
                 <p className="text-text-secondary text-sm leading-relaxed">
                   ระบบกำลังดึงขอบเขตพื้นที่และกฎ GPS จากเซิร์ฟเวอร์
                 </p>
-              </>
+              </m.div>
             ) : gpsLoading || locationVerified === null ? (
-              <>
-                <div className="w-20 h-20 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-6 border border-green-100 dark:border-green-900/30">
-                  <MapPin className="w-10 h-10 text-[#06C755] animate-bounce" />
+              <m.div
+                key="gate-verifying"
+                initial={reduced ? false : fade.initial}
+                animate={fade.animate}
+                exit={reduced ? undefined : fade.exit}
+                transition={fade.transition}
+                className="flex flex-col items-center text-center"
+              >
+                <div
+                  className={cn(
+                    "w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light",
+                    !reduced && "animate-pulse-green"
+                  )}
+                >
+                  <MapPin className="w-7 h-7 text-line-green" aria-hidden />
                 </div>
-                <h2 className="text-xl font-bold text-text-primary mb-2">กำลังยืนยันตำแหน่งของคุณ</h2>
+                <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">กำลังยืนยันตำแหน่งของคุณ</h2>
                 <p className="text-text-secondary text-sm leading-relaxed mb-4">
                   เพื่อความปลอดภัยและป้องกันข้อมูลเท็จ ระบบกำลังตรวจสอบว่าตำแหน่งอุปกรณ์ของคุณอยู่ภายในขอบเขตสถาบันการศึกษาหรือไม่
                 </p>
                 <div className="flex items-center gap-2 text-xs text-text-tertiary justify-center">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#06C755]" />
+                  <Loader2 className="w-4 h-4 animate-spin text-text-tertiary motion-reduce:animate-none" aria-hidden />
                   <span>
                     {userCurrentCoords?.accuracy != null
                       ? `กำลังปรับความแม่นยำ GPS… (±${Math.round(userCurrentCoords.accuracy)} ม.)`
@@ -1280,22 +1491,29 @@ export default function ReportFoundPage() {
                     บน iPhone/iPad อาจใช้เวลา 10–25 วินาที กรุณาอยู่กลางแจ้ง เปิด Location Services และเปิด Precise Location สำหรับเบราว์เซอร์
                   </p>
                 )}
-              </>
+              </m.div>
             ) : (
-              <>
+              <m.div
+                key={locationErrorType ?? "gate-error"}
+                initial={reduced ? false : fade.initial}
+                animate={fade.animate}
+                exit={reduced ? undefined : fade.exit}
+                transition={fade.transition}
+                className="flex flex-col items-center text-center"
+              >
                 {locationErrorType === "outside" || locationErrorType === "low_accuracy" ? (
-                  <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center mb-6 border border-amber-100 dark:border-amber-900/30">
-                    <MapPin className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+                  <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light">
+                    <MapPin className="w-7 h-7 text-status-warning" aria-hidden />
                   </div>
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center mb-6 border border-red-100 dark:border-red-900/30">
-                    <X className="w-8 h-8 text-red-500" />
+                  <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light">
+                    <X className="w-7 h-7 text-status-error" aria-hidden />
                   </div>
                 )}
 
                 {locationErrorType === "boundary_not_configured" ? (
                   <>
-                    <h2 className="text-xl font-bold text-text-primary mb-2">
+                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
                       ยังไม่ได้ตั้งค่าขอบเขตพื้นที่
                     </h2>
                     <p className="text-text-secondary text-sm leading-relaxed mb-8">
@@ -1305,13 +1523,13 @@ export default function ReportFoundPage() {
                   </>
                 ) : locationErrorType === "outside" ? (
                   <>
-                    <h2 className="text-xl font-bold text-text-primary mb-2">อยู่นอกพื้นที่ขอบเขตที่กำหนด</h2>
+                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">อยู่นอกพื้นที่ขอบเขตที่กำหนด</h2>
                     <p className="text-text-secondary text-sm leading-relaxed mb-6">
                       ขออภัยด้วยครับ ระบบแจ้งเจอของได้รับการกำหนดให้ใช้ได้เฉพาะภายในพื้นที่ที่กำหนดเท่านั้น (เช่น บริเวณโรงเรียน/มหาวิทยาลัย) เพื่อให้ของที่เจอได้รับการคืนสู่เจ้าของอย่างรวดเร็วและถูกต้อง
                     </p>
                     
                     {appSettings.mapsEnabled && appSettings.mapSchoolBoundary && (
-                      <div className="w-full mb-6 relative overflow-hidden rounded-2xl border border-border-light shadow-sm">
+                      <div className="w-full mb-6 relative overflow-hidden rounded-xl border border-border-light">
                         <MapCanvasLazy
                           center={gateMapView.center}
                           zoom={gateMapView.zoom}
@@ -1324,7 +1542,7 @@ export default function ReportFoundPage() {
                           showPolygonVertices={false}
                           className="h-[200px] sm:h-[240px] rounded-xl overflow-hidden"
                         />
-                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 rounded">
+                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-xs text-white px-2 py-1 rounded">
                           🔵 ตำแหน่งของคุณอยู่นอกขอบเขตสีเขียว
                         </div>
                       </div>
@@ -1332,7 +1550,7 @@ export default function ReportFoundPage() {
                   </>
                 ) : locationErrorType === "low_accuracy" ? (
                   <>
-                    <h2 className="text-xl font-bold text-text-primary mb-2">
+                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
                       ตำแหน่งไม่แม่นยำพอ (ไม่ใช่ GPS จริง)
                     </h2>
                     <p className="text-text-secondary text-sm leading-relaxed mb-8">
@@ -1344,7 +1562,7 @@ export default function ReportFoundPage() {
                   </>
                 ) : locationErrorType === "permission" ? (
                   <>
-                    <h2 className="text-xl font-bold text-text-primary mb-2">ปิดการเข้าถึงตำแหน่ง (GPS)</h2>
+                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">ปิดการเข้าถึงตำแหน่ง (GPS)</h2>
                     <p className="text-text-secondary text-sm leading-relaxed mb-8">
                       เบราว์เซอร์ไม่อนุญาตให้ใช้ตำแหน่งสำหรับเว็บนี้ ไปที่ไอคอนกุญแจในแถบที่อยู่ → Location → ตั้งเป็น Allow
                       แล้วกดลองใหม่อีกครั้ง (หรือปิด Sensors override ใน DevTools ถ้าเปิดทดสอบ)
@@ -1352,7 +1570,7 @@ export default function ReportFoundPage() {
                   </>
                 ) : (
                   <>
-                    <h2 className="text-xl font-bold text-text-primary mb-2">ไม่สามารถระบุตำแหน่งได้</h2>
+                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">ไม่สามารถระบุตำแหน่งได้</h2>
                     <p className="text-text-secondary text-sm leading-relaxed mb-8">
                       ไม่สามารถดึงตำแหน่ง GPS ของคุณได้ในขณะนี้ กรุณาตรวจสอบสิทธิ์พิกัดหรือการเชื่อมต่อ GPS บนโทรศัพท์/คอมพิวเตอร์ของคุณแล้วลองใหม่อีกครั้ง
                     </p>
@@ -1361,18 +1579,26 @@ export default function ReportFoundPage() {
 
                 <div className="w-full space-y-3">
                   <button
-                    onClick={() => void verifyLocation()}
+                    onClick={() => {
+                      setAdminGpsBypassed(false);
+                      void verifyLocation();
+                    }}
                     type="button"
-                    className="w-full py-3 bg-[#06C755] text-white rounded-xl font-medium hover:bg-[#05b34d] transition-colors shadow-sm"
+                    className="w-full py-3 bg-line-green text-white rounded-xl font-medium hover:bg-line-green-hover transition-[transform,colors] duration-150 active:scale-[0.98] motion-reduce:active:scale-100"
                   >
                     ลองใหม่อีกครั้ง
                   </button>
-                  
+
                   {isAdmin && (
                     <button
-                      onClick={() => setLocationVerified(true)}
+                      onClick={() => {
+                        setAdminGpsBypassed(true);
+                        setLocationVerified(true);
+                        setLocationErrorType(null);
+                        setGpsLoading(false);
+                      }}
                       type="button"
-                      className="w-full py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors shadow-sm"
+                      className="w-full py-3 border border-status-warning text-status-warning rounded-xl font-medium hover:bg-status-warning-light transition-colors"
                     >
                       ข้ามการตรวจสอบ (ผู้ดูแลระบบ)
                     </button>
@@ -1386,9 +1612,9 @@ export default function ReportFoundPage() {
                     กลับหน้าหลัก
                   </button>
                 </div>
-              </>
+              </m.div>
             )}
-          </div>
+          </AnimatePresence>
       </ResponsiveModal>
       {dialog}
     </StudentAppShell>

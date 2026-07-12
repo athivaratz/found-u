@@ -10,7 +10,12 @@ type PageHeaderProps = {
 
 export function PageHeader({ title, subtitle, action, className }: PageHeaderProps) {
   return (
-    <div className={cn("flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3", className)}>
+    <div
+      className={cn(
+        "mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between",
+        className
+      )}
+    >
       <div className="min-w-0">
         <h1 className="text-xl md:text-2xl font-bold text-text-primary">{title}</h1>
         {subtitle && (
