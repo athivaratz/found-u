@@ -31,6 +31,7 @@ import {
 } from "@/lib/student-auth-api";
 import type { AppSettings, AppUser, BanStatus } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
+import { hasSupabaseClientEnv } from "@/lib/setup/db-url";
 
 const SILENT_SYNC_DEBOUNCE_MS = 400;
 const SESSION_STATUS_CACHE_TTL_MS = 45_000;
@@ -299,6 +300,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useLayoutEffect(() => {
+    if (!hasSupabaseClientEnv()) {
+      setAuthHydrating(false);
+      setLoading(false);
+      setSessionReady(true);
+      setAppSettingsReady(true);
+      return;
+    }
+
     void auth.refreshLocal().then(() => {
       const localUser = auth.currentUser;
       if (localUser) {
@@ -317,6 +326,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!hasSupabaseClientEnv()) return;
+
     let cancelled = false;
     const isCancelled = () => cancelled;
 
@@ -457,6 +468,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
+    if (!hasSupabaseClientEnv()) {
+      setAppSettings(DEFAULT_APP_SETTINGS);
+      setAppSettingsReady(true);
+      return;
+    }
+
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
 

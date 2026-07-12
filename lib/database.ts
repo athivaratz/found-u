@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { hasSupabaseClientEnv } from "@/lib/setup/db-url";
 import { coerceToDate, normalizeGeoPoint, normalizeGeoPolygon } from "@/lib/utils";
 import { stripUndefined } from "@/lib/strip-undefined";
 import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
@@ -606,6 +607,11 @@ export async function updateAppSettings(settings: Partial<AppSettings>, updatedB
 }
 
 export function subscribeToAppSettings(callback: (settings: AppSettings) => void) {
+  if (!hasSupabaseClientEnv()) {
+    callback(DEFAULT_APP_SETTINGS);
+    return () => {};
+  }
+
   return createRealtimeSubscription({
     table: COLLECTIONS.SETTINGS,
     filter: `id=eq.${APP_SETTINGS_DOC_ID}`,

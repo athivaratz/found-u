@@ -4,7 +4,7 @@ import type {
   SupabaseClient,
   User as SupabaseUser,
 } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, isSupabaseBrowserConfigured } from "@/lib/supabase/client";
 import { setClientSession } from "@/lib/supabase/auth-session";
 
 export type User = SupabaseUser & {
@@ -22,6 +22,9 @@ type AuthChangeCallback = (user: User | null, event: AuthChangeEvent) => void;
 let supabaseClient: SupabaseClient | null = null;
 
 function getClient() {
+  if (!isSupabaseBrowserConfigured()) {
+    throw new Error("SUPABASE_NOT_CONFIGURED");
+  }
   if (!supabaseClient) {
     supabaseClient = createClient();
   }
@@ -65,6 +68,11 @@ class AuthCompat {
   }
 
   async refreshLocal() {
+    if (!isSupabaseBrowserConfigured()) {
+      this._currentSession = null;
+      this._currentUser = null;
+      return;
+    }
     const supabase = getClient();
     const { data: sessionData } = await supabase.auth.getSession();
     this._currentSession = sessionData.session;
@@ -72,6 +80,11 @@ class AuthCompat {
   }
 
   async refreshNetwork() {
+    if (!isSupabaseBrowserConfigured()) {
+      this._currentSession = null;
+      this._currentUser = null;
+      return;
+    }
     const supabase = getClient();
     const { data: userData } = await supabase.auth.getUser();
     const { data: sessionData } = await supabase.auth.getSession();
@@ -108,6 +121,10 @@ export async function signInWithStudentCustomToken(customToken: string) {
 }
 
 export async function signOut() {
+  if (!isSupabaseBrowserConfigured()) {
+    auth.setSession(null);
+    return { error: null };
+  }
   const supabase = getClient();
   const { error } = await supabase.auth.signOut();
   auth.setSession(null);
@@ -130,6 +147,10 @@ export async function reloadCurrentUser(options?: {
 }
 
 export function onAuthChange(callback: AuthChangeCallback) {
+  if (!isSupabaseBrowserConfigured()) {
+    callback(null, "INITIAL_SESSION");
+    return () => {};
+  }
   const supabase = getClient();
   const {
     data: { subscription },
@@ -141,6 +162,7 @@ export function onAuthChange(callback: AuthChangeCallback) {
 }
 
 export async function getSessionToken(): Promise<string | null> {
+  if (!isSupabaseBrowserConfigured()) return null;
   const supabase = getClient();
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token || null;
