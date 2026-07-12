@@ -6,16 +6,22 @@ export function resolvePostgresUrl(): string | null {
   );
 }
 
+/** Deploy-time placeholder like "-" from Vercel prompt — treat as unset */
+export function isPlaceholderEnvValue(value?: string | null): boolean {
+  const trimmed = value?.trim();
+  return !trimmed || trimmed === "-" || trimmed === "—" || trimmed === "_";
+}
+
 export function hasSupabaseClientEnv(): boolean {
   return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+    !isPlaceholderEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+      !isPlaceholderEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
   );
 }
 
 export function hasSupabaseAdminEnv(): boolean {
   return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+    !isPlaceholderEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+      !isPlaceholderEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY)
   );
 }

@@ -112,15 +112,17 @@ lib/
 
 ## Deploy โรงเรียนใหม่ (1-Click)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D&env=NEXT_PUBLIC_APP_URL%2CSCHOOL_AUTH_DOMAIN&envDescription=NEXT_PUBLIC_APP_URL%3A%20URL%20%E0%B9%82%E0%B8%94%E0%B9%80%E0%B8%A1%E0%B8%99%E0%B8%AB%E0%B8%A5%E0%B8%B1%E0%B8%81%E0%B8%82%E0%B8%AD%E0%B8%87%E0%B9%82%E0%B8%A3%E0%B8%87%E0%B9%80%E0%B8%A3%E0%B8%B5%E0%B8%A2%E0%B8%99%20(e.g.%20https%3A%2F%2Fyour-school.example.com)&envLink=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u%2Fblob%2Fmain%2F.env.example)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D)
 
 ขั้นตอนสำหรับแอดมินโรงเรียน:
 
 1. กดปุ่ม **Deploy with Vercel** → เชื่อม GitHub → ติดตั้ง **Supabase** integration (สร้างโปรเจกต์ DB อัตโนมัติ)
-2. กรอก `NEXT_PUBLIC_APP_URL` — URL หลักของโรงเรียน (เช่น `https://your-school.vercel.app` หรือ custom domain)
-3. กรอก `SCHOOL_AUTH_DOMAIN` — โดเมนสังเคราะห์สำหรับอีเมลล็อกอิน (เช่น `your-school.ac.th`)
-4. รอ deploy เสร็จ → เปิด URL → ทำ **Setup Wizard** 3 ขั้น (โลโก้โรงเรียน, AI ไม่บังคับ, สร้างแอดมิน)
-5. ล็อกอินด้วยเลขแอดมินที่สร้าง → ใช้งานได้ทันที
+2. **ไม่ต้องกรอก env เพิ่มตอน deploy** — ปุ่มนี้ไม่บังคับ `NEXT_PUBLIC_APP_URL` / `SCHOOL_AUTH_DOMAIN` แล้ว (Vercel ใส่ `VERCEL_URL` ให้อัตโนมัติ แอปใช้ค่านี้ชั่วคราวได้)
+3. รอ deploy เสร็จ → เปิด URL `https://<ชื่อโปรเจกต์>.vercel.app` → ทำ **Setup Wizard** 3 ขั้น
+4. *(แนะนำหลัง deploy)* ไปที่ Vercel → **Settings → Environment Variables** ตั้งค่าให้ตรงโดเมนจริง แล้ว **Redeploy**:
+   - `NEXT_PUBLIC_APP_URL` = `https://found-u-test.vercel.app`
+   - `SCHOOL_AUTH_DOMAIN` = `found-u-test.vercel.app` (ไม่มี `https://`)
+5. ล็อกอินด้วยเลขแอดมินที่สร้างใน Wizard → ใช้งานได้
 
 ### เลือก Region และ Free Plan (Supabase)
 
@@ -141,6 +143,19 @@ lib/
 Supabase integration จะ inject `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, และ `POSTGRES_URL_NON_POOLING` ให้อัตโนมัติ — ไม่ต้อง copy เอง
 
 **ไม่บังคับตอน deploy:** `GEMMA_API_KEY`, `OPENROUTER_*`, `R2_*` — ตั้งผ่าน Setup Wizard หรือเพิ่มทีหลังใน Vercel env
+
+### ค่า env หลัง Deploy (ไม่บังคับตอนกดปุ่มครั้งแรก)
+
+| ตัวแปร | เมื่อไหร่ต้องใส่ | ตัวอย่าง |
+|--------|------------------|---------|
+| `NEXT_PUBLIC_APP_URL` | หลังรู้โดเมน Vercel แล้ว (แนะนำ) | `https://found-u-test.vercel.app` |
+| `SCHOOL_AUTH_DOMAIN` | หลังรู้โดเมน Vercel แล้ว (แนะนำ) | `found-u-test.vercel.app` |
+
+**อย่าใส่ `-`** เป็นค่า placeholder — ถ้ายังไม่รู้ URL **ไม่ต้องเพิ่มตัวแปรนี้เลย** แอปจะใช้ `VERCEL_URL` ของ Vercel ชั่วคราว
+
+**สำคัญ:** ต้องมี env จาก **Supabase integration** (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`) — ถ้าไม่มี หน้า `/setup` จะขึ้น `missing_env`
+
+**อาการ:** `500 MIDDLEWARE_INVOCATION_FAILED` + `/setup?reason=missing_env` = ยังไม่มี Supabase env หรือใส่ placeholder `-` แล้ว integration ไม่ครบ → แก้ env แล้ว redeploy
 
 ## ตัวแปรสภาพแวดล้อม (สำคัญ)
 
@@ -215,12 +230,13 @@ Traditional school lost-and-found workflows are slow, fragmented, and hard to tr
 
 ## Deploy a New School (1-Click)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D&env=NEXT_PUBLIC_APP_URL%2CSCHOOL_AUTH_DOMAIN&envDescription=NEXT_PUBLIC_APP_URL%3A%20Your%20school%27s%20primary%20URL&envLink=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u%2Fblob%2Fmain%2F.env.example)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D)
 
 1. Click **Deploy with Vercel** → connect GitHub → install **Supabase** integration
-2. Set `NEXT_PUBLIC_APP_URL` and `SCHOOL_AUTH_DOMAIN`
-3. Wait for deploy → open the URL → complete the **3-step Setup Wizard**
-4. Log in with the admin account you created
+2. **No extra env fields during deploy** — the button no longer requires `NEXT_PUBLIC_APP_URL` / `SCHOOL_AUTH_DOMAIN` (Vercel injects `VERCEL_URL` automatically)
+3. Wait for deploy → open `https://<project-name>.vercel.app` → complete the **3-step Setup Wizard**
+4. *(Recommended)* After deploy, set env in Vercel → **Settings → Environment Variables** and **Redeploy**
+5. Log in with the admin account you created
 
 ### Supabase region and Free Plan
 
@@ -234,7 +250,16 @@ When installing Supabase via Vercel:
 
 If Free Plan is greyed out: switch region to **Singapore**, check your org still has a free project slot (max 2 per org), or create a free project at [supabase.com/dashboard](https://supabase.com/dashboard) and use **Connect existing Supabase account** in Vercel (`...` menu).
 
-Supabase env vars and `POSTGRES_URL_NON_POOLING` are injected automatically.
+**Required env values (optional on first deploy — set after you know your `*.vercel.app` URL):**
+
+| Variable | Example |
+|----------|---------|
+| `NEXT_PUBLIC_APP_URL` | `https://your-school.vercel.app` |
+| `SCHOOL_AUTH_DOMAIN` | `your-school.vercel.app` |
+
+Do **not** use `-` as a placeholder. If you do not know the URL yet, **omit these variables** — the app falls back to Vercel's `VERCEL_URL` until you set them.
+
+Supabase integration vars are still required (`NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`).
 
 ## Tech Stack
 

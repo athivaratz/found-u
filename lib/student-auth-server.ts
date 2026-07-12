@@ -11,7 +11,7 @@ import type {
   StudentImportSummary,
 } from "@/lib/types";
 import type { Database } from "@/lib/database.types";
-import { getAppOrigin, getAppRpId } from "@/lib/app-domains";
+import { getAppOrigin, getAppRpId, normalizeHost } from "@/lib/app-domains";
 
 export const STUDENT_ACCOUNTS_COLLECTION = "accounts";
 export const ADMIN_WHITELIST_COLLECTION = "admin_whitelist";
@@ -27,7 +27,14 @@ const RATE_LIMIT_MAX = 5;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 function getSchoolAuthDomain(): string {
-  return process.env.SCHOOL_AUTH_DOMAIN || "foundu.school";
+  const domain = process.env.SCHOOL_AUTH_DOMAIN?.trim();
+  if (domain && domain !== "-" && domain !== "—") {
+    return domain;
+  }
+  if (process.env.VERCEL_URL) {
+    return normalizeHost(process.env.VERCEL_URL);
+  }
+  return "foundu.school";
 }
 
 export function normalizeStudentId(raw: string): string {

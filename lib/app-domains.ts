@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { isPlaceholderEnvValue } from "@/lib/setup/db-url";
 
 /** โดเมนหลักที่ให้บริการแอป (ทุกโดเมนใช้งานได้โดยไม่ redirect ข้ามโดเมน) */
 export const PRIMARY_APP_DOMAINS = [
@@ -74,7 +75,7 @@ export function getAppOrigin(request?: NextRequest): string {
   if (fromRequest) return fromRequest;
 
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (envUrl) return envUrl.replace(/\/$/, "");
+  if (envUrl && !isPlaceholderEnvValue(envUrl)) return envUrl.replace(/\/$/, "");
 
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
@@ -85,10 +86,12 @@ export function getAppRpId(request?: NextRequest): string {
   if (fromRequest) return fromRequest;
 
   const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
-  if (envUrl) {
+  if (envUrl && !isPlaceholderEnvValue(envUrl)) {
     const host = getHostFromEnvUrl(envUrl);
     if (host) return host;
   }
+
+  if (process.env.VERCEL_URL) return normalizeHost(process.env.VERCEL_URL);
 
   return "localhost";
 }
