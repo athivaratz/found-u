@@ -34,10 +34,18 @@ export async function assertSetupNotCompleted(): Promise<void> {
   }
 }
 
-export async function assertDatabaseReady(): Promise<void> {
-  const status = await fetchSetupStatusAdmin();
-  if (!status.databaseReady) {
-    throw new SetupGuardError("ฐานข้อมูลยังไม่พร้อม", "not_ready");
+export async function assertSetupStepAtLeast(minStep: number): Promise<void> {
+  const status = await getSetupStatusData();
+  const current = status?.current_step ?? 1;
+  if (current < minStep) {
+    throw new SetupGuardError("กรุณาทำขั้นตอนก่อนหน้าให้เสร็จก่อน", "forbidden");
+  }
+}
+
+export async function assertBrandingSaved(): Promise<void> {
+  const branding = await getSchoolBrandingData();
+  if (!branding?.school_name?.trim()) {
+    throw new SetupGuardError("กรุณาบันทึกข้อมูลโรงเรียนก่อน", "forbidden");
   }
 }
 
@@ -104,14 +112,31 @@ export async function getAiCredentialsData(): Promise<AiCredentialsData | null> 
 }
 
 export async function saveAiCredentialsData(
-  data: AiCredentialsData
+  data: Partial<AiCredentialsData> & Pick<AiCredentialsData, "provider">
 ): Promise<void> {
   const admin = createAdminClient();
   const now = new Date().toISOString();
+  const current = (await getAiCredentialsData()) ?? { provider: data.provider };
+  const merged: AiCredentialsData = {
+    ...current,
+    ...data,
+    configured_at: data.configured_at ?? current.configured_at ?? now,
+  };
+
+  if (!data.gemini_api_key_encrypted && current.gemini_api_key_encrypted) {
+    merged.gemini_api_key_encrypted = current.gemini_api_key_encrypted;
+  }
+  if (!data.openrouter_api_key_encrypted && current.openrouter_api_key_encrypted) {
+    merged.openrouter_api_key_encrypted = current.openrouter_api_key_encrypted;
+  }
+  if (!data.openrouter_model && current.openrouter_model) {
+    merged.openrouter_model = current.openrouter_model;
+  }
+
   const { error } = await admin.from("system_config").upsert(
     {
       id: AI_CREDENTIALS_ID,
-      config_data: { ...data, configured_at: data.configured_at ?? now },
+      config_data: merged,
       updated_at: now,
     },
     { onConflict: "id" }
@@ -182,4 +207,13 @@ export async function uploadToSupabaseBucket(
 
   if (error) throw error;
   return buildSupabasePublicUrl(bucket, path);
+}
+
+export async function deleteFromSupabaseBucket(
+  bucket: string,
+  path: string
+): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin.storage.from(bucket).remove([path]);
+  if (error) throw error;
 }

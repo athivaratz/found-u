@@ -1,4 +1,4 @@
-import { hasSupabaseClientEnv, resolvePostgresUrl } from "@/lib/setup/db-url";
+import { hasMinimumSetupEnv, resolvePostgresUrl } from "@/lib/setup/db-url";
 import { hydrateDatabase, type HydrationResult } from "@/lib/setup/hydrator";
 
 export type DatabaseReadyState = {
@@ -8,7 +8,11 @@ export type DatabaseReadyState = {
   mode?: HydrationResult["mode"];
 };
 
+const CACHE_TTL_MS = 30_000;
+const FAILURE_CACHE_TTL_MS = 5_000;
+
 let cachedState: DatabaseReadyState | null = null;
+let cacheExpiresAt = 0;
 let hydrationPromise: Promise<DatabaseReadyState> | null = null;
 
 function isBuildWithoutDatabase(): boolean {
@@ -18,36 +22,41 @@ function isBuildWithoutDatabase(): boolean {
   );
 }
 
+function setCache(state: DatabaseReadyState): DatabaseReadyState {
+  cachedState = state;
+  cacheExpiresAt =
+    Date.now() + (state.ready ? CACHE_TTL_MS : FAILURE_CACHE_TTL_MS);
+  return state;
+}
+
 export async function ensureDatabaseReady(): Promise<DatabaseReadyState> {
-  if (cachedState) return cachedState;
+  if (cachedState && cacheExpiresAt > Date.now()) {
+    return cachedState;
+  }
   if (hydrationPromise) return hydrationPromise;
 
   hydrationPromise = (async () => {
-    if (!hasSupabaseClientEnv()) {
-      cachedState = { ready: false, reason: "missing_supabase_env" };
-      return cachedState;
+    if (!hasMinimumSetupEnv()) {
+      return setCache({ ready: false, reason: "missing_supabase_env" });
     }
 
     if (!resolvePostgresUrl()) {
       if (isBuildWithoutDatabase()) {
-        cachedState = { ready: false, reason: "build_skip" };
-        return cachedState;
+        return setCache({ ready: false, reason: "build_skip" });
       }
       console.warn(
         "[setup] POSTGRES_URL_NON_POOLING not set — skipping runtime hydration (use db:push for local dev)"
       );
-      cachedState = { ready: false, reason: "missing_env" };
-      return cachedState;
+      return setCache({ ready: false, reason: "missing_env" });
     }
 
     const result = await hydrateDatabase();
-    cachedState = {
+    return setCache({
       ready: result.ok,
       reason: result.reason,
       error: result.error,
       mode: result.mode,
-    };
-    return cachedState;
+    });
   })();
 
   try {
@@ -58,5 +67,13 @@ export async function ensureDatabaseReady(): Promise<DatabaseReadyState> {
 }
 
 export function getCachedDatabaseReadyState(): DatabaseReadyState | null {
-  return cachedState;
+  if (cachedState && cacheExpiresAt > Date.now()) {
+    return cachedState;
+  }
+  return null;
+}
+
+export function invalidateDatabaseReadyCache(): void {
+  cachedState = null;
+  cacheExpiresAt = 0;
 }

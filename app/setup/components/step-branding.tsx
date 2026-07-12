@@ -19,6 +19,7 @@ export type BrandingDraft = {
   schoolName: string;
   logoPreviewUrl?: string;
   existingLogoUrl?: string;
+  logoFile?: File | null;
 };
 
 type StepBrandingProps = {
@@ -31,7 +32,8 @@ type StepBrandingProps = {
 export function StepBranding({ initial, onChange, issues = [], formError }: StepBrandingProps) {
   const [schoolName, setSchoolName] = useState(initial.schoolName);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState(initial.logoPreviewUrl);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(initial.logoFile ?? null);
+  const [existingLogoUrl, setExistingLogoUrl] = useState(initial.existingLogoUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
   const schoolNameError = getIssueMessage(issues, "schoolName");
@@ -40,9 +42,10 @@ export function StepBranding({ initial, onChange, issues = [], formError }: Step
     onChange({
       schoolName,
       logoPreviewUrl,
-      existingLogoUrl: initial.existingLogoUrl,
+      existingLogoUrl,
+      logoFile,
     });
-  }, [schoolName, logoPreviewUrl, initial.existingLogoUrl, onChange]);
+  }, [schoolName, logoPreviewUrl, existingLogoUrl, logoFile, onChange]);
 
   useEffect(() => {
     return () => {
@@ -60,9 +63,21 @@ export function StepBranding({ initial, onChange, issues = [], formError }: Step
     objectUrlRef.current = url;
     setLogoPreviewUrl(url);
     setLogoFile(compressed);
+    setExistingLogoUrl(undefined);
   }
 
-  const preview = logoPreviewUrl || initial.existingLogoUrl;
+  function handleRemoveLogo() {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setLogoPreviewUrl(undefined);
+    setLogoFile(null);
+    setExistingLogoUrl(undefined);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  const preview = logoPreviewUrl || existingLogoUrl;
 
   return (
     <div className="space-y-4">
@@ -93,12 +108,16 @@ export function StepBranding({ initial, onChange, issues = [], formError }: Step
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">โลโก้โรงเรียน (ไม่บังคับ)</label>
+        <span id="logo-label" className="block text-sm font-medium mb-1">
+          โลโก้โรงเรียน (ไม่บังคับ)
+        </span>
         <input
           ref={fileInputRef}
+          id={fieldId("logo")}
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          className="hidden"
+          className="sr-only"
+          aria-labelledby="logo-label"
           onChange={(e) => void handleFileChange(e.target.files?.[0] ?? null)}
         />
         <button
@@ -113,29 +132,20 @@ export function StepBranding({ initial, onChange, issues = [], formError }: Step
             <div className="relative h-16 w-16 overflow-hidden rounded-xl border border-border-light bg-bg-secondary">
               <Image src={preview} alt="โลโก้" fill className="object-contain p-1" unoptimized />
             </div>
-            <div className="text-sm text-text-secondary">
+            <div className="flex-1 text-sm text-text-secondary">
               <p className="font-medium text-text-primary">ตัวอย่าง</p>
               <p>{schoolName || "ชื่อโรงเรียน"}</p>
             </div>
+            <button
+              type="button"
+              onClick={handleRemoveLogo}
+              className="text-xs text-destructive hover:underline"
+            >
+              ลบโลโก้
+            </button>
           </div>
         ) : null}
-        <input type="hidden" name="logoFileReady" value={logoFile ? "1" : "0"} />
       </div>
-
-      <BrandingFileBridge file={logoFile} />
     </div>
   );
-}
-
-let brandingFileRef: File | null = null;
-
-function BrandingFileBridge({ file }: { file: File | null }) {
-  useEffect(() => {
-    brandingFileRef = file;
-  }, [file]);
-  return null;
-}
-
-export function getBrandingLogoFile(): File | null {
-  return brandingFileRef;
 }

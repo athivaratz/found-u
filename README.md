@@ -161,7 +161,8 @@ Supabase integration จะ inject `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_R
 
 ดูตัวอย่างครบใน [`.env.example`](.env.example) — จัดกลุ่ม Required / Optional แล้ว
 
-- **Required (Vercel + Supabase):** `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`, `NEXT_PUBLIC_APP_URL`, `SCHOOL_AUTH_DOMAIN`
+- **Required (Vercel + Supabase):** `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`
+- **แนะนำหลังรู้โดเมน:** `NEXT_PUBLIC_APP_URL`, `SCHOOL_AUTH_DOMAIN` (ไม่บังคับ deploy ครั้งแรก — ใช้ `VERCEL_URL` ชั่วคราวได้)
 - **Optional — AI:** `GEMMA_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` (หรือตั้งใน Setup Wizard)
 - **Optional — Storage:** `R2_*` (production เดิมใช้ R2; deploy ใหม่ใช้ Supabase Storage อัตโนมัติถ้าไม่มี R2)
 - **Search:** `SEARCH_USE_TRGM`, `SEARCH_SIMILARITY_THRESHOLD`, `AGENT_SEARCH_SIMILARITY_THRESHOLD`

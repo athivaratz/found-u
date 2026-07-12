@@ -87,7 +87,9 @@ export function StepSuperadmin({ initial, onChange, issues = [], formError }: St
           autoComplete="new-password"
         />
         <FieldValidationMessage id={fieldErrorId("password")} message={passwordError} />
-        <p className="text-xs text-text-tertiary mt-1">อย่างน้อย 7 ตัวอักษร</p>
+        <p className="text-xs text-text-tertiary mt-1">
+          ตัวอักษรหรือตัวเลขภาษาอังกฤษ 7–8 ตัว (เช่น abc1234)
+        </p>
       </div>
 
       <div>
@@ -115,8 +117,11 @@ export function StepSuperadmin({ initial, onChange, issues = [], formError }: St
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium mb-1">ชื่อ (ไม่บังคับ)</label>
+          <label htmlFor={fieldId("firstName")} className="block text-sm font-medium mb-1">
+            ชื่อ (ไม่บังคับ)
+          </label>
           <input
+            id={fieldId("firstName")}
             type="text"
             value={draft.firstName ?? ""}
             onChange={(e) => update("firstName", e.target.value)}
@@ -124,14 +129,30 @@ export function StepSuperadmin({ initial, onChange, issues = [], formError }: St
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">นามสกุล (ไม่บังคับ)</label>
+          <label htmlFor={fieldId("lastName")} className="block text-sm font-medium mb-1">
+            นามสกุล (ไม่บังคับ)
+          </label>
           <input
+            id={fieldId("lastName")}
             type="text"
             value={draft.lastName ?? ""}
             onChange={(e) => update("lastName", e.target.value)}
             className="w-full px-4 py-3 rounded-xl border border-border-light"
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor={fieldId("nickname")} className="block text-sm font-medium mb-1">
+          ชื่อเล่น (ไม่บังคับ)
+        </label>
+        <input
+          id={fieldId("nickname")}
+          type="text"
+          value={draft.nickname ?? ""}
+          onChange={(e) => update("nickname", e.target.value)}
+          className="w-full px-4 py-3 rounded-xl border border-border-light"
+        />
       </div>
 
       <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-lg p-3">

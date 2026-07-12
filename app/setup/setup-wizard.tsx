@@ -8,7 +8,6 @@ import { SETUP_WIZARD_STEP_LABELS, SETUP_WIZARD_STEPS_COUNT } from "@/lib/setup/
 import { SetupHeader } from "@/app/setup/components/setup-header";
 import {
   StepBranding,
-  getBrandingLogoFile,
   type BrandingDraft,
 } from "@/app/setup/components/step-branding";
 import { StepAiConfig, type AiDraft } from "@/app/setup/components/step-ai-config";
@@ -19,6 +18,7 @@ import {
   completeSetupAction,
   saveAiConfigAction,
   saveBrandingAction,
+  setSetupStepAction,
   skipAiConfigAction,
 } from "@/app/setup/actions";
 import { wizardBrandingSchema } from "@/lib/setup/validations/wizard-branding";
@@ -33,15 +33,21 @@ export type SetupWizardInitialState = {
   initialStep: number;
   branding: BrandingDraft;
   ai: AiDraft;
+  databaseReady?: boolean;
 };
 
 type SetupWizardProps = SetupWizardInitialState;
 
 type Phase = "init" | "wizard" | "done";
 
-export function SetupWizard({ initialStep, branding, ai }: SetupWizardProps) {
+export function SetupWizard({
+  initialStep,
+  branding,
+  ai,
+  databaseReady = false,
+}: SetupWizardProps) {
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>("init");
+  const [phase, setPhase] = useState<Phase>(databaseReady ? "wizard" : "init");
   const [step, setStep] = useState(initialStep);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
@@ -73,7 +79,9 @@ export function SetupWizard({ initialStep, branding, ai }: SetupWizardProps) {
   const handleBack = () => {
     setValidationIssues([]);
     setFormError(null);
-    setStep((s) => Math.max(0, s - 1));
+    const nextStep = Math.max(0, step - 1);
+    setStep(nextStep);
+    void setSetupStepAction(nextStep);
   };
 
   const handleSkipAi = async () => {
@@ -86,6 +94,7 @@ export function SetupWizard({ initialStep, branding, ai }: SetupWizardProps) {
       setFormError(result.error);
       return;
     }
+    setAiDraft((prev) => ({ ...prev, provider: "none", skippedAi: true }));
     setStep(2);
   };
 
@@ -105,8 +114,7 @@ export function SetupWizard({ initialStep, branding, ai }: SetupWizardProps) {
       setIsSubmitting(true);
       const formData = new FormData();
       formData.set("schoolName", parsed.data.schoolName);
-      const logoFile = getBrandingLogoFile();
-      if (logoFile) formData.set("logo", logoFile);
+      if (brandingDraft.logoFile) formData.set("logo", brandingDraft.logoFile);
       if (brandingDraft.existingLogoUrl) {
         formData.set("existingLogoUrl", brandingDraft.existingLogoUrl);
       }
@@ -172,7 +180,7 @@ export function SetupWizard({ initialStep, branding, ai }: SetupWizardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-bg-secondary flex items-center justify-center p-4">
+    <div className="flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-bg-primary rounded-2xl border border-border-light p-6 shadow-card">
         <SetupHeader />
         <FormStepper
@@ -216,6 +224,7 @@ export function SetupWizard({ initialStep, branding, ai }: SetupWizardProps) {
           onSubmit={() => void handleComplete()}
           isSubmitting={isSubmitting}
           submitLabel="เริ่มใช้งาน Found-U"
+          stickyAnchor="viewport"
           className="mt-6"
         />
 

@@ -5,7 +5,8 @@ import {
   SETUP_OK_COOKIE,
   SETUP_OK_COOKIE_MAX_AGE,
 } from "@/lib/setup/constants";
-import { hasSupabaseClientEnv } from "@/lib/setup/db-url";
+import { hasMinimumSetupEnv } from "@/lib/setup/db-url";
+import { verifySetupOkCookie } from "@/lib/setup/setup-cookie";
 import { fetchSetupStatusAnon } from "@/lib/setup/setup-status-server";
 
 const SETUP_EXEMPT_PREFIXES = ["/setup", "/api/setup"] as const;
@@ -20,8 +21,12 @@ export function isSetupGuardExempt(pathname: string): boolean {
   );
 }
 
-export function applySetupOkCookie(response: NextResponse): void {
-  response.cookies.set(SETUP_OK_COOKIE, "1", {
+import { signSetupOkCookie } from "@/lib/setup/setup-cookie";
+
+export async function applySetupOkCookie(response: NextResponse): Promise<void> {
+  const signed = await signSetupOkCookie();
+  if (!signed) return;
+  response.cookies.set(SETUP_OK_COOKIE, signed, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -38,14 +43,14 @@ export async function enforceSetupGuard(
     return "continue";
   }
 
-  if (!hasSupabaseClientEnv()) {
+  if (!hasMinimumSetupEnv()) {
     const url = request.nextUrl.clone();
     url.pathname = "/setup";
     url.searchParams.set("reason", "missing_env");
     return NextResponse.redirect(url);
   }
 
-  if (request.cookies.get(SETUP_OK_COOKIE)?.value === "1") {
+  if (await verifySetupOkCookie(request.cookies.get(SETUP_OK_COOKIE)?.value)) {
     return "continue";
   }
 

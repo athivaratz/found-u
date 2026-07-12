@@ -7,7 +7,7 @@ import {
   getSchoolBrandingData,
 } from "@/lib/setup/wizard-db";
 import { dbStepToWizardIndex } from "@/lib/setup/schemas/setup-status";
-import { hasSupabaseAdminEnv } from "@/lib/setup/db-url";
+import { hasMinimumSetupEnv } from "@/lib/setup/db-url";
 import type { SetupWizardInitialState } from "./setup-wizard";
 
 export const dynamic = "force-dynamic";
@@ -30,14 +30,18 @@ async function loadWizardInitialState(): Promise<SetupWizardInitialState> {
       existingLogoUrl: branding?.logo_url,
     },
     ai: {
-      provider: aiCreds?.provider === "none" ? "auto" : (aiCreds?.provider ?? "auto"),
+      provider:
+        aiCreds?.provider === "none"
+          ? "none"
+          : (aiCreds?.provider ?? "auto"),
       openrouterModel: aiCreds?.openrouter_model,
+      skippedAi: aiCreds?.provider === "none",
     },
   };
 }
 
 export default async function SetupPage() {
-  if (!hasSupabaseAdminEnv()) {
+  if (!hasMinimumSetupEnv()) {
     return (
       <Suspense
         fallback={
@@ -52,7 +56,7 @@ export default async function SetupPage() {
   }
 
   const status = await fetchSetupStatusAdmin();
-  if (status.setupCompleted) {
+  if (status.setupCompleted && hasMinimumSetupEnv()) {
     redirect("/");
   }
 
@@ -66,7 +70,12 @@ export default async function SetupPage() {
         </main>
       }
     >
-      <SetupPageClient initialState={initialState} />
+        <SetupPageClient
+          initialState={{
+            ...initialState,
+            databaseReady: status.databaseReady,
+          }}
+        />
     </Suspense>
   );
 }

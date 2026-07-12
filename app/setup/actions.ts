@@ -1,16 +1,28 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { encryptSecret } from "@/lib/setup/credentials-crypto";
 import { createSetupWizardAdmin } from "@/lib/setup/create-wizard-admin";
+import {
+  isAllowedBrandingLogoUrl,
+  validateLogoFile,
+} from "@/lib/setup/logo-validation";
+import { checkSetupRateLimit } from "@/lib/setup/rate-limit";
+import { assertSetupActionAuthorized } from "@/lib/setup/setup-auth";
+import {
+  markSetupCompletedAtomic,
+  withSetupAdvisoryLock,
+} from "@/lib/setup/setup-lock";
 import {
   SCHOOL_BRANDING_BUCKET,
   SETUP_OK_COOKIE,
 } from "@/lib/setup/constants";
 import {
   SetupGuardError,
+  assertBrandingSaved,
   assertSetupNotCompleted,
+  assertSetupStepAtLeast,
   saveAiCredentialsData,
   saveSchoolBrandingData,
   updateSetupStatusData,
@@ -26,6 +38,7 @@ import {
 import { wizardAdminSchema } from "@/lib/setup/validations/wizard-admin";
 import { OG_METADATA_CACHE_TAG } from "@/lib/seo-metadata";
 import { clearAiCredentialsCache } from "@/lib/ai/credentials-resolver";
+import { hasMinimumSetupEnv } from "@/lib/setup/db-url";
 
 export type SetupActionResult =
   | { ok: true }
@@ -41,9 +54,16 @@ function toActionError(error: unknown): SetupActionResult {
   return { ok: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
 }
 
+async function guardSetupAction(): Promise<void> {
+  await assertSetupActionAuthorized();
+  await assertSetupNotCompleted();
+}
+
 async function testGeminiKey(apiKey: string): Promise<void> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, { method: "GET" });
+  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+    method: "GET",
+    headers: { "x-goog-api-key": apiKey },
+  });
   if (!res.ok) {
     throw new Error("Gemini API key ไม่ถูกต้องหรือเชื่อมต่อไม่ได้");
   }
@@ -69,11 +89,26 @@ async function testOpenRouterKey(apiKey: string, model: string): Promise<void> {
   }
 }
 
+export async function setSetupStepAction(
+  stepIndex: number
+): Promise<SetupActionResult> {
+  try {
+    await guardSetupAction();
+    if (stepIndex < 0 || stepIndex > 2) {
+      return { ok: false, error: "ขั้นตอนไม่ถูกต้อง" };
+    }
+    await updateSetupStatusData({ current_step: wizardIndexToDbStep(stepIndex) });
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
 export async function saveBrandingAction(
   formData: FormData
 ): Promise<SetupActionResult> {
   try {
-    await assertSetupNotCompleted();
+    await guardSetupAction();
 
     const schoolName = String(formData.get("schoolName") ?? "");
     const parsed = wizardBrandingSchema.safeParse({ schoolName });
@@ -84,22 +119,22 @@ export async function saveBrandingAction(
     let logoUrl: string | undefined;
     const logoFile = formData.get("logo");
     if (logoFile instanceof File && logoFile.size > 0) {
-      const ext = logoFile.type.includes("png")
-        ? "png"
-        : logoFile.type.includes("webp")
-          ? "webp"
-          : "jpg";
+      const { mime, ext } = await validateLogoFile(logoFile);
       const path = `logo-${Date.now()}.${ext}`;
       logoUrl = await uploadToSupabaseBucket(
         SCHOOL_BRANDING_BUCKET,
         path,
         logoFile,
-        logoFile.type || "image/jpeg"
+        mime
       );
     }
 
     const existingLogo = formData.get("existingLogoUrl");
-    if (!logoUrl && typeof existingLogo === "string" && existingLogo.startsWith("http")) {
+    if (
+      !logoUrl &&
+      typeof existingLogo === "string" &&
+      isAllowedBrandingLogoUrl(existingLogo)
+    ) {
       logoUrl = existingLogo;
     }
 
@@ -131,7 +166,9 @@ export async function saveAiConfigAction(input: {
   openrouterModel?: string;
 }): Promise<SetupActionResult> {
   try {
-    await assertSetupNotCompleted();
+    await guardSetupAction();
+    await assertSetupStepAtLeast(1);
+    await assertBrandingSaved();
 
     const parsed = wizardAiConfigSchema.safeParse(input);
     if (!parsed.success) {
@@ -141,6 +178,17 @@ export async function saveAiConfigAction(input: {
     const model =
       parsed.data.openrouterModel?.trim() ||
       WIZARD_FREE_OPENROUTER_MODELS[0];
+
+    if (parsed.data.provider === "gemini" || parsed.data.provider === "auto") {
+      const key = parsed.data.geminiApiKey?.trim();
+      if (!key) return { ok: false, error: "กรุณากรอก Gemini API key" };
+      await testGeminiKey(key);
+    }
+    if (parsed.data.provider === "openrouter" || parsed.data.provider === "auto") {
+      const key = parsed.data.openrouterApiKey?.trim();
+      if (!key) return { ok: false, error: "กรุณากรอก OpenRouter API key" };
+      await testOpenRouterKey(key, model);
+    }
 
     await saveAiCredentialsData({
       provider: parsed.data.provider,
@@ -167,7 +215,9 @@ export async function saveAiConfigAction(input: {
 
 export async function skipAiConfigAction(): Promise<SetupActionResult> {
   try {
-    await assertSetupNotCompleted();
+    await guardSetupAction();
+    await assertSetupStepAtLeast(1);
+    await assertBrandingSaved();
     await saveAiCredentialsData({ provider: "none" });
     await updateSetupStatusData({ current_step: wizardIndexToDbStep(2) });
     clearAiCredentialsCache();
@@ -184,7 +234,16 @@ export async function testAiCredentialsAction(input: {
   openrouterModel?: string;
 }): Promise<SetupActionResult> {
   try {
-    await assertSetupNotCompleted();
+    await guardSetupAction();
+
+    const headerStore = await headers();
+    const ip =
+      headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      headerStore.get("x-real-ip") ||
+      "unknown";
+    if (!checkSetupRateLimit(`test-ai:${ip}`)) {
+      return { ok: false, error: "ลองบ่อยเกินไป กรุณารอสักครู่" };
+    }
 
     const model =
       input.openrouterModel?.trim() || WIZARD_FREE_OPENROUTER_MODELS[0];
@@ -216,27 +275,40 @@ export async function completeSetupAction(input: {
   nickname?: string;
 }): Promise<SetupActionResult> {
   try {
-    await assertSetupNotCompleted();
+    await guardSetupAction();
+    await assertSetupStepAtLeast(2);
+    await assertBrandingSaved();
+
+    if (!hasMinimumSetupEnv()) {
+      return {
+        ok: false,
+        error:
+          "ยังตั้งค่า Supabase ไม่ครบ (URL, anon key, service role) — ตั้งค่าใน Vercel แล้ว redeploy",
+        code: "missing_env",
+      };
+    }
 
     const parsed = wizardAdminSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "ข้อมูลไม่ถูกต้อง" };
     }
 
-    const { uid } = await createSetupWizardAdmin({
-      studentId: parsed.data.studentId,
-      password: parsed.data.password,
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      nickname: parsed.data.nickname,
-    });
+    let uid = "";
+    await withSetupAdvisoryLock(async () => {
+      await assertSetupNotCompleted();
+      const { uid: createdUid } = await createSetupWizardAdmin({
+        studentId: parsed.data.studentId,
+        password: parsed.data.password,
+        firstName: parsed.data.firstName,
+        lastName: parsed.data.lastName,
+        nickname: parsed.data.nickname,
+      });
+      uid = createdUid;
 
-    const now = new Date().toISOString();
-    await updateSetupStatusData({
-      is_completed: true,
-      current_step: 3,
-      completed_at: now,
-      completed_by: uid,
+      const marked = await markSetupCompletedAtomic(uid);
+      if (!marked) {
+        throw new SetupGuardError("ตั้งค่าระบบเสร็จแล้ว", "completed");
+      }
     });
 
     revalidateTag(OG_METADATA_CACHE_TAG, { expire: 0 });

@@ -253,6 +253,23 @@ function LoginPageContent() {
   const isFirstLoginOnDevice = profileHint?.hasLoggedInOnce === false;
   const showSecondaryOnFull = !isFirstLoginOnDevice;
 
+  const [showSetupDoneBanner] = useState(
+    () => searchParams.get("setup") === "done"
+  );
+
+  useEffect(() => {
+    if (!showSetupDoneBanner) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("setup");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  }, [showSetupDoneBanner]);
+
+  const setupDoneBanner = showSetupDoneBanner ? (
+    <div className={authSuccessBannerClass} role="status" aria-live="polite">
+      {AUTH_COPY.setupCompleteBanner}
+    </div>
+  ) : undefined;
+
   const isRedirectingAfterLogin =
     !!user && (mustChangePassword || mustSetupPin || isStudentVerified || isAdmin);
 
@@ -263,13 +280,7 @@ function LoginPageContent() {
   return (
     <AuthShell
       subtitle={view === "quick" ? "ยินดีต้อนรับกลับ" : "เข้าสู่ระบบนักเรียน"}
-      banner={
-        searchParams.get("setup") === "done" ? (
-          <div className={authSuccessBannerClass}>
-            {AUTH_COPY.setupCompleteBanner}
-          </div>
-        ) : undefined
-      }
+      banner={setupDoneBanner}
     >
       <AuthCard>
         {view === "quick" ? (

@@ -20,7 +20,7 @@ import {
 } from "@/lib/feedback/types";
 import { cn } from "@/lib/utils";
 
-export type AiDraft = WizardAiConfigInput;
+export type AiDraft = WizardAiConfigInput & { skippedAi?: boolean };
 
 type StepAiConfigProps = {
   initial: AiDraft;
@@ -89,6 +89,10 @@ export function StepAiConfig({
 
       <ValidationSummary issues={issues} title="กรุณาตรวจสอบข้อมูลในขั้นตอนนี้:" />
       {formError ? <StatusAlert variant="error" message={formError} /> : null}
+
+      {initial.skippedAi || draft.provider === "none" ? (
+        <StatusAlert variant="info" message="ข้ามการตั้งค่า AI แล้ว — ตั้งทีหลังในแผงแอดมินได้" />
+      ) : null}
 
       <SegmentedTabs<AiProviderTab>
         value={(draft.provider === "none" ? "auto" : draft.provider) as AiProviderTab}

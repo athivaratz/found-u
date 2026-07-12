@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidSchoolPassword } from "@/lib/student-auth-server";
 
 export const wizardAdminSchema = z
   .object({
@@ -6,7 +7,9 @@ export const wizardAdminSchema = z
       .string()
       .trim()
       .regex(/^\d{5}$/, "เลขแอดมินต้องเป็นตัวเลข 5 หลัก"),
-    password: z.string().min(7, "รหัสผ่านต้องมีอย่างน้อย 7 ตัว"),
+    password: z
+      .string()
+      .refine(isValidSchoolPassword, "รหัสผ่านต้องเป็นตัวอักษรหรือตัวเลข 7–8 ตัว"),
     confirmPassword: z.string(),
     firstName: z.string().trim().max(100).optional(),
     lastName: z.string().trim().max(100).optional(),

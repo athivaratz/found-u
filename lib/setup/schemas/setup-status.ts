@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const SetupStatusDataSchema = z.object({
   is_completed: z.boolean(),
-  current_step: z.number().int().min(1).max(10).optional(),
+  current_step: z.number().int().min(1).max(10).optional(), // wizard maps 1–3 → steps โรงเรียน/AI/แอดมิน
   hydrated_at: z.string().optional(),
   backfilled_at: z.string().optional(),
   completed_at: z.string().optional(),

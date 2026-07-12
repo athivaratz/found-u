@@ -6,13 +6,16 @@ const TAG_LENGTH = 16;
 const KEY_SALT = "found-u-setup-secrets-v1";
 
 function getEncryptionKey(): Buffer {
-  const secret =
-    process.env.SETUP_SECRETS_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!secret) {
+  const secret = process.env.SETUP_SECRETS_KEY?.trim();
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("SETUP_SECRETS_KEY is required in production");
+  }
+  const material =
+    secret || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!material) {
     throw new Error("Missing encryption key material for setup secrets");
   }
-  return scryptSync(secret, KEY_SALT, 32);
+  return scryptSync(material, KEY_SALT, 32);
 }
 
 export function encryptSecret(plain: string): string {

@@ -1,9 +1,14 @@
 import postgres from "postgres";
+import {
+  LEGACY_SETUP_BACKFILL_SQL,
+  RESET_FALSE_SETUP_WITHOUT_ADMIN_SQL,
+} from "@/lib/setup/backfill-sql";
 import { SETUP_ADVISORY_LOCK_ID } from "@/lib/setup/constants";
 import { resolvePostgresUrl } from "@/lib/setup/db-url";
 import { probeDatabaseState } from "@/lib/setup/probe";
 import {
   loadAllMigrationSql,
+  loadStorageMigrationSql,
   loadSystemConfigMigrationSql,
 } from "@/lib/setup/schemas";
 
@@ -38,6 +43,7 @@ export async function hydrateDatabase(): Promise<HydrationResult> {
 
     if (state.hasSystemConfig && state.hasLostItems) {
       await backfillSetupStatusIfNeeded(sql);
+      await ensureStorageBuckets(sql);
       return { ok: true, mode: "skipped" };
     }
 
@@ -48,6 +54,7 @@ export async function hydrateDatabase(): Promise<HydrationResult> {
       }
       await runSqlBatch(sql, systemConfigSql);
       await backfillSetupStatusIfNeeded(sql);
+      await ensureStorageBuckets(sql);
       return { ok: true, mode: "system_config_only" };
     }
 
@@ -76,18 +83,20 @@ export async function hydrateDatabase(): Promise<HydrationResult> {
 }
 
 async function backfillSetupStatusIfNeeded(sql: postgres.Sql): Promise<void> {
-  await sql.unsafe(`
-    INSERT INTO public.system_config (id, config_data)
-    SELECT
-      'setup_status',
-      jsonb_build_object('is_completed', true, 'current_step', 3, 'backfilled_at', now())
-    FROM public.app_settings
-    WHERE id = 'default'
-    ON CONFLICT (id) DO UPDATE
-    SET
-      config_data = jsonb_build_object('is_completed', true, 'current_step', 3, 'backfilled_at', now()),
-      updated_at = now()
-    WHERE EXISTS (SELECT 1 FROM public.app_settings WHERE id = 'default')
-      AND (public.system_config.config_data->>'is_completed')::boolean IS DISTINCT FROM true;
-  `);
+  await sql.unsafe(RESET_FALSE_SETUP_WITHOUT_ADMIN_SQL);
+  await sql.unsafe(LEGACY_SETUP_BACKFILL_SQL);
+}
+
+async function ensureStorageBuckets(sql: postgres.Sql): Promise<void> {
+  const rows = await sql<{ name: string }[]>`
+    SELECT name FROM storage.buckets WHERE name IN ('school-branding', 'item-uploads')
+  `;
+  const existing = new Set(rows.map((r) => r.name));
+  if (existing.has("school-branding") && existing.has("item-uploads")) {
+    return;
+  }
+  const storageSql = loadStorageMigrationSql();
+  if (storageSql) {
+    await runSqlBatch(sql, storageSql);
+  }
 }

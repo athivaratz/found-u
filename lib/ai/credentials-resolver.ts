@@ -38,7 +38,10 @@ function resolveFromEnv(): ResolvedAiCredentials {
 
 function resolveFromDbRecord(record: AiCredentialsData): ResolvedAiCredentials {
   if (record.provider === "none") {
-    return resolveFromEnv();
+    return {
+      provider: "none",
+      source: "none",
+    };
   }
 
   const geminiApiKey = tryDecryptSecret(record.gemini_api_key_encrypted);

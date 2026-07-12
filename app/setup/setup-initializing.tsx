@@ -7,8 +7,7 @@ import { Loader2 } from "lucide-react";
 type SetupStatusResponse = {
   databaseReady: boolean;
   setupCompleted: boolean;
-  hydrationError?: string;
-  hydrationReason?: string;
+  reason?: string;
 };
 
 type SetupInitializingProps = {
@@ -16,16 +15,28 @@ type SetupInitializingProps = {
   onCompleted: () => void;
 };
 
+const MAX_POLLS = 45;
+
 export function SetupInitializing({ onReady, onCompleted }: SetupInitializingProps) {
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason");
   const [status, setStatus] = useState<SetupStatusResponse | null>(null);
+  const [pollCount, setPollCount] = useState(0);
+  const [stopped, setStopped] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let polls = 0;
 
     async function poll() {
+      if (polls >= MAX_POLLS) {
+        if (!cancelled) setStopped(true);
+        return;
+      }
+      polls += 1;
+      if (!cancelled) setPollCount(polls);
+
       try {
         const res = await fetch("/api/setup/status", { cache: "no-store" });
         const data = (await res.json()) as SetupStatusResponse;
@@ -40,6 +51,11 @@ export function SetupInitializing({ onReady, onCompleted }: SetupInitializingPro
 
         if (data.databaseReady) {
           onReady();
+          return;
+        }
+
+        if (data.reason === "missing_env") {
+          setStopped(true);
           return;
         }
 
@@ -60,16 +76,18 @@ export function SetupInitializing({ onReady, onCompleted }: SetupInitializingPro
   }, [onCompleted, onReady]);
 
   const reasonMessage =
-    reason === "missing_env"
+    reason === "missing_env" || status?.reason === "missing_env"
       ? "ยังไม่ได้ตั้งค่า Supabase / Postgres environment variables"
       : reason === "initializing"
         ? "กำลังเตรียมฐานข้อมูล..."
         : null;
 
   return (
-    <div className="min-h-screen bg-bg-secondary flex items-center justify-center p-4">
+    <div className="flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-bg-primary rounded-2xl border border-border-light p-6 shadow-card text-center space-y-6">
-        <Loader2 className="w-10 h-10 text-line-green animate-spin mx-auto" />
+        {!stopped ? (
+          <Loader2 className="w-10 h-10 text-line-green animate-spin mx-auto" aria-hidden />
+        ) : null}
         <div className="space-y-2">
           <p className="text-sm font-medium text-primary">Found-U Setup</p>
           <h1 className="text-xl font-bold">กำลังเตรียมฐานข้อมูล</h1>
@@ -87,15 +105,24 @@ export function SetupInitializing({ onReady, onCompleted }: SetupInitializingPro
                 {status?.databaseReady ? "พร้อม" : "กำลังเตรียม..."}
               </span>
             </li>
+            {!stopped ? (
+              <li className="text-xs">ตรวจสอบครั้งที่ {pollCount}</li>
+            ) : null}
           </ul>
-          {status?.hydrationError ? (
-            <p className="mt-3 text-xs text-destructive">{status.hydrationError}</p>
+          {stopped && (reason === "missing_env" || status?.reason === "missing_env") ? (
+            <div className="mt-3 space-y-2 text-xs text-text-secondary">
+              <p>
+                ตั้งค่า <code className="rounded bg-bg-primary px-1">NEXT_PUBLIC_SUPABASE_URL</code>,{" "}
+                <code className="rounded bg-bg-primary px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>,{" "}
+                <code className="rounded bg-bg-primary px-1">SUPABASE_SERVICE_ROLE_KEY</code>, และ{" "}
+                <code className="rounded bg-bg-primary px-1">POSTGRES_URL_NON_POOLING</code> ใน
+                Vercel แล้ว redeploy (ดู README ใน repo)
+              </p>
+            </div>
           ) : null}
-          {status?.hydrationReason === "missing_env" ? (
-            <p className="mt-3 text-xs text-text-secondary">
-              ตั้งค่า POSTGRES_URL_NON_POOLING และ Supabase keys แล้วรีสตาร์ทเซิร์ฟเวอร์
-              หรือรัน <code className="rounded bg-bg-primary px-1">bun run db:push</code> สำหรับ
-              local dev
+          {stopped && status?.reason !== "missing_env" ? (
+            <p className="mt-3 text-xs text-destructive">
+              ใช้เวลานานเกินไป — ตรวจสอบ env และลองรีเฟรชหน้านี้
             </p>
           ) : null}
         </div>

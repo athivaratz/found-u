@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { applySetupOkCookie, isSetupGuardExempt } from "@/lib/setup/middleware-guard";
 import { SETUP_OK_COOKIE } from "@/lib/setup/constants";
+import { verifySetupOkCookie } from "@/lib/setup/setup-cookie";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { isAllowedReturnPath } from "@/lib/auth-return-to";
 import { isProtectedRoute } from "@/lib/route-access";
@@ -36,16 +37,17 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+  const setupOkValue = request.cookies.get(SETUP_OK_COOKIE)?.value;
+  const setupOkValid = setupOkValue ? await verifySetupOkCookie(setupOkValue) : false;
   const shouldSetSetupOkCookie =
-    !isSetupGuardExempt(pathname) &&
-    request.cookies.get(SETUP_OK_COOKIE)?.value !== "1";
+    !isSetupGuardExempt(pathname) && !setupOkValid;
 
   if (user && pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/home";
     const redirect = NextResponse.redirect(url);
     if (shouldSetSetupOkCookie) {
-      applySetupOkCookie(redirect);
+      await applySetupOkCookie(redirect);
     }
     return redirect;
   }
@@ -60,13 +62,13 @@ export async function updateSession(request: NextRequest) {
     }
     const redirect = NextResponse.redirect(url);
     if (shouldSetSetupOkCookie) {
-      applySetupOkCookie(redirect);
+      await applySetupOkCookie(redirect);
     }
     return redirect;
   }
 
   if (shouldSetSetupOkCookie) {
-    applySetupOkCookie(supabaseResponse);
+    await applySetupOkCookie(supabaseResponse);
   }
 
   return supabaseResponse;
