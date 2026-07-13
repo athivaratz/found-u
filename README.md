@@ -1,325 +1,195 @@
-# Found-U
+<p align="center">
+  <img src="public/logo.png" width="88" alt="Found-U" />
+</p>
 
-เว็บแอปสำหรับแจ้งของหาย–ของเจอภายในโรงเรียน
+<h1 align="center">Found-U</h1>
+<p align="center">ระบบแจ้งของหาย–ของเจอสำหรับโรงเรียน พร้อมผู้ช่วย AI และแท็ก NFC</p>
 
-**เวอร์ชันปัจจุบัน:** `0.3`
-
-**Production:** [foundu.forum](https://foundu.forum) · [foundu.bodin2.ac.th](https://foundu.bodin2.ac.th)
+<p align="center">
+  <a href="https://foundu.forum">foundu.forum</a> ·
+  <a href="https://foundu.bodin2.ac.th">foundu.bodin2.ac.th</a> ·
+  เวอร์ชัน <code>0.3</code>
+</p>
 
 ---
 
-## บทนำ
+ของหายในโรงเรียนมักจบลงที่ห้องแนะแนวหรือกระดานประกาศ ตามหาก็ยาก แจ้งก็ลืม สุดท้ายของก็ไม่ได้กลับไปหาเจ้าของ Found-U ทำให้คนที่ทำของหายกับคนที่เจอของนัดเจอกันได้ในที่เดียว มีรหัสติดตามสถานะ มีระบบจับคู่อัตโนมัติ และมีผู้ช่วย AI ที่คุยแล้วแจ้งของหาย/เจอให้เสร็จในตัว
 
-Found-U ช่วยให้ผู้ทำของหายและผู้พบเจอประสานงานผ่านระบบเดียว ลดขั้นตอนกระดาษและการติดตามที่ล่าช้า รองรับมือถือเป็นหลัก (mobile-first) และอัปเดตสถานะแบบ Real-time
+<table>
+<tr>
+<td><img src="public/img/mobile_responsive/1.png" width="200" alt="หน้าแรก" /></td>
+<td><img src="public/img/mobile_responsive/2.png" width="200" alt="แจ้งของหาย - ปักหมุดสถานที่" /></td>
+<td><img src="public/img/mobile_responsive/3.png" width="200" alt="แจ้งของหาย - ช่องทางติดต่อ" /></td>
+<td><img src="public/img/mobile_responsive/4.png" width="200" alt="ระบบ NFC Tag" /></td>
+</tr>
+</table>
 
-### v0.3 — AI Agent & การค้นหาอัจฉริยะ
+## ระบบทำอะไรได้
 
-- **ผู้ช่วย AI** (`/assistant`) แชทแบบ tool-calling — ค้นหา แจ้งของหาย/เจอ จับคู่ วิเคราะห์รูป และตรวจ tracking code
-- รองรับ **Gemini** และ **OpenRouter** พร้อม fallback อัตโนมัติ และตั้งค่า routing ผ่านแผงแอดมิน
-- **ค้นหาแบบ fuzzy** ด้วย `pg_trgm` (Supabase RPC) สำหรับรายการของหายและ Agent
-- **ความเป็นส่วนตัว** — ซ่อนข้อมูลติดต่อของผู้อื่นในหน้าติดตามสถานะและใน Agent (เจ้าของรายการ/แอดมินเท่านั้นที่เห็น)
-- ประวัติแชท Agent เก็บในเบราว์เซอร์ด้วย **IndexedDB (Dexie)** พร้อม session และ memory facts
-- แผงแอดมิน **AI Center** ขยาย: ตั้งค่า Agent, Gemini pipeline, OpenRouter, และ **Agent Debug Log**
-- ปรับ UX การโหลด Auth — ไม่แสดง skeleton ซ้ำเมื่อมี session อยู่แล้ว
+- **แจ้งของหาย / ของเจอ** พร้อมรูป ตำแหน่ง (ปักหมุดในแผนที่ + ตรวจ GPS ว่าอยู่ในเขตโรงเรียน) และช่องทางติดต่อ
+- **รหัสติดตาม (Tracking Code)** ให้เช็กสถานะได้โดยไม่ต้องล็อกอินซ้ำ พร้อมซ่อนข้อมูลติดต่อของคนอื่นเพื่อความเป็นส่วนตัว
+- **จับคู่อัตโนมัติ** ระหว่างรายการของหายกับของเจอ
+- **ผู้ช่วย AI** ที่หน้า `/assistant` — คุยเพื่อค้นหา แจ้งรายการ จับคู่ วิเคราะห์รูป หรือเช็กสถานะได้ในแชทเดียว รองรับ Gemini และ OpenRouter พร้อม fallback อัตโนมัติ
+- **AI วิเคราะห์รูป** เดาชื่อ หมวดหมู่ สี ยี่ห้อจากภาพถ่าย และ **AI แยกข้อมูลจากข้อความ** ตอนแจ้งของหาย
+- **ค้นหาแบบ fuzzy** (`pg_trgm`) ทนพิมพ์ผิด/สะกดใกล้เคียงได้ ทั้งหน้ารายการและใน Agent
+- **แท็ก NFC** ติดของสำคัญ สแกนแล้วแจ้งเจ้าของได้ทันที ไม่ต้องพิมพ์ URL เอง (รองรับ NTAG213/215/216 เขียน Read-only บน Android และพิมพ์ QR สำรองสำหรับ iOS)
+- **แผงแอดมิน** ครบ — จัดการรายการ ผู้ใช้ นักเรียน การจับคู่ moderation ตั้งค่า AI และดู debug log ของ Agent
 
-### v0.2b — Supabase Auth & Backend
+<details>
+<summary>ประวัติเวอร์ชันย่อ</summary>
 
-- ย้ายจาก **Firebase** มาใช้ **Supabase** (PostgreSQL + Auth + Realtime + RLS)
-- ระบบล็อกอินนักเรียน/แอดมินด้วย **เลขประจำตัว + รหัสผ่าน** เป็นช่องทางหลัก
-- รองรับ **Passkeys (WebAuthn)** และ **PIN** หลังล็อกอินรหัสผ่านครั้งแรก
-- ยกเลิก Google OAuth แล้ว
-- ที่เก็บรูปภาพยังใช้ **Cloudflare R2** (ไม่เปลี่ยน)
-- Validation ด้วย **Zod** ทุก API route หลัก
+**v0.3 — AI Agent & การค้นหาอัจฉริยะ**
+ผู้ช่วย AI แบบ tool-calling, Gemini + OpenRouter fallback, fuzzy search ด้วย `pg_trgm`, ประวัติแชทเก็บใน IndexedDB (Dexie), แผงแอดมิน AI Center และ Agent Debug Log
 
-### v0.1.3beta — NFC Tag
+**v0.2b — ย้ายไป Supabase**
+เปลี่ยนจาก Firebase มา Supabase (Postgres + Auth + Realtime + RLS), ล็อกอินหลักด้วยเลขประจำตัว/รหัสแอดมิน + รหัสผ่าน, เพิ่ม Passkey และ PIN เป็นช่องทางรอง, ตัด Google OAuth, validate ด้วย Zod ทุก API หลัก
 
-- ลงทะเบียน NFC Tag (NTAG214/215/216) พร้อมข้อมูลเจ้าของ
-- เขียน URL ลงแท็ก + ล็อก Read-Only (Android Chrome)
-- พิมพ์ QR Code สำหรับ iOS/Safari
-- แจ้งพบของผ่านสแกน/QR และฝากข้อความถึงเจ้าของ
-- แจ้งของหายจาก Tag (เลือกสร้าง Lost Item ได้)
+**v0.1.3beta — NFC Tag**
+ลงทะเบียนแท็ก NFC, เขียน URL + ล็อก Read-only, พิมพ์ QR สำรองสำหรับ iOS, แจ้งพบของผ่านสแกน/QR
 
-## ปัญหาที่พบ (Pain Point)
+</details>
 
-กระบวนการของหายแบบเดิมในโรงเรียนมักกระจัดกระจาย ติดตามสถานะยาก และใช้เวลานานในการจับคู่เจ้าของกับของที่พบ
-
-## สิ่งที่ระบบทำ
-
-- แจ้ง **ของหาย** และ **ของเจอ** พร้อมรูป ตำแหน่ง และช่องทางติดต่อ
-- **Tracking Code** สำหรับตรวจสอบสถานะ
-- **จับคู่อัตโนมัติ** ระหว่างรายการ lost / found
-- **แผนที่** ปักพิกัด และกำหนดขอบเขตโรงเรียน (ตรวจ GPS บนหน้าแจ้งของเจอ)
-- **AI วิเคราะห์รูป** (Vision) เดาชื่อ หมวดหมู่ สี ยี่ห้อ จากภาพถ่าย
-- **AI แยกข้อมูลจากข้อความ** (NER) สำหรับรายการของหาย
-- **ผู้ช่วย AI (Agent)** สนทนาเพื่อค้นหา แจ้งรายการ จับคู่ และช่วยตรวจสอบสถานะ
-- **ค้นหา fuzzy** ชื่อ/รายละเอียดสิ่งของด้วย `pg_trgm`
-- **แผงผู้ดูแล** จัดการรายการ ผู้ใช้ การตั้งค่า moderation ทดสอบ AI และ debug log
-- **NFC Tag** ลงทะเบียนแท็ก สแกน/QR แจ้งพบ และฝากข้อความถึงเจ้าของ
-
-## การยืนยันตัวตน (Auth)
+## การยืนยันตัวตน
 
 | วิธี | นักเรียน | แอดมิน | หมายเหตุ |
-|------|---------|--------|----------|
-| เลขประจำตัว + รหัสผ่าน | ✓ | — | ช่องทางหลัก ครั้งแรกต้องใช้วิธีนี้ |
-| เลขแอดมิน 5 หลัก + รหัสผ่าน | — | ✓ | ช่องทางหลักสำหรับแอดมิน |
-| Passkey | ✓ | ✓ | ลงทะเบียนหลังล็อกอินรหัสผ่านแล้ว |
-| PIN | ✓ | ✓ | ตั้งค่าได้หลังล็อกอินรหัสผ่านแล้ว |
+|------|:-:|:-:|----------|
+| เลขประจำตัว + รหัสผ่าน | ✓ | — | ช่องทางหลัก ใช้ล็อกอินครั้งแรกเสมอ |
+| เลขแอดมิน 5 หลัก + รหัสผ่าน | — | ✓ | ช่องทางหลักของแอดมิน |
+| Passkey (WebAuthn) | ✓ | ✓ | ลงทะเบียนได้หลังล็อกอินรหัสผ่านสำเร็จ |
+| PIN | ✓ | ✓ | ตั้งได้หลังล็อกอินรหัสผ่านสำเร็จ |
 
-**ลำดับที่ถูกต้อง:** ล็อกอินรหัสผ่าน → (ถ้าต้องการ) ลงทะเบียน Passkey / ตั้ง PIN → ใช้วิธีอื่นได้
+## เทคโนโลยีที่ใช้
 
-## เทคโนโลยี (Tech Stack)
+| ส่วน | ใช้อะไร |
+|------|---------|
+| Framework / UI | [Next.js](https://nextjs.org/) 16 (App Router) + [React](https://react.dev/) 19 + [TypeScript](https://www.typescriptlang.org/) 5.9 |
+| สไตล์ | [Tailwind CSS](https://tailwindcss.com/) 4 |
+| Backend / DB | [Supabase](https://supabase.com/) — Postgres, Auth, Realtime, RLS, `pg_trgm` |
+| Validation | [Zod](https://zod.dev/) 4 บนทุก API route |
+| AI Pipeline | Google Gemini (vision, NER, matching) |
+| AI Agent | [Vercel AI SDK](https://sdk.vercel.ai/) 7 (`@ai-sdk/google`, `@ai-sdk/openai`) + [OpenRouter](https://openrouter.ai/) เป็น fallback |
+| แชทฝั่งไคลเอนต์ | [Dexie](https://dexie.org/) 4 (IndexedDB) |
+| แผนที่ | [Leaflet](https://leafletjs.com/) + OpenStreetMap |
+| ที่เก็บไฟล์ | Cloudflare R2 (หรือ Supabase Storage สำหรับโรงเรียนที่ deploy ใหม่) |
+| Runtime | [Bun](https://bun.sh/) 1.3 |
 
-| ชั้น | เทคโนโลยี | หมายเหตุ |
-|------|-----------|----------|
-| Framework | [Next.js](https://nextjs.org/) **16.1** (App Router) | `next dev` / `next build` |
-| UI | [React](https://react.dev/) **19.2** | Client components |
-| ภาษา | [TypeScript](https://www.typescriptlang.org/) **5.9** | Strict typing |
-| สไตล์ | [Tailwind CSS](https://tailwindcss.com/) **4.1** | `@tailwindcss/postcss` |
-| Runtime / Package manager | [Bun](https://bun.sh/) **1.3** | แนะนำสำหรับ dev |
-| Backend / DB | [Supabase](https://supabase.com/) | PostgreSQL, Auth, Realtime, RLS, `pg_trgm` |
-| Auth | Supabase Auth | Password, Passkeys, PIN, synthetic email domain |
-| WebAuthn client | `@simplewebauthn/browser` | พิธีการ Passkey ฝั่งเบราว์เซอร์ |
-| Validation | [Zod](https://zod.dev/) **4** | API request / input schemas |
-| แผนที่ | [Leaflet](https://leafletjs.com/) **1.9** | OpenStreetMap tiles |
-| AI (Pipeline) | Google Gemini API | Vision, NER, Matching (`GEMMA_API_KEY`) |
-| AI (Agent) | [Vercel AI SDK](https://sdk.vercel.ai/) **7** | `@ai-sdk/google`, `@ai-sdk/openai`, tool loop |
-| AI (Agent alt.) | [OpenRouter](https://openrouter.ai/) | Fallback / primary provider (`OPENROUTER_API_KEY`) |
-| Chat storage | [Dexie](https://dexie.org/) **4** | IndexedDB สำหรับ session แชท Agent |
-| ที่เก็บไฟล์ | Cloudflare R2 | ผ่าน AWS S3 SDK |
-| อื่นๆ | `browser-image-compression`, `lucide-react`, `next-themes`, `framer-motion` | บีบอัดรูป, ไอคอน, dark mode, motion |
+## โครงสร้างโปรเจกต์
 
-## โครงสร้างโปรเจกต์ (ย่อ)
-
-```
+```text
 app/
-  (app)/          หน้าหลักหลังล็อกอิน (home, assistant, found, lost, list, tracking, settings, …)
-  admin/          แผงผู้ดูแล (items, users, students, matching, AI, NFC, …)
-  api/            REST API (auth, vision, ner, match, agent, storage, nfc, …)
-  auth/callback/  Auth callback
-  login/          ล็อกอิน เปลี่ยนรหัส รีเซ็ตรหัส
-  nfc/            ลงทะเบียน/แท็กของฉัน/แจ้งพบ NFC
-components/       UI, layout, map, camera, agent, dialogs
-contexts/         auth, data (Realtime)
+  (app)/     หน้าหลังล็อกอิน — home, assistant, lost, found, list, tracking, settings
+  admin/     แผงผู้ดูแล — items, users, students, matching, AI, NFC, moderation
+  api/       REST API — auth, vision, ner, match, agent, storage, nfc
+  auth/      ล็อกอิน เปลี่ยนรหัส ตั้ง PIN
+  nfc/       ลงทะเบียนแท็ก / แท็กของฉัน / แจ้งพบผ่าน NFC
+  setup/     wizard ตั้งค่าระบบครั้งแรก (deploy ใหม่)
+components/  UI, layout, map, camera, agent, dialogs
+contexts/    auth, data (Realtime subscriptions)
 lib/
-  agent/          Agent tools, prompts, provider routing, privacy
-  chat/           Session/message storage, context window, memory
-  database.ts     CRUD + subscriptions (แทน Firestore เดิม)
-  supabase/       client, server, admin, passkey-auth, auth-session
-  auth-eligibility.ts   กฎ secondary auth (Passkey / PIN)
-  student-auth-server.ts  ล็อกอินรหัสผ่าน, PIN, scrypt
-  validations/    Zod schemas
+  agent/     tools, prompt, provider routing, privacy ของ AI Agent
+  chat/      เก็บ session/message ฝั่งไคลเอนต์ (Dexie), context window, memory
+  search/    fuzzy search (pg_trgm), relevance ranking
+  supabase/  client, server, admin, passkey auth, auth session
+  validations/  Zod schemas
+supabase/migrations/  schema + RLS ทั้งหมด (รันอัตโนมัติหลัง deploy)
 ```
 
-## Deploy โรงเรียนใหม่
+## เริ่มพัฒนาในเครื่อง
 
-แนวทางแนะนำ: **Clone + Deploy ก่อน** → ใช้งานได้แล้ว → **ค่อย Fork** ถ้าต้องการ Sync อัปเดตจากโค้ดหลัก
+ต้องมี [Bun](https://bun.sh/) และโปรเจกต์ Supabase (สร้างฟรีได้ที่ [supabase.com](https://supabase.com/dashboard))
 
-### ขั้นที่ 1 — Clone + Deploy (1 คลิก)
+```bash
+git clone https://github.com/bodin2/found-u.git
+cd found-u
+bun install
+
+cp .env.example .env.local
+# แก้ .env.local ให้มีค่าจาก Supabase project ของตัวเอง
+# (Project Settings → API และ Database)
+
+bun run db:push   # sync schema/migrations เข้า Supabase
+bun dev           # http://localhost:3000
+```
+
+เปิด `/setup` ครั้งแรกเพื่อสร้างบัญชีแอดมินผ่าน wizard หรือใช้ `bun run create:admin` จากเทอร์มินัลก็ได้ คำสั่งอื่นที่มีให้:
+
+| คำสั่ง | ใช้ทำอะไร |
+|--------|-----------|
+| `bun run lint` / `bun run typecheck` | เช็กโค้ดก่อนคอมมิต |
+| `bun test` | รัน unit tests |
+| `bun run gen:students` / `import:students` | สร้าง/นำเข้ารายชื่อนักเรียนจาก CSV |
+| `bun run test:login` | ทดสอบ flow ล็อกอินนักเรียน |
+
+## Deploy ให้โรงเรียนใหม่
+
+แนวทางที่แนะนำ: **Clone + Deploy ก่อน** ให้ใช้งานได้จริง แล้วค่อย **Fork** ทีหลังถ้าต้องการ sync อัปเดตจากโค้ดหลัก
+
+### 1. Clone + Deploy (1 คลิก)
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D)
 
-1. กด **Deploy with Vercel** → Login GitHub / Vercel
+1. กด **Deploy with Vercel** แล้วล็อกอินด้วย GitHub / Vercel
 2. เลือก **Supabase** → Region **Singapore** → Plan **Free** → **Deploy**
-3. เปิด `https://<ชื่อโปรเจกต์>.vercel.app/setup` → ทำ Wizard 3 ขั้น → ล็อกอินแอดมิน
+3. เปิด `https://<ชื่อโปรเจกต์>.vercel.app/setup` แล้วทำตาม wizard 3 ขั้นเพื่อสร้างบัญชีแอดมิน
 
-Vercel จะ **clone** โค้ดและสร้าง repo `found-u` บน GitHub ให้ — **ยังไม่มี upstream** จึงยังไม่มีปุ่ม Sync fork (ทำขั้นที่ 2 ภายหลังได้)
+Vercel จะ clone โค้ดและสร้าง repo `found-u` ในบัญชี GitHub ของคุณเอง ตอนนี้ยังไม่มี upstream จึงยังกด Sync fork ไม่ได้ — ไปทำขั้นที่ 2 เมื่อพร้อม
 
-### ขั้นที่ 2 — Fork + เปลี่ยน Git (ทำเมื่อพร้อม Sync อัปเดต)
+### 2. Fork + เปลี่ยน Git (ทำตอนพร้อม sync อัปเดต)
 
-ทำหลัง Setup Wizard เสร็จและใช้งานได้แล้ว:
+1. [Fork Found-U](https://github.com/bodin2/found-u/fork) → ได้ `ชื่อคุณ/found-u` ที่ผูก upstream กับ `bodin2/found-u`
+2. ใน Vercel: **Settings → Git** → Disconnect repo เดิม → Connect เลือก `ชื่อคุณ/found-u`
+3. Redeploy (env และ Supabase ยังอยู่ครบ ไม่ต้องตั้งใหม่)
 
-1. [Fork Found-U](https://github.com/bodin2/found-u/fork) บน GitHub → ได้ **`ชื่อคุณ/found-u`** (มี upstream ไป `bodin2/found-u`)
-2. Vercel → โปรเจกต์ → **Settings → Git** → **Disconnect** repo เดิม → **Connect** → เลือก **`ชื่อคุณ/found-u`**
-3. **Redeploy** (env / Supabase ยังอยู่ ไม่ต้องตั้งใหม่)
-4. *(ทางเลือก)* ลบ repo ที่ Vercel clone ไว้ตอนแรก ถ้าไม่ใช้แล้ว
+จากนั้นอัปเดตได้ทุกครั้งด้วย GitHub → **Sync fork → Update branch** แล้ว Vercel จะ deploy ให้อัตโนมัติ migration ของฐานข้อมูลรันเองหลัง deploy ข้อมูลโรงเรียนเดิมไม่หาย
 
-### อัปเดตโค้ดจากโค้ดหลัก (หลังทำขั้นที่ 2 แล้ว)
+> Vercel รองรับติดตั้ง Supabase พร้อมกันได้เฉพาะตอน deploy จาก `/new/clone` เท่านั้น จะ fork ก่อนแล้วติด Supabase ทีเดียวไม่ได้ — ต้องเริ่มจากขั้นที่ 1 เสมอ
 
-1. GitHub → **`ชื่อคุณ/found-u`** → **Sync fork** → **Update branch**
-2. Vercel auto-deploy (หรือ **Deployments → Redeploy**)
+### เลือก region ให้ได้ Free Plan
 
-> DB migration รันอัตโนมัติหลัง deploy — ข้อมูลโรงเรียนใน Supabase ไม่หาย  
-> Vercel รองรับ Supabase ในขั้น deploy ได้เฉพาะ [`/new/clone` + `stores`](https://vercel.com/docs/deploy-button/source) — ไม่สามารถ Fork + Supabase ในคลิกเดียวได้
+ตอนติดตั้ง Supabase ผ่าน Vercel ให้เลือก **Region: Southeast Asia (Singapore)** — latency ดีสำหรับไทยและรองรับ Free Plan บางภูมิภาค เช่น Tokyo หรือ Seoul จะขึ้น "Upgrade your plan..." และกด Free ไม่ได้
 
-### เลือก Region และ Free Plan (Supabase)
+ถ้ายังเลือก Free ไม่ได้: ลองเปลี่ยนเป็น Singapore, เช็กว่า organization ยังมีโควตา free project เหลือ (จำกัด 2 โปรเจกต์/org) หรือสร้าง project ฟรีเองที่ [supabase.com/dashboard](https://supabase.com/dashboard) แล้วกลับมาเลือก "Connect existing Supabase account" ในเมนู `...` ข้างปุ่ม Install
 
-เมื่อติดตั้ง Supabase ผ่าน Vercel ให้เลือก:
+## ตัวแปรสภาพแวดล้อม
 
-| รายการ | แนะนำ |
-|--------|--------|
-| **Region** | **Southeast Asia (Singapore)** — latency ดีสำหรับไทย และรองรับ **Free Plan** ได้ |
-| **หลีกเลี่ยง** | Tokyo / Seoul (region เฉพาะบางตัว) — อาจขึ้นข้อความ *"Upgrade your plan to support your selected configuration"* และเลือก Free ไม่ได้ |
-| **Plan** | **Supabase Free Plan ($0)** — เพียงพอสำหรับโรงเรียนขนาดเล็ก–กลาง |
+ดูรายการเต็มพร้อมคำอธิบายได้ใน [`.env.example`](.env.example)
 
-ถ้าเลือก Free ไม่ได้:
+- **ต้องมี** (Vercel + Supabase integration ใส่ให้อัตโนมัติ): `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`
+- **ใส่หลังรู้โดเมน** (ไม่บังคับตอน deploy ครั้งแรก): `NEXT_PUBLIC_APP_URL`, `SCHOOL_AUTH_DOMAIN` — ถ้ายังไม่รู้ URL ให้เว้นไว้ แอปจะใช้ `VERCEL_URL` แทนชั่วคราว
+- **AI (ไม่บังคับ)**: `GEMMA_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` — ตั้งผ่าน Setup Wizard หรือใส่เป็น env ก็ได้
+- **Storage (ไม่บังคับ)**: `R2_*` — ถ้าไม่ใส่ ระบบจะใช้ Supabase Storage แทนโดยอัตโนมัติ
+- **ค้นหา**: `SEARCH_USE_TRGM`, `SEARCH_SIMILARITY_THRESHOLD`, `AGENT_SEARCH_SIMILARITY_THRESHOLD`
 
-1. เปลี่ยน Region เป็น **Singapore** แล้วลองใหม่
-2. ตรวจว่า Supabase organization ยังมีช่อง free project ว่าง (จำกัด 2 โปรเจกต์ฟรีต่อ org)
-3. หรือสร้าง project ฟรีที่ [supabase.com/dashboard](https://supabase.com/dashboard) (เลือก Singapore) แล้วกลับมา Vercel → **Connect existing Supabase account** (เมนู `...` ข้างปุ่ม Install)
+เจอ `500 MIDDLEWARE_INVOCATION_FAILED` หรือ `/setup?reason=missing_env` แปลว่ายังไม่มี env จาก Supabase integration หรือมีค่า `-` เป็น placeholder หลงเหลืออยู่ — แก้แล้ว redeploy ใหม่
 
-Supabase integration จะ inject `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, และ `POSTGRES_URL_NON_POOLING` ให้อัตโนมัติ — ไม่ต้อง copy เอง
-
-**ไม่บังคับตอน deploy:** `GEMMA_API_KEY`, `OPENROUTER_*`, `R2_*` — ตั้งผ่าน Setup Wizard หรือเพิ่มทีหลังใน Vercel env
-
-### ค่า env หลัง Deploy (ไม่บังคับตอนกดปุ่มครั้งแรก)
-
-| ตัวแปร | เมื่อไหร่ต้องใส่ | ตัวอย่าง |
-|--------|------------------|---------|
-| `NEXT_PUBLIC_APP_URL` | หลังรู้โดเมน Vercel แล้ว (แนะนำ) | `https://found-u-test.vercel.app` |
-| `SCHOOL_AUTH_DOMAIN` | หลังรู้โดเมน Vercel แล้ว (แนะนำ) | `found-u-test.vercel.app` |
-
-**อย่าใส่ `-`** เป็นค่า placeholder — ถ้ายังไม่รู้ URL **ไม่ต้องเพิ่มตัวแปรนี้เลย** แอปจะใช้ `VERCEL_URL` ของ Vercel ชั่วคราว
-
-**สำคัญ:** ต้องมี env จาก **Supabase integration** (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`) — ถ้าไม่มี หน้า `/setup` จะขึ้น `missing_env`
-
-**อาการ:** `500 MIDDLEWARE_INVOCATION_FAILED` + `/setup?reason=missing_env` = ยังไม่มี Supabase env หรือใส่ placeholder `-` แล้ว integration ไม่ครบ → แก้ env แล้ว redeploy
-
-## ตัวแปรสภาพแวดล้อม (สำคัญ)
-
-ดูตัวอย่างครบใน [`.env.example`](.env.example) — จัดกลุ่ม Required / Optional แล้ว
-
-- **Required (Vercel + Supabase):** `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`
-- **แนะนำหลังรู้โดเมน:** `NEXT_PUBLIC_APP_URL`, `SCHOOL_AUTH_DOMAIN` (ไม่บังคับ deploy ครั้งแรก — ใช้ `VERCEL_URL` ชั่วคราวได้)
-- **Optional — AI:** `GEMMA_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` (หรือตั้งใน Setup Wizard)
-- **Optional — Storage:** `R2_*` (production เดิมใช้ R2; deploy ใหม่ใช้ Supabase Storage อัตโนมัติถ้าไม่มี R2)
-- **Search:** `SEARCH_USE_TRGM`, `SEARCH_SIMILARITY_THRESHOLD`, `AGENT_SEARCH_SIMILARITY_THRESHOLD`
-
-## ทีมของเรา
+## ทีมงาน
 
 - [Athivaratz](https://www.instagram.com/athivaratz)
 - [Almond](https://www.instagram.com/ohzzl_)
 - [Prim](https://www.instagram.com/aeridesrosea.v)
 
-## ที่ปรึกษา
+**ที่ปรึกษาโครงการ:** [ratchanon_roj](https://www.instagram.com/ratchanon_roj) และอาจารย์อภิชาติ พูลสวัสดิ์
 
-- [ratchanon_roj](https://www.instagram.com/ratchanon_roj)
-- อาจารย์อภิชาติ พูลสวัสดิ์
+โครงการ Found-U ได้รับทุนสนับสนุนการทำกิจกรรมส่งเสริมและสนับสนุนการวิจัยและนวัตกรรมจาก [สำนักงานการวิจัยแห่งชาติ (วช.)](https://nrct.go.th) และ [สำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติ (สวทช.)](https://www.nstda.or.th)
 
-## ข้อมูลเพิ่มเติม
+## อื่น ๆ
 
 - ความปลอดภัยและการรายงานช่องโหว่: [SECURITY.md](SECURITY.md)
-- สิทธิ์การใช้งาน: [LICENSE](LICENSE)
+- สิทธิ์การใช้งาน (All Rights Reserved): [LICENSE](LICENSE)
 
 ---
 
-## Introduction
+<details>
+<summary><strong>English summary</strong></summary>
 
-Found-U is a smart school lost-and-found web app for finders and reporters with artificial intelligence included.
+Found-U is a school lost-and-found web app. Reporters and finders coordinate through tracking codes and automatic matching instead of lost-and-found boxes and bulletin boards. It also ships an AI assistant (chat, powered by Gemini/OpenRouter through the Vercel AI SDK) that can search, file reports, run matching, and read photos in one conversation, plus NFC tags that let anyone who finds a tagged item message the owner instantly.
 
-**Current version:** `0.3`
+Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, and Supabase (Postgres, Auth, Realtime, RLS). Deploy your own instance with the **Deploy with Vercel** button above — it provisions Supabase, runs migrations automatically, and walks you through a setup wizard at `/setup`. See the Thai sections above for the full deploy guide, environment variables, and local dev instructions (mostly self-explanatory from the commands and tables).
 
-**Production:** [foundu.forum](https://foundu.forum) · [foundu.bodin2.ac.th](https://foundu.bodin2.ac.th)
+Funded by Thailand's National Research Council (NRCT) and National Science and Technology Development Agency (NSTDA).
 
-## What's New in v0.3
+License: proprietary, all rights reserved — see [LICENSE](LICENSE). Security reports: see [SECURITY.md](SECURITY.md).
 
-- **AI Agent** at `/assistant` with tool-calling (search, report, match, vision, tracking lookup)
-- **Gemini + OpenRouter** providers with auto-fallback and admin routing controls
-- **Fuzzy search** via `pg_trgm` (Supabase RPC) for items and agent queries
-- **Privacy controls** — contact details hidden from non-owners on tracking and in agent responses
-- **Local chat history** with Dexie (IndexedDB) sessions and memory facts
-- Expanded **Admin AI Center** — agent settings, Gemini pipeline, OpenRouter, debug logs
-- Smoother auth loading when a session is already available
+</details>
 
-## What's New in v0.2b
-
-- Migrated from **Firebase** to **Supabase** (PostgreSQL, Auth, Realtime, RLS)
-- Primary login: **student ID + password** (students) or **5-digit admin ID + password** (admins)
-- **Passkeys** and **PIN** available only after a successful password login
-- Google OAuth has been removed
-- Image storage remains on **Cloudflare R2**
-- **Zod** validation on API routes
-
-## Pain Point
-
-Traditional school lost-and-found workflows are slow, fragmented, and hard to track.
-
-## What It Does
-
-- Report **lost** and **found** items with photos, location, and contacts
-- **Tracking codes** for status lookup
-- **Automatic matching** between lost and found listings
-- **Maps** with optional school boundary enforcement on found reports
-- **AI vision** to suggest item fields from photos
-- **AI NER** to extract fields from free-text lost reports
-- **AI Agent** conversational assistant for search, reports, matching, and status checks
-- **Fuzzy search** for item names and descriptions
-- **Admin dashboard** for items, users, settings, moderation, AI testing, and agent debug logs
-- **NFC tags** for register, scan/QR found reports, and owner messaging
-
-## Deploy a New School
-
-Recommended flow: **Clone + Deploy first** → verify it works → **Fork later** if you want to sync updates from upstream.
-
-### Step 1 — Clone + Deploy (1 click)
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D)
-
-1. Click **Deploy with Vercel** → sign in to GitHub / Vercel
-2. Choose **Supabase** → Region **Singapore** → Plan **Free** → **Deploy**
-3. Open `https://<project-name>.vercel.app/setup` → complete the wizard → log in as admin
-
-Vercel **clones** the code and creates a `found-u` repo on your GitHub — **no upstream yet**, so **Sync fork** is not available until step 2.
-
-### Step 2 — Fork + switch Git (when you want sync updates)
-
-Do this after the wizard works and the school is live:
-
-1. [Fork Found-U](https://github.com/bodin2/found-u/fork) on GitHub → **`your-username/found-u`** (upstream: `bodin2/found-u`)
-2. Vercel → project → **Settings → Git** → **Disconnect** the old repo → **Connect** → **`your-username/found-u`**
-3. **Redeploy** (env / Supabase stay connected)
-4. *(Optional)* Delete the Vercel-cloned repo if you no longer need it
-
-### Sync updates from upstream (after step 2)
-
-1. GitHub → **`your-username/found-u`** → **Sync fork** → **Update branch**
-2. Vercel auto-deploys (or **Deployments → Redeploy**)
-
-> DB migrations run automatically after deploy — school data in Supabase is preserved  
-> Vercel only supports Supabase during deploy via [`/new/clone` + `stores`](https://vercel.com/docs/deploy-button/source) — Fork + Supabase in one click is not supported
-
-### Supabase region and Free Plan
-
-When installing Supabase via Vercel:
-
-| Setting | Recommendation |
-|---------|----------------|
-| **Region** | **Southeast Asia (Singapore)** — good latency for Thailand; supports **Free Plan** |
-| **Avoid** | Tokyo / some specific regions — may show *"Upgrade your plan to support your selected configuration"* and disable Free |
-| **Plan** | **Supabase Free Plan ($0)** — sufficient for small–medium schools |
-
-If Free Plan is greyed out: switch region to **Singapore**, check your org still has a free project slot (max 2 per org), or create a free project at [supabase.com/dashboard](https://supabase.com/dashboard) and use **Connect existing Supabase account** in Vercel (`...` menu).
-
-**Required env values (optional on first deploy — set after you know your `*.vercel.app` URL):**
-
-| Variable | Example |
-|----------|---------|
-| `NEXT_PUBLIC_APP_URL` | `https://your-school.vercel.app` |
-| `SCHOOL_AUTH_DOMAIN` | `your-school.vercel.app` |
-
-Do **not** use `-` as a placeholder. If you do not know the URL yet, **omit these variables** — the app falls back to Vercel's `VERCEL_URL` until you set them.
-
-Supabase integration vars are still required (`NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`).
-
-## Tech Stack
-
-See the table in the Thai section above. Core: **Next.js 16**, **React 19**, **TypeScript 5.9**, **Tailwind CSS 4**, **Supabase**, **Vercel AI SDK**, **Gemini + OpenRouter**, **Dexie**, **Leaflet**, **Cloudflare R2** (or Supabase Storage on new deploys), **Bun**.
-
-## Our Team
-
-- [Athivaratz](https://www.instagram.com/athivaratz)
-- [Almond](https://www.instagram.com/ohzzl_)
-- [Prim](https://www.instagram.com/aeridesrosea.v)
-
-## Adviser
-
-- [ratchanon_roj](https://www.instagram.com/ratchanon_roj)
-- อาจารย์อภิชาติ พูลสวัสดิ์ (Instructor)
-
-## Other Details
-
-- Security: [SECURITY.md](SECURITY.md)
-- License: [LICENSE](LICENSE)
-
----
-
-Made with ❤️ by [Athivaratz](https://www.instagram.com/athivaratz) & Team
+<p align="center">Made with ❤️ by <a href="https://www.instagram.com/athivaratz">Athivaratz</a> & Team</p>
