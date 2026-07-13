@@ -46,23 +46,49 @@ export function StudentAppShell({
   const contentClass = cn("mx-auto w-full", maxWidthClasses[maxWidth]);
 
   return (
-    <div className={cn("min-h-screen bg-bg-secondary transition-colors", className)}>
+    <div
+      className={cn(
+        "bg-bg-secondary transition-colors",
+        "h-dvh max-h-dvh overflow-hidden flex flex-col",
+        "shell-desktop:h-auto shell-desktop:max-h-none shell-desktop:min-h-screen shell-desktop:overflow-visible",
+        className
+      )}
+    >
       {/* Mobile */}
-      <div className={cn(shellMobileOnly, "flex flex-col min-h-screen", showBottomNav && "main-with-bottom-nav")}>
+      <div
+        className={cn(
+          shellMobileOnly,
+          "flex flex-1 flex-col min-h-0 min-w-0",
+          showBottomNav && "main-with-bottom-nav"
+        )}
+      >
         <ManualModeBar />
         {headerTitle ? (
           <Header title={headerTitle} showBack backHref={headerBackHref} />
         ) : null}
-        <main className={cn("flex-1 page-padding py-4 min-w-0 overflow-x-clip", mainClassName)}>
+        <main
+          className={cn(
+            "flex-1 min-h-0 overflow-y-auto overscroll-contain page-padding py-4 min-w-0",
+            mainClassName
+          )}
+        >
           <div className={contentClass}>{children}</div>
         </main>
         {showBottomNav ? <BottomNav /> : null}
       </div>
 
       {/* Desktop */}
-      <div className={cn(shellDesktopOnly, "min-h-screen")}>
+      <div className={cn(shellDesktopOnly, "flex-1 min-h-screen min-w-0")}>
         <Sidebar />
-        <main className={cn(shellDesktopMain, shellSidebarInset, shellDesktopPadding, "min-w-0 overflow-x-clip", mainClassName)}>
+        <main
+          className={cn(
+            shellDesktopMain,
+            shellSidebarInset,
+            shellDesktopPadding,
+            "min-w-0 overflow-x-clip",
+            mainClassName
+          )}
+        >
           <div className={contentClass}>{children}</div>
         </main>
       </div>
