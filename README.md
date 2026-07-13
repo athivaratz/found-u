@@ -180,7 +180,7 @@ This research and innovation activity is funded by National Research Council of 
 ## อื่น ๆ
 
 - ความปลอดภัยและการรายงานช่องโหว่: [SECURITY.md](SECURITY.md)
-- สิทธิ์การใช้งาน (All Rights Reserved): [LICENSE](LICENSE)
+- สิทธิ์การใช้งาน (GNU Lesser General Public License v3 หรือรุ่นถัดไป) และข้อตกลงการใช้ซอฟต์แวร์ตามเงื่อนไข NSC 2026: [LICENSE](LICENSE)
 
 ---
 
@@ -193,7 +193,7 @@ Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, and Supabase (Postg
 
 This research and innovation activity is funded by National Research Council of Thailand (NRCT) and National Science and Technology Development Agency (NSTDA).
 
-License: proprietary, all rights reserved — see [LICENSE](LICENSE). Security reports: see [SECURITY.md](SECURITY.md).
+License: GNU Lesser General Public License v3.0 or later (LGPL-3.0-or-later), together with the NSC 2026 software-use disclaimer — see [LICENSE](LICENSE). Security reports: see [SECURITY.md](SECURITY.md).
 
 </details>
 
