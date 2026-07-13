@@ -12,7 +12,7 @@ interface AppShellProps {
 /** Manual shell with sidebar — pages own horizontal padding inside children. */
 export default function AppShell({ children }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-bg-secondary md:flex">
+    <div className="min-h-screen bg-bg-secondary shell-desktop:flex">
       <Sidebar />
       <main className={cn("flex min-h-screen flex-1 flex-col min-w-0", shellSidebarInset)}>
         <ManualModeBar />

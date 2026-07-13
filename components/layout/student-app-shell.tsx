@@ -9,6 +9,8 @@ import { ManualModeBar } from "@/components/layout/manual-mode-bar";
 import {
   shellDesktopMain,
   shellDesktopPadding,
+  shellMobileOnly,
+  shellDesktopOnly,
   shellSidebarInset,
 } from "@/components/layout/shell-layout";
 
@@ -46,7 +48,7 @@ export function StudentAppShell({
   return (
     <div className={cn("min-h-screen bg-bg-secondary transition-colors", className)}>
       {/* Mobile */}
-      <div className={cn("md:hidden flex flex-col min-h-screen", showBottomNav && "main-with-bottom-nav")}>
+      <div className={cn(shellMobileOnly, "flex flex-col min-h-screen", showBottomNav && "main-with-bottom-nav")}>
         <ManualModeBar />
         {headerTitle ? (
           <Header title={headerTitle} showBack backHref={headerBackHref} />
@@ -58,7 +60,7 @@ export function StudentAppShell({
       </div>
 
       {/* Desktop */}
-      <div className="hidden md:flex min-h-screen">
+      <div className={cn(shellDesktopOnly, "min-h-screen")}>
         <Sidebar />
         <main className={cn(shellDesktopMain, shellSidebarInset, shellDesktopPadding, "min-w-0 overflow-x-clip", mainClassName)}>
           <div className={contentClass}>{children}</div>

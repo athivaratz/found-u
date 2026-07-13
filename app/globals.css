@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Student/manual shell: desktop sidebar only on landscape tablet+ (portrait stays mobile, incl. iPad) */
+@custom-variant shell-desktop {
+  @media (min-width: 768px) and (orientation: landscape) and (min-height: 600px) {
+    @slot;
+  }
+}
+
 /* LINE App Style Theme - Unified Color System */
 :root {
   /* Primary Colors - LINE Green */
@@ -467,7 +474,7 @@ body {
   padding-bottom: calc(var(--bottom-nav-height) + 4.5rem + env(safe-area-inset-bottom, 0px));
 }
 
-@media (min-width: 768px) {
+@media (min-width: 768px) and (orientation: landscape) and (min-height: 600px) {
   .form-sticky-footer-padding {
     padding-bottom: 1rem;
   }

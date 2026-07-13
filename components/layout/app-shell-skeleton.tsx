@@ -3,6 +3,8 @@
 import { cn } from "@/lib/utils";
 import {
   shellDesktopPadding,
+  shellDesktopOnly,
+  shellMobileOnly,
   shellSidebarInset,
   shellSidebarWidth,
 } from "@/components/layout/shell-layout";
@@ -28,7 +30,8 @@ function SidebarSkeleton() {
     <aside
       className={cn(
         shellSidebarWidth,
-        "bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen hidden md:flex flex-col z-50"
+        shellDesktopOnly,
+        "bg-bg-card border-r border-border-light fixed left-0 top-0 h-dvh flex-col z-50 overflow-hidden"
       )}
     >
       <div className="p-6 border-b border-border-light">
@@ -60,7 +63,7 @@ function SidebarSkeleton() {
 
 function MobileHeaderSkeleton() {
   return (
-    <header className="px-5 pt-6 pb-6 bg-gradient-to-br from-line-green to-line-green md:hidden">
+    <header className={cn("px-5 pt-6 pb-6 bg-gradient-to-br from-line-green to-line-green", shellMobileOnly)}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <SkeletonBar className="h-12 w-12 rounded-full bg-white/20 shrink-0" />
@@ -78,7 +81,7 @@ function MobileHeaderSkeleton() {
 
 function DesktopHeaderSkeleton() {
   return (
-    <header className="hidden md:block bg-bg-card border-b border-border-light sticky top-0 z-10 -mx-6 lg:-mx-8 xl:-mx-12 px-6 lg:px-8 xl:px-12">
+    <header className="hidden shell-desktop:block bg-bg-card border-b border-border-light sticky top-0 z-10 -mx-6 lg:-mx-8 xl:-mx-12 px-6 lg:px-8 xl:px-12">
       <div className="pt-5 pb-4">
         <SkeletonBar className="h-8 w-64 max-w-full" />
         <SkeletonBar className="h-4 w-28 mt-2" />
@@ -126,7 +129,7 @@ export function AppShellSkeleton({
     <div className={cn("min-h-screen bg-bg-primary", className)}>
       {showMobileHeader && <MobileHeaderSkeleton />}
 
-      <div className="hidden md:flex min-h-screen bg-bg-primary">
+      <div className={cn(shellDesktopOnly, "min-h-screen bg-bg-primary")}>
         {showSidebar && <SidebarSkeleton />}
         <main className={cn("flex-1 bg-bg-secondary", shellSidebarInset, shellDesktopPadding)}>
           {showDesktopHeader && <DesktopHeaderSkeleton />}

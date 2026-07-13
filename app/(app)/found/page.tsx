@@ -900,7 +900,7 @@ export default function ReportFoundPage() {
         <PageHeader
           title="แจ้งเจอของ"
           subtitle="กรอกข้อมูลให้ละเอียดเพื่อให้เจ้าของตามหาของได้ง่ายขึ้น"
-          className="hidden md:flex mb-6"
+          className="hidden shell-desktop:flex mb-6"
         />
 
         <FormStepper steps={[...FOUND_FORM_STEPS]} currentStep={formStep} className="mb-6" />
@@ -911,7 +911,7 @@ export default function ReportFoundPage() {
             if (formStep < FOUND_FORM_STEPS.length - 1) goNextStep();
             else void handleSubmit();
           }}
-          className="form-sticky-footer-padding md:pb-4"
+          className="form-sticky-footer-padding shell-desktop:pb-4"
         >
           <AnimatePresence mode="wait">
             <m.div

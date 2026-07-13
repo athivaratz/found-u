@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, Camera, Clock } from "lucide-react";
 import { useAppMode } from "@/contexts/app-mode-context";
+import { shellMobileOnly } from "@/components/layout/shell-layout";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -19,7 +20,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-50 safe-bottom md:hidden bg-bg-primary border-t border-border-light"
+      className={cn("fixed bottom-0 inset-x-0 z-50 safe-bottom bg-bg-primary border-t border-border-light", shellMobileOnly)}
       style={{ height: "var(--bottom-nav-height)" }}
       aria-label="เมนูหลัก"
     >

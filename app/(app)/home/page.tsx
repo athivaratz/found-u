@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { menuItems } from "@/lib/menu";
 import { DashboardListSkeleton } from "@/components/layout/app-shell-skeleton";
-import { shellSidebarInset } from "@/components/layout/shell-layout";
+import { shellMobileOnly, shellSidebarInset } from "@/components/layout/shell-layout";
 
 const HomeDashboardSection = dynamic(
   () =>
@@ -65,14 +65,14 @@ function HomeQuickMenu({ className }: { className?: string }) {
                 <div className="flex items-center gap-4">
                   <div
                     className={cn(
-                      "w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0",
+                      "w-12 h-12 shell-desktop:w-14 shell-desktop:h-14 rounded-xl shell-desktop:rounded-2xl flex items-center justify-center shrink-0",
                       item.color
                     )}
                   >
-                    <Icon className={cn("w-6 h-6 md:w-7 md:h-7", item.iconColor)} />
+                    <Icon className={cn("w-6 h-6 shell-desktop:w-7 shell-desktop:h-7", item.iconColor)} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base md:text-lg font-semibold text-text-primary">
+                    <h3 className="text-base shell-desktop:text-lg font-semibold text-text-primary">
                       {item.title}
                     </h3>
                     <p className="text-sm text-text-secondary line-clamp-1">{item.subtitle}</p>
@@ -134,12 +134,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary transition-colors md:flex">
+    <div className="min-h-screen bg-bg-primary transition-colors shell-desktop:flex">
       <Sidebar />
 
       <div className={cn("flex min-h-screen flex-1 flex-col main-with-bottom-nav min-w-0", shellSidebarInset)}>
         {/* Mobile header — switcher inside the green band */}
-        <header className="md:hidden bg-line-green text-white safe-top shrink-0">
+        <header className={cn(shellMobileOnly, "bg-line-green text-white safe-top shrink-0")}>
           <div className="px-5 pt-5 pb-4 flex flex-col gap-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
@@ -207,7 +207,7 @@ export default function Home() {
                         <button
                           type="button"
                           tabIndex={-1}
-                          className="fixed inset-0 z-40 cursor-default bg-black/20 md:bg-transparent"
+                          className="fixed inset-0 z-40 cursor-default bg-black/20 shell-desktop:bg-transparent"
                           onClick={() => setShowUserMenu(false)}
                           aria-label="ปิดเมนูผู้ใช้"
                         />
@@ -268,7 +268,7 @@ export default function Home() {
         </header>
 
         {/* Desktop header */}
-        <header className="hidden md:block bg-bg-card border-b border-border-light sticky top-0 z-20">
+        <header className="hidden shell-desktop:block bg-bg-card border-b border-border-light sticky top-0 z-20">
           <div className="px-8 xl:px-12 py-6">
             <div className="flex items-start justify-between gap-6">
               <div className="min-w-0">
@@ -291,12 +291,12 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="relative z-[1] flex-1 min-w-0 overflow-x-clip bg-bg-secondary px-5 pt-5 pb-6 rounded-t-2xl -mt-3 md:mt-0 md:rounded-none md:px-8 md:pt-8 md:pb-8 xl:px-12 xl:pb-12">
-          <HomeQuickMenu className="mb-6 md:hidden" />
+        <main className="relative z-[1] flex-1 min-w-0 overflow-x-clip bg-bg-secondary px-5 pt-5 pb-6 rounded-t-2xl -mt-3 shell-desktop:mt-0 shell-desktop:rounded-none shell-desktop:px-8 shell-desktop:pt-8 shell-desktop:pb-8 xl:px-12 xl:pb-12">
+          <HomeQuickMenu className={cn("mb-6", shellMobileOnly)} />
 
           <HomeDashboardSection
             {...dashboardProps}
-            className="mt-0 md:mt-0"
+            className="mt-0"
           />
         </main>
 

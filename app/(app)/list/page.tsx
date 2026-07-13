@@ -169,19 +169,19 @@ export default function ListPage() {
 
   return (
     <AppShell>
-      <div className="min-h-screen bg-bg-secondary pb-24 md:pb-8 transition-colors">
-        <div className="md:hidden">
+      <div className="min-h-screen bg-bg-secondary pb-24 shell-desktop:pb-8 transition-colors">
+        <div className="shell-desktop:hidden">
           <Header title="รายการทั้งหมด" showBack />
         </div>
 
-        <div className="hidden md:block px-8 py-6 border-b border-border-light bg-bg-secondary sticky top-0 z-10">
+        <div className="hidden shell-desktop:block px-8 py-6 border-b border-border-light bg-bg-secondary sticky top-0 z-10">
           <h1 className="text-2xl font-semibold text-text-primary text-balance">รายการทั้งหมด</h1>
           <p className="text-text-secondary text-sm mt-1">
             รายการของหายและของที่เจอทั้งหมดในระบบ
           </p>
         </div>
 
-        <div className="w-full max-w-4xl mx-auto px-4 md:px-8 py-6 min-w-0">
+        <div className="w-full max-w-4xl mx-auto px-4 shell-desktop:px-8 py-6 min-w-0">
           <section aria-label="ค้นหาและกรอง">
             {isAdmin && (
               <div

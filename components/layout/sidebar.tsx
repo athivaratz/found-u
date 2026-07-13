@@ -13,7 +13,7 @@ import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { ModeSwitcher } from "@/components/agent/mode-switcher";
-import { shellSidebarWidth } from "@/components/layout/shell-layout";
+import { shellDesktopOnly, shellSidebarWidth } from "@/components/layout/shell-layout";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -42,21 +42,22 @@ export default function Sidebar() {
     <aside
       className={cn(
         shellSidebarWidth,
-        "bg-bg-card border-r border-border-light fixed left-0 top-0 h-screen overflow-y-auto",
-        "hidden md:flex flex-col z-50"
+        shellDesktopOnly,
+        "bg-bg-card border-r border-border-light fixed left-0 top-0 z-50",
+        "h-dvh flex-col overflow-hidden"
       )}
     >
-      <div className="flex flex-col gap-5 p-6 border-b border-border-light">
+      <div className="shrink-0 flex flex-col gap-4 p-5 border-b border-border-light">
         <Link href="/home" className="flex items-center gap-3">
           <Image
             src="/logo.png"
             alt="Found-U"
             width={48}
             height={48}
-            className="h-12 w-12 object-contain"
+            className="h-11 w-11 object-contain"
           />
-          <div>
-            <h1 className="text-lg font-bold text-text-primary">Found-U</h1>
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-text-primary leading-tight">Found-U</h1>
             <p className="text-xs text-text-secondary">Lost & Found</p>
           </div>
         </Link>
@@ -65,7 +66,7 @@ export default function Sidebar() {
           <ModeSwitcher variant="compact" />
         </div>
 
-        <div className="bg-bg-secondary rounded-xl p-3 min-h-16 flex items-center">
+        <div className="bg-bg-secondary rounded-xl p-3 min-h-14 flex items-center">
           {authLoading && !user ? (
             <div className="flex items-center gap-3 w-full" aria-hidden>
               <div className="h-10 w-10 rounded-full bg-bg-tertiary animate-pulse shrink-0" />
@@ -94,7 +95,10 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-2 p-4">
+      <nav
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-1.5 p-3"
+        aria-label="เมนูหลัก"
+      >
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -103,7 +107,7 @@ export default function Sidebar() {
             <Link key={item.href} href={item.href}>
               <div
                 className={cn(
-                  "px-4 py-3 rounded-lg transition-colors cursor-pointer group",
+                  "px-3 py-2.5 rounded-lg transition-colors cursor-pointer group",
                   isActive ? "bg-line-green/10" : "bg-bg-secondary hover:bg-bg-tertiary"
                 )}
               >
@@ -119,13 +123,13 @@ export default function Sidebar() {
                   <div className="flex-1 min-w-0">
                     <p
                       className={cn(
-                        "font-medium text-sm transition-colors",
+                        "font-medium text-sm transition-colors leading-snug",
                         isActive ? "text-line-green" : "text-text-primary"
                       )}
                     >
                       {item.title}
                     </p>
-                    <p className="text-xs text-text-secondary">{item.subtitle}</p>
+                    <p className="text-xs text-text-secondary line-clamp-1">{item.subtitle}</p>
                   </div>
                 </div>
               </div>
@@ -134,10 +138,10 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="flex flex-col gap-2 p-4 border-t border-border-light">
+      <div className="shrink-0 flex flex-col gap-1.5 p-3 border-t border-border-light pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {user ? (
           <Link href="/settings">
-            <div className="px-4 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
+            <div className="px-3 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer min-h-11">
               <Settings className="w-4 h-4 shrink-0" />
               ตั้งค่า
             </div>
@@ -145,7 +149,7 @@ export default function Sidebar() {
         ) : null}
         {isAdmin ? (
           <Link href="/admin">
-            <div className="px-4 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer">
+            <div className="px-3 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer min-h-11">
               <Shield className="w-4 h-4 shrink-0" />
               Admin Panel
             </div>
@@ -154,7 +158,7 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
-          className="w-full px-4 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors"
+          className="w-full px-3 py-2.5 rounded-lg bg-bg-secondary hover:bg-bg-tertiary text-text-primary text-sm font-medium flex items-center gap-2 transition-colors min-h-11"
           aria-label="สลับโหมดสว่าง/มืด"
         >
           {themeMounted ? (
@@ -180,7 +184,7 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full px-4 py-2.5 rounded-lg bg-status-error-light hover:bg-status-error/10 text-status-error text-sm font-medium flex items-center gap-2 transition-colors"
+            className="w-full px-3 py-2.5 rounded-lg bg-status-error-light hover:bg-status-error/10 text-status-error text-sm font-medium flex items-center gap-2 transition-colors min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error/40"
           >
             <LogOut className="w-4 h-4 shrink-0" />
             ออกจากระบบ

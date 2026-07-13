@@ -2,6 +2,10 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
+/** Matches @custom-variant shell-desktop in globals.css */
+export const SHELL_DESKTOP_MEDIA_QUERY =
+  "(min-width: 768px) and (orientation: landscape) and (min-height: 600px)";
+
 function subscribeToMediaQuery(query: string, callback: () => void) {
   const mq = window.matchMedia(query);
   mq.addEventListener("change", callback);
@@ -22,7 +26,7 @@ export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
 
-/** Tailwind md breakpoint */
+/** Landscape tablet+ — student shell with sidebar (not plain min-width 768px) */
 export function useIsDesktop(): boolean {
-  return useMediaQuery("(min-width: 768px)");
+  return useMediaQuery(SHELL_DESKTOP_MEDIA_QUERY);
 }

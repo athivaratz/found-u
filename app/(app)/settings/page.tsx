@@ -10,6 +10,7 @@ import {
   Shield,
   KeyRound,
   User,
+  LogOut,
   Save,
   Mail,
   Hash,
@@ -58,7 +59,7 @@ type ConnectionAction =
 export default function SettingsPage() {
   const router = useRouter();
   const reduced = useReducedMotion();
-  const { user, appUser, loading, isAdmin, refreshSession, refreshUserProfile, hasPin } = useAuth();
+  const { user, appUser, loading, isAdmin, logout, refreshSession, refreshUserProfile, hasPin } = useAuth();
   const [tab, setTab] = useState<SettingsTab>("profile");
 
   const [shownName, setShownName] = useState("");
@@ -157,6 +158,15 @@ export default function SettingsPage() {
     }
     setPinErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.replace(AUTH_ROUTES.hub);
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
   };
 
   const saveShownName = async (e: React.FormEvent) => {
@@ -635,7 +645,7 @@ export default function SettingsPage() {
         <PageHeader
           title="ตั้งค่า"
           subtitle="จัดการโปรไฟล์และความปลอดภัยของบัญชี"
-          className="hidden md:flex"
+          className="hidden shell-desktop:flex"
         />
 
         <SegmentedTabs<SettingsTab>
@@ -658,6 +668,19 @@ export default function SettingsPage() {
             {tab === "profile" ? profilePanel : securityPanel}
           </m.div>
         </AnimatePresence>
+
+        {user ? (
+          <div className="border-t border-border-light pt-5">
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="w-full min-h-11 py-2.5 rounded-xl bg-status-error-light hover:bg-status-error/10 text-status-error font-medium flex items-center justify-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error/40"
+            >
+              <LogOut className="w-4 h-4 shrink-0" aria-hidden />
+              ออกจากระบบ
+            </button>
+          </div>
+        ) : null}
 
         <ConnectionResultModal
           open={connectionModalOpen}
