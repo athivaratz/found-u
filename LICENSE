@@ -1,13 +1,105 @@
-All Rights Reserved
+โครงการ Found-U: ระบบแจ้งของหาย-ของเจอสำหรับโรงเรียนด้วยปัญญาประดิษฐ์และเทคโนโลยี NFC
+"Found-U: AI-Powered School Lost & Found Web Application with Integrated NFC Technology"
 
-Copyright (c) 2026 Athivarat Rattanalerd (Athivaratz) and Authorized Project Team Members.
+พัฒนาโดยนักเรียนจากโรงเรียนบดินทรเดชา (สิงห์ สิงหเสนี) ๒ (Bodindecha (Sing Singhaseni) 2 School)
+ส่งเข้าร่วมการแข่งขันพัฒนาโปรแกรมคอมพิวเตอร์แห่งประเทศไทย ครั้งที่ 28 (The 28th National Software
+Contest: NSC 2026) ภายใต้การสนับสนุนของสำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติ (สวทช.)
 
-This software and its source code are proprietary and confidential. Exclusive rights to use, copy, modify, merge, or distribute this software are strictly and solely granted to the copyright owner and the authorized members of the project team. Any unauthorized access, use, modification, or distribution by any third party or external individual is strictly prohibited.
+================================================================================
+ส่วนที่ 1: ข้อตกลงในการใช้ซอฟต์แวร์ (License Agreement)
+================================================================================
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+ข้อตกลงในการใช้ซอฟต์แวร์
+
+ซอฟต์แวร์นี้เป็นผลงานที่พัฒนาขึ้นโดย อธิวรัตถ์ รัตนเลิศ (หัวหน้าทีม), ณัฎฐ์ชญา แป้นภู และ
+กัญญากรณ์ โมงไธสง (ผู้ร่วมทีม) จากโรงเรียนบดินทรเดชา (สิงห์ สิงหเสนี) ๒ ภายใต้การดูแลของ
+อาจารย์อภิชาติ พูลสวัสดิ์ ภายใต้โครงการ "โครงการ Found-U: ระบบแจ้งของหาย-ของเจอสำหรับโรงเรียนด้วย
+ปัญญาประดิษฐ์และเทคโนโลยี NFC" ซึ่งสนับสนุนโดยสำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติ โดยมี
+วัตถุประสงค์เพื่อส่งเสริมให้นักเรียนและนักศึกษาได้เรียนรู้และฝึกทักษะในการพัฒนาซอฟต์แวร์ ลิขสิทธิ์ของ
+ซอฟต์แวร์นี้จึงเป็นของผู้พัฒนา ซึ่งผู้พัฒนาได้อนุญาตให้สำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติ
+เผยแพร่ซอฟต์แวร์นี้ตาม "ต้นฉบับ" โดยไม่มีการแก้ไขดัดแปลงใด ๆ ทั้งสิ้น ให้แก่บุคคลทั่วไปได้ใช้เพื่อ
+ประโยชน์ส่วนบุคคลหรือประโยชน์ทางการศึกษาที่ไม่มีวัตถุประสงค์ในเชิงพาณิชย์โดยไม่คิดค่าตอบแทนการใช้
+ซอฟต์แวร์ ดังนั้น สำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติจึงไม่มีหน้าที่ในการดูแล บำรุงรักษา
+จัดการอบรมการใช้งาน หรือพัฒนาประสิทธิภาพซอฟต์แวร์ รวมทั้งไม่รับรองความถูกต้องหรือประสิทธิภาพการ
+ทำงานของซอฟต์แวร์ ตลอดจนไม่รับประกันความเสียหายต่าง ๆ อันเกิดจากการใช้ซอฟต์แวร์นี้ทั้งสิ้น
+
+License Agreement
+
+This software is a work developed by Athivarat Rattanalerd (Team Leader), Natchaya Paenphu, and
+Kanyaorn Mongthaisong (Team Members) from Bodindecha (Sing Singhaseni) 2 School under the
+provision of Apichart Poolsawat (Advisor), under the project "Found-U: AI-Powered School Lost &
+Found Web Application with Integrated NFC Technology", which has been supported by the National
+Science and Technology Development Agency (NSTDA), in order to encourage pupils and students to
+learn and practice their skills in developing software. Therefore, the intellectual property of
+this software shall belong to the developer and the developer gives NSTDA a permission to
+distribute this software as an "as is" and non-modified software for a temporary and non-exclusive
+use without remuneration to anyone for his or her own purpose or academic purpose, which are not
+commercial purposes. In this connection, NSTDA shall not be responsible to the user for taking
+care, maintaining, training, or developing the efficiency of this software. Moreover, NSTDA shall
+not be liable for any error, software efficiency and damages in connection with or arising out of
+the use of the software.
+
+================================================================================
+ส่วนที่ 2: สิทธิ์การใช้งานซอฟต์แวร์ (GNU Lesser General Public License)
+================================================================================
+
+ซอฟต์แวร์นี้อนุญาตให้บุคคลอื่นใช้ผลงานของโครงการภายใต้รูปแบบ GNU Lesser General Public License
+(GNU LGPL) โดยเปิดเผยรหัสต้นฉบับ (Source Code) ของโปรแกรมในรูปแบบต้นกำเนิดเปิด (Open Source)
+
+โครงการนี้ ("Found-U") จึงเผยแพร่ภายใต้สิทธิ์การใช้งาน GNU Lesser General Public License
+เวอร์ชัน 3 หรือรุ่นถัดไป (LGPL-3.0-or-later) ท่านสามารถใช้ ทำสำเนา แก้ไข และเผยแพร่ซอฟต์แวร์นี้ต่อได้
+ภายใต้เงื่อนไขของสิทธิ์การใช้งานดังกล่าว ดูเนื้อหาฉบับสมบูรณ์ได้ที่ไฟล์ COPYING.LESSER (ซึ่งอ้างอิงเงื่อนไข
+ของ GNU General Public License เวอร์ชัน 3 ในไฟล์ COPYING ประกอบด้วย) หรือที่
+https://www.gnu.org/licenses/lgpl-3.0.html
+
+This software permits any other person to use the project's work under the GNU Lesser General
+Public License (GNU LGPL), with the source code disclosed in an open-source format.
+
+This project ("Found-U") is therefore licensed under the GNU Lesser General Public License,
+version 3 or (at your option) any later version (LGPL-3.0-or-later). You may use, copy, modify,
+and redistribute this software under the terms of that license. See the file COPYING.LESSER for
+the full license text (which incorporates the terms of the GNU General Public License version 3,
+included in the file COPYING), or visit https://www.gnu.org/licenses/lgpl-3.0.html
+
+    Found-U — a lost & found web application for schools
+    Copyright (C) 2026 Athivarat Rattanalerd, Natchaya Paenphu, and Kanyaorn Mongthaisong
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Lesser General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+================================================================================
+ข้อมูลโครงการ / Project Information
+================================================================================
+
+ทีมพัฒนา / Development Team
+  หัวหน้าทีม / Team Leader
+    ชื่อ-นามสกุลไทย:      อธิวรัตถ์ รัตนเลิศ
+    ชื่อ-นามสกุลอังกฤษ:   Athivarat Rattanalerd
+
+  ผู้ร่วมทีม / Team Member
+    ชื่อ-นามสกุลไทย:      ณัฎฐ์ชญา แป้นภู
+    ชื่อ-นามสกุลอังกฤษ:   Natchaya Paenphu
+
+  ผู้ร่วมทีม / Team Member
+    ชื่อ-นามสกุลไทย:      กัญญากรณ์ โมงไธสง
+    ชื่อ-นามสกุลอังกฤษ:   Kanyaorn Mongthaisong
+
+อาจารย์ที่ปรึกษา / Advisor
+    อาจารย์อภิชาติ พูลสวัสดิ์
+
+ชื่อโครงการ / Project Name
+  ภาษาไทย:    โครงการ Found-U: ระบบแจ้งของหาย-ของเจอสำหรับโรงเรียนด้วยปัญญาประดิษฐ์และเทคโนโลยี NFC
+  English:    "Found-U: AI-Powered School Lost & Found Web Application with Integrated NFC Technology"
+
+สถาบันการศึกษา / Institution
+    โรงเรียนบดินทรเดชา (สิงห์ สิงหเสนี) ๒ (Bodindecha (Sing Singhaseni) 2 School)
