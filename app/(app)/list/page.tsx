@@ -16,7 +16,6 @@ import {
 import Header from "@/components/layout/header";
 import BottomNav from "@/components/layout/bottom-nav";
 import AppShell from "@/components/layout/app-shell";
-import { shellMobileOnly } from "@/components/layout/shell-layout";
 import { StatusAlert } from "@/components/ui/status-alert";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -170,7 +169,7 @@ export default function ListPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-col min-h-0 bg-bg-secondary transition-colors">
+      <div className="min-h-screen bg-bg-secondary pb-24 shell-desktop:pb-8 transition-colors">
         <div className="shell-desktop:hidden">
           <Header title="รายการทั้งหมด" showBack />
         </div>
@@ -455,7 +454,7 @@ export default function ListPage() {
           )}
         </div>
 
-        <div className={shellMobileOnly}>
+        <div className="lg:hidden">
           <BottomNav />
         </div>
       </div>

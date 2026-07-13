@@ -108,7 +108,7 @@ function NfcFoundContent() {
 
   if (authLoading && !user) {
     return (
-      <div className="flex min-h-[50dvh] items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
       </div>
     );
@@ -279,7 +279,7 @@ export default function NfcFoundPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-[50dvh] items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
         </div>
       }

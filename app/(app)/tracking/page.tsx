@@ -15,7 +15,6 @@ import {
 import Header from "@/components/layout/header";
 import BottomNav from "@/components/layout/bottom-nav";
 import AppShell from "@/components/layout/app-shell";
-import { shellMobileOnly } from "@/components/layout/shell-layout";
 import { StatusAlert } from "@/components/ui/status-alert";
 import {
   CATEGORIES,
@@ -139,7 +138,7 @@ export default function TrackingPage() {
 
   if (authLoading && !user) {
     return (
-      <div className="h-dvh max-h-dvh flex items-center justify-center bg-bg-secondary">
+      <div className="min-h-screen bg-bg-secondary flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-line-green" aria-label="กำลังโหลด" />
       </div>
     );
@@ -147,15 +146,13 @@ export default function TrackingPage() {
 
   if (!user) {
     return (
-      <div className="h-dvh max-h-dvh overflow-hidden flex flex-col main-with-bottom-nav bg-bg-primary transition-colors">
+      <div className="min-h-screen bg-bg-primary pb-24 transition-colors">
         <Header title="ติดตามสถานะ" showBack />
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          <LoginPrompt
-            title="เข้าสู่ระบบเพื่อติดตามสถานะ"
-            description="คุณต้องเข้าสู่ระบบเพื่อดูรายการของหายของคุณและติดตามสถานะแบบ Real-time"
-            feature="รายการของฉันจะอัปเดตอัตโนมัติเมื่อมีคนเจอของ!"
-          />
-        </div>
+        <LoginPrompt
+          title="เข้าสู่ระบบเพื่อติดตามสถานะ"
+          description="คุณต้องเข้าสู่ระบบเพื่อดูรายการของหายของคุณและติดตามสถานะแบบ Real-time"
+          feature="รายการของฉันจะอัปเดตอัตโนมัติเมื่อมีคนเจอของ!"
+        />
         <BottomNav />
       </div>
     );
@@ -171,7 +168,7 @@ export default function TrackingPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-col min-h-0 bg-bg-secondary transition-colors">
+      <div className="min-h-screen bg-bg-secondary pb-24 shell-desktop:pb-8 transition-colors">
         <div className="shell-desktop:hidden">
           <Header title="ติดตามสถานะ" showBack />
         </div>
@@ -478,7 +475,7 @@ export default function TrackingPage() {
           </section>
         </div>
 
-        <div className={shellMobileOnly}>
+        <div className="lg:hidden">
           <BottomNav />
         </div>
       </div>
