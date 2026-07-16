@@ -372,7 +372,7 @@ function LoginPageContent() {
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value.replace(/\D/g, "").slice(0, 5))}
                   className={authInputClassName("studentId")}
-                  placeholder="12345"
+                  placeholder="เช่น 12345"
                   autoComplete="username"
                   required
                 />

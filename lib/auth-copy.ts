@@ -16,13 +16,13 @@ export const AUTH_COPY = {
   schoolPasswordField: "รหัสผ่านจากโรงเรียน",
 
   /** Hints */
-  passwordRules: "อย่างน้อย 8 ตัว มีทั้งตัวอักษรและตัวเลข",
-  pinQuickUnlock: "ใช้แทนรหัสผ่านเมื่อเปิดแอปบนเครื่องนี้",
+  passwordRules: "อย่างน้อย 8 ตัวอักษร โดยต้องมีทั้งตัวอักษร (A-Z/a-z) และตัวเลข (0-9)",
+  pinQuickUnlock: "ใช้เพื่อเข้าสู่ระบบอย่างรวดเร็ว หากเคยล็อกอินด้วยรหัสผ่านแล้ว",
   registerStudentIdHint:
-    "กรอกเลขที่โรงเรียนแจ้ง ระบบจะแสดงชื่อและห้องให้ตรวจสอบก่อนดำเนินการต่อ",
+    "กรอกเลขประจำตัวนักเรียนของคุณ",
   schoolPasswordHint:
     "รหัสชั่วคราวที่โรงเรียนแจก — สำหรับบัญชีที่ยังไม่เคยตั้งรหัสผ่านเอง",
-  profileMismatchHint: "ข้อมูลไม่ตรง? ลอง \"แก้ไขเลขประจำตัว\" ด้านล่าง หรือติดต่อผู้ดูแลระบบ",
+  profileMismatchHint: "ข้อมูลไม่ตรง? ลองกด \"แก้ไขเลขประจำตัว\" ด้านล่าง หรือติดต่อผู้ดูแลระบบ",
 
   /** Primary actions */
   signIn: "เข้าสู่ระบบ",
@@ -92,7 +92,7 @@ export const AUTH_COPY = {
   /** Register flow */
   registerTitle: "เริ่มใช้งาน",
   registerSubtitle: "สมัครสมาชิก",
-  registerDescription: "สมัครสมาชิกเพื่อใช้งานระบบของโรงเรียน",
+  registerDescription: "สมัครสมาชิกเพื่อเริ่มต้น",
   registerStepStudentId: "เลขประจำตัว",
   registerStepConfirm: "ยืนยันตัวตน",
   registerStepPassword: "รหัสผ่าน",
