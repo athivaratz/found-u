@@ -1,9 +1,12 @@
 import { generateText, type LanguageModel, type ModelMessage } from "ai";
 import type { AppSettings } from "@/lib/types";
 import { looksTruncatedThai } from "@/lib/agent/text-completeness";
+import { filterAgentOutputText } from "@/lib/agent/output-language-filter";
 
 const RECOVERY_PROMPT = `The assistant started a Thai summary after tool results but the text was cut off.
 Write ONLY the continuation in Thai to complete the user-facing summary.
+English is allowed only for technical terms (e.g. Tracking Code, LOST-XXXXXX).
+Never use Chinese, Japanese, Korean, or other non-Thai/non-English scripts.
 Do not repeat what was already said. Finish every sentence and list item.
 Do not use JSON or tool names.`;
 
@@ -39,7 +42,7 @@ export async function runSynthesisRecovery(options: {
       temperature: settings.agentTemperature ?? 0.3,
     });
 
-    const recovery = result.text.trim();
+    const recovery = filterAgentOutputText(result.text.trim());
     if (!recovery) return null;
     if (looksTruncatedThai(recovery, result.finishReason)) return recovery;
     return recovery;

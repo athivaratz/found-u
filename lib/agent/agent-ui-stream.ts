@@ -17,6 +17,7 @@ import {
   runSynthesisRecovery,
 } from "@/lib/agent/synthesis-recovery";
 import { persistAgentChatLog } from "@/lib/agent/agent-chat-log";
+import { filterAgentOutputText } from "@/lib/agent/output-language-filter";
 import type { AppSettings } from "@/lib/types";
 import type { LanguageModel } from "ai";
 
@@ -78,7 +79,12 @@ export async function createFoundUAgentUIStreamResponse(options: {
 
       for await (const part of agentStream) {
         if (part.type === "text-delta") {
-          accumulatedText += part.delta;
+          const filtered = filterAgentOutputText(part.delta);
+          accumulatedText += filtered;
+          if (filtered) {
+            writer.write({ ...part, delta: filtered });
+          }
+          continue;
         }
         if (part.type.startsWith("tool-")) {
           hadToolOutput = true;
@@ -105,21 +111,24 @@ export async function createFoundUAgentUIStreamResponse(options: {
           settings,
         });
         if (recovery) {
-          const recoveryTextId = `recovery-${Date.now()}`;
-          writer.write({
-            type: "text-start",
-            id: recoveryTextId,
-          } as InferUIMessageChunk<UIMessage>);
-          writer.write({
-            type: "text-delta",
-            id: recoveryTextId,
-            delta: `\n${recovery}`,
-          } as InferUIMessageChunk<UIMessage>);
-          writer.write({
-            type: "text-end",
-            id: recoveryTextId,
-          } as InferUIMessageChunk<UIMessage>);
-          accumulatedText += `\n${recovery}`;
+          const filteredRecovery = filterAgentOutputText(recovery);
+          if (filteredRecovery) {
+            const recoveryTextId = `recovery-${Date.now()}`;
+            writer.write({
+              type: "text-start",
+              id: recoveryTextId,
+            } as InferUIMessageChunk<UIMessage>);
+            writer.write({
+              type: "text-delta",
+              id: recoveryTextId,
+              delta: `\n${filteredRecovery}`,
+            } as InferUIMessageChunk<UIMessage>);
+            writer.write({
+              type: "text-end",
+              id: recoveryTextId,
+            } as InferUIMessageChunk<UIMessage>);
+            accumulatedText += `\n${filteredRecovery}`;
+          }
         }
       }
 
