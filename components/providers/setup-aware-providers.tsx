@@ -1,17 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { AuthProvider } from "@/contexts/auth-context";
-import { AppModeProvider } from "@/contexts/app-mode-context";
-import { DataProvider } from "@/contexts/DataContext";
-import AuthGuard from "@/components/auth/auth-guard";
-import { BfcacheRestoreHandler } from "@/components/bfcache-restore-handler";
-import { isSetupPublicPath } from "@/lib/auth-routes";
+import { isLightweightShellPath } from "@/lib/auth-routes";
+import { FullAppProviders } from "@/components/providers/full-app-providers";
 
 function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-bg-secondary transition-colors">
-      <div className="w-full min-h-screen bg-bg-primary transition-colors">{children}</div>
+      <div className="w-full bg-bg-primary transition-colors">{children}</div>
     </div>
   );
 }
@@ -19,20 +15,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
 export function SetupAwareProviders({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
 
-  if (isSetupPublicPath(pathname)) {
+  if (isLightweightShellPath(pathname)) {
     return <AppShell>{children}</AppShell>;
   }
 
-  return (
-    <AuthProvider>
-      <AppModeProvider>
-        <BfcacheRestoreHandler />
-        <DataProvider>
-          <AuthGuard>
-            <AppShell>{children}</AppShell>
-          </AuthGuard>
-        </DataProvider>
-      </AppModeProvider>
-    </AuthProvider>
-  );
+  return <FullAppProviders>{children}</FullAppProviders>;
 }

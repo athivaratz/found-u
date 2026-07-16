@@ -39,6 +39,22 @@ export function isAuthPublicPath(pathname: string): boolean {
   );
 }
 
+/** Routes that skip AuthProvider / DataProvider / AuthGuard (no useAuth on page) */
+export const LIGHTWEIGHT_SHELL_EXACT_PATHS = [
+  "/",
+  AUTH_ROUTES.hub,
+  AUTH_ROUTES.register,
+  AUTH_ROUTES.forgotPin,
+  AUTH_ROUTES.resetPassword,
+] as const;
+
+export function isLightweightShellPath(pathname: string): boolean {
+  return (
+    isSetupPublicPath(pathname) ||
+    (LIGHTWEIGHT_SHELL_EXACT_PATHS as readonly string[]).includes(pathname)
+  );
+}
+
 export function resolvePostLoginPath(payload: {
   mustChangePassword?: boolean;
   mustSetupPin?: boolean;

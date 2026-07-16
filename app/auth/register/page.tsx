@@ -191,7 +191,7 @@ export default function RegisterPage() {
                   aria-invalid={errors.studentId ? true : undefined}
                   aria-describedby={errors.studentId ? fieldErrorId("studentId") : undefined}
                   className={authInputClassName("studentId", errors.studentId)}
-                  placeholder="12345"
+                  placeholder="เช่น 12345"
                   autoFocus
                 />
                 <FieldValidationMessage
