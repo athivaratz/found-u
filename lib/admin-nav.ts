@@ -64,7 +64,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     items: [
       { href: "/admin/logs", icon: FileText, label: "Logs", description: "ประวัติการใช้งาน" },
       { href: "/admin/error-logs", icon: AlertTriangle, label: "Error Logs", description: "Errors ในระบบ" },
-      { href: "/admin/ai", icon: Bot, label: "AI", description: "โมเดลและการทดสอบ" },
+      { href: "/admin/ai", icon: Bot, label: "AI", description: "ตั้งค่า AI และ API keys" },
       { href: "/admin/maps", icon: MapPin, label: "แผนที่และ GPS", description: "ขอบเขตและแผนที่" },
       { href: "/admin/settings", icon: Settings, label: "ตั้งค่าระบบ", description: "System Settings" },
     ],

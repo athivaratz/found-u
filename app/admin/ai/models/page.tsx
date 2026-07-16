@@ -1,36 +1,21 @@
 "use client";
 
-// Force dynamic rendering for security
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Bot,
-  RefreshCw,
   Save,
   Loader2,
   CheckCircle2,
   AlertTriangle,
-  Search,
-  Activity,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { getAppSettingsWithMeta, updateAppSettings } from "@/lib/database";
 import { pickSettingsKeys, GEMINI_PIPELINE_SETTING_KEYS } from "@/lib/admin/ai-settings-keys";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
-
-interface ModelInfo {
-  name: string;
-  displayName?: string;
-  description?: string;
-  supportedGenerationMethods?: string[];
-}
-
-function normalizeModelName(model: string) {
-  return model.replace(/^models\//, "");
-}
 
 function parseNumber(value: string) {
   if (value.trim() === "") return undefined;
@@ -38,111 +23,8 @@ function parseNumber(value: string) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-type ProviderName = "gemini" | "openrouter";
-
-type ProviderTestState = {
-  testing: boolean;
-  result: string | null;
-};
-
-function formatProviderResult(
-  name: string,
-  info: {
-    configured: boolean;
-    ok: boolean;
-    model?: string;
-    error?: string;
-  }
-): string {
-  const modelSuffix = info.model ? ` [${info.model}]` : "";
-  if (info.ok) return `${name}${modelSuffix}: OK`;
-  if (!info.configured) return `${name}: no key`;
-  return `${name}${modelSuffix}: ${info.error || "fail"}`;
-}
-
-function ProviderTestButton({
-  label,
-  provider,
-  settings,
-  className,
-}: {
-  label: string;
-  provider?: ProviderName;
-  settings: AppSettings;
-  className?: string;
-}) {
-  const [state, setState] = useState<ProviderTestState>({
-    testing: false,
-    result: null,
-  });
-
-  const runTest = async () => {
-    setState({ testing: true, result: null });
-    try {
-      const res = await fetch("/api/agent/test-providers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings, provider }),
-      });
-      const data = await res.json();
-      const lines = Object.entries(data.providers || {}).map(([name, info]) =>
-        formatProviderResult(name, info as Parameters<typeof formatProviderResult>[1])
-      );
-      setState({ testing: false, result: lines.join(" · ") });
-    } catch {
-      setState({ testing: false, result: "ทดสอบไม่สำเร็จ" });
-    }
-  };
-
-  const isOk = state.result?.includes(": OK");
-  const isFail = state.result && !isOk;
-
-  return (
-    <div className={className}>
-      <button
-        type="button"
-        onClick={runTest}
-        disabled={state.testing}
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-60"
-      >
-        {state.testing ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Activity className="w-4 h-4" />
-        )}
-        {label}
-      </button>
-      {state.result ? (
-        <p
-          className={`mt-1.5 text-xs flex items-center gap-1 ${
-            isOk
-              ? "text-green-600"
-              : isFail
-                ? "text-amber-600"
-                : "text-gray-500"
-          }`}
-        >
-          {isOk ? (
-            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-          ) : isFail ? (
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          ) : null}
-          <span>{state.result}</span>
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function AgentProviderTestPanel({ settings }: { settings: AppSettings }) {
-  return (
-    <div className="mt-4 flex flex-wrap items-start gap-4">
-      <ProviderTestButton label="ทดสอบ Gemini" provider="gemini" settings={settings} />
-      <ProviderTestButton label="ทดสอบ OpenRouter" provider="openrouter" settings={settings} />
-      <ProviderTestButton label="ทดสอบทั้งหมด" settings={settings} />
-    </div>
-  );
-}
+const inputClass =
+  "mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white";
 
 export default function AdminAIModelsPage() {
   const { user } = useAuth();
@@ -151,34 +33,6 @@ export default function AdminAIModelsPage() {
   const [saving, setSaving] = useState(false);
   const [settingsLoadError, setSettingsLoadError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
-
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [loadingModels, setLoadingModels] = useState(true);
-  const [modelError, setModelError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const loadModels = async () => {
-    setLoadingModels(true);
-    setModelError(null);
-
-    try {
-      const response = await fetch("/api/ai/models");
-      if (!response.ok) {
-        const errorText = await response.text();
-        setModelError(errorText || "ไม่สามารถโหลดรายการโมเดลได้");
-        setLoadingModels(false);
-        return;
-      }
-
-      const data = await response.json();
-      setModels(data.models || []);
-    } catch (error) {
-      console.error("Error loading AI models:", error);
-      setModelError("เกิดข้อผิดพลาดในการเรียกข้อมูลโมเดล");
-    } finally {
-      setLoadingModels(false);
-    }
-  };
 
   useEffect(() => {
     let mounted = true;
@@ -201,53 +55,10 @@ export default function AdminAIModelsPage() {
         if (mounted) setLoadingSettings(false);
       });
 
-    loadModels();
-
     return () => {
       mounted = false;
     };
   }, []);
-
-  const generateContentModels = useMemo(() => {
-    const filtered = models.filter((model) =>
-      (model.supportedGenerationMethods || []).includes("generateContent")
-    );
-
-    if (!searchTerm.trim()) return filtered;
-
-    const term = searchTerm.toLowerCase();
-    return filtered.filter((model) =>
-      (model.displayName || model.name).toLowerCase().includes(term)
-    );
-  }, [models, searchTerm]);
-
-  const nerModelValid = useMemo(() => {
-    if (!settings.aiNerModel) return false;
-    return generateContentModels.some(
-      (model) => normalizeModelName(model.name) === normalizeModelName(settings.aiNerModel || "")
-    );
-  }, [generateContentModels, settings.aiNerModel]);
-
-  const matchingModelValid = useMemo(() => {
-    if (!settings.aiMatchingModel) return false;
-    return generateContentModels.some(
-      (model) => normalizeModelName(model.name) === normalizeModelName(settings.aiMatchingModel || "")
-    );
-  }, [generateContentModels, settings.aiMatchingModel]);
-
-  const visionModelValid = useMemo(() => {
-    if (!settings.aiVisionModel) return false;
-    return generateContentModels.some(
-      (model) => normalizeModelName(model.name) === normalizeModelName(settings.aiVisionModel || "")
-    );
-  }, [generateContentModels, settings.aiVisionModel]);
-
-  const agentModelValid = useMemo(() => {
-    if (!settings.agentModel) return false;
-    return generateContentModels.some(
-      (model) => normalizeModelName(model.name) === normalizeModelName(settings.agentModel || "")
-    );
-  }, [generateContentModels, settings.agentModel]);
 
   const handleSave = async () => {
     if (!user?.uid) return;
@@ -294,7 +105,10 @@ export default function AdminAIModelsPage() {
                 โมเดลที่ใช้ในระบบ
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                กำหนดโมเดลสำหรับระบบภายใน
+                กรอกชื่อโมเดล Gemini โดยตรง — ตั้ง API key ที่{" "}
+                <Link href="/admin/ai/settings?tab=gemini" className="text-[#06C755] hover:underline">
+                  ตั้งค่า AI
+                </Link>
               </p>
             </div>
             <button
@@ -314,49 +128,30 @@ export default function AdminAIModelsPage() {
             </div>
           ) : null}
 
-          {showSuccess && (
+          {showSuccess ? (
             <div className="mt-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
               <CheckCircle2 className="w-4 h-4" />
               บันทึกการตั้งค่าเรียบร้อยแล้ว
             </div>
-          )}
-
-          <datalist id="ai-models">
-            {generateContentModels.map((model) => (
-              <option key={model.name} value={model.name} />
-            ))}
-          </datalist>
+          ) : null}
 
           <div className="grid gap-4 lg:grid-cols-2 mt-4">
             <div className="rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">NER (สกัดข้อมูล)</h3>
-                {!nerModelValid && settings.aiNerModel && (
-                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                    <AlertTriangle className="w-3 h-3" />
-                    ไม่อยู่ในรายการ generateContent
-                  </span>
-                )}
-              </div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">NER (สกัดข้อมูล)</h3>
               <div className="mt-3 space-y-3">
                 <div>
                   <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                     Model name
                   </label>
                   <input
-                    list="ai-models"
                     value={settings.aiNerModel || ""}
                     onChange={(e) =>
                       setSettings((prev) => ({ ...prev, aiNerModel: e.target.value }))
                     }
                     placeholder="gemini-1.5-flash"
-                    className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                    className={inputClass}
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    กดเลือกโมเดล และกดบันทึกเพื่อใช้งาน
-                  </p>
                 </div>
-
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div>
                     <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Temperature</label>
@@ -372,7 +167,7 @@ export default function AdminAIModelsPage() {
                           aiNerTemperature: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                   <div>
@@ -389,7 +184,7 @@ export default function AdminAIModelsPage() {
                           aiNerTopP: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                   <div>
@@ -405,7 +200,7 @@ export default function AdminAIModelsPage() {
                           aiNerMaxOutputTokens: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                 </div>
@@ -413,34 +208,21 @@ export default function AdminAIModelsPage() {
             </div>
 
             <div className="rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Matching (จับคู่)</h3>
-                {!matchingModelValid && settings.aiMatchingModel && (
-                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                    <AlertTriangle className="w-3 h-3" />
-                    ไม่อยู่ในรายการ generateContent
-                  </span>
-                )}
-              </div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Matching (จับคู่)</h3>
               <div className="mt-3 space-y-3">
                 <div>
                   <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                     Model name
                   </label>
                   <input
-                    list="ai-models"
                     value={settings.aiMatchingModel || ""}
                     onChange={(e) =>
                       setSettings((prev) => ({ ...prev, aiMatchingModel: e.target.value }))
                     }
                     placeholder="gemini-1.5-flash"
-                    className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                    className={inputClass}
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    กดเลือกโมเดล และกดบันทึกเพื่อใช้งาน
-                  </p>
                 </div>
-
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div>
                     <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Temperature</label>
@@ -456,7 +238,7 @@ export default function AdminAIModelsPage() {
                           aiMatchingTemperature: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                   <div>
@@ -473,7 +255,7 @@ export default function AdminAIModelsPage() {
                           aiMatchingTopP: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                   <div>
@@ -489,7 +271,7 @@ export default function AdminAIModelsPage() {
                           aiMatchingMaxOutputTokens: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                 </div>
@@ -497,34 +279,24 @@ export default function AdminAIModelsPage() {
             </div>
 
             <div className="rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Vision (รูปภาพ)</h3>
-                {!visionModelValid && settings.aiVisionModel && (
-                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                    <AlertTriangle className="w-3 h-3" />
-                    ไม่อยู่ในรายการ generateContent
-                  </span>
-                )}
-              </div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Vision (รูปภาพ)</h3>
               <div className="mt-3 space-y-3">
                 <div>
                   <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                     Model name
                   </label>
                   <input
-                    list="ai-models"
                     value={settings.aiVisionModel || ""}
                     onChange={(e) =>
                       setSettings((prev) => ({ ...prev, aiVisionModel: e.target.value }))
                     }
                     placeholder="gemini-1.5-flash"
-                    className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                    className={inputClass}
                   />
                   <p className="text-xs text-gray-400 mt-1">
                     แนะนำโมเดลที่รองรับภาพ เช่น gemini-1.5-flash
                   </p>
                 </div>
-
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div>
                     <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Temperature</label>
@@ -540,7 +312,7 @@ export default function AdminAIModelsPage() {
                           aiVisionTemperature: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                   <div>
@@ -557,7 +329,7 @@ export default function AdminAIModelsPage() {
                           aiVisionTopP: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                   <div>
@@ -573,7 +345,7 @@ export default function AdminAIModelsPage() {
                           aiVisionMaxOutputTokens: parseNumber(e.target.value),
                         }))
                       }
-                      className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      className={inputClass}
                     />
                   </div>
                 </div>
@@ -587,147 +359,21 @@ export default function AdminAIModelsPage() {
             Gemini Agent Model
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">
-            ตั้งค่าโมเดล Gemini สำหรับผู้ช่วย — provider, context, OpenRouter อยู่ที่{" "}
+            ตั้งค่าโมเดล Gemini สำหรับผู้ช่วย — provider และ context อยู่ที่{" "}
             <Link href="/admin/ai/settings" className="text-[#06C755] hover:underline">
               ตั้งค่า AI รวม
             </Link>
           </p>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <div className="flex items-center justify-between gap-2">
-                <label className="text-xs text-gray-500">Gemini Agent Model</label>
-                {!agentModelValid && settings.agentModel && (
-                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                    <AlertTriangle className="w-3 h-3" />
-                    ไม่อยู่ในรายการ
-                  </span>
-                )}
-              </div>
-              <input
-                list="ai-models"
-                value={settings.agentModel || ""}
-                onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, agentModel: e.target.value }))
-                }
-                placeholder="models/gemini-2.5-flash"
-                className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-              />
-            </div>
-          </div>
-          <AgentProviderTestPanel settings={settings} />
-        </div>
-
-        <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                รายการโมเดลที่รองรับ generateContent
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                ดึงข้อมูลด้วย ModelService.ListModels เพื่อดูเมธอดที่รองรับ
-              </p>
-            </div>
-            <button
-              onClick={loadModels}
-              disabled={loadingModels}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              {loadingModels ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-              รีเฟรช
-            </button>
-          </div>
-
-          <div className="mt-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ค้นหาโมเดล"
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
-              />
-            </div>
-          </div>
-
-          {modelError && (
-            <div className="mt-4 text-sm text-red-500">
-              {modelError}
-            </div>
-          )}
-
-          <div className="mt-4 space-y-3">
-            {loadingModels ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                กำลังโหลดรายการโมเดล
-              </div>
-            ) : generateContentModels.length === 0 ? (
-              <div className="text-sm text-gray-500">ไม่พบรายการโมเดล</div>
-            ) : (
-              generateContentModels.map((model) => (
-                <div
-                  key={model.name}
-                  className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                      {model.displayName || model.name}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {model.name}
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {(model.supportedGenerationMethods || []).map((method) => (
-                        <span
-                          key={method}
-                          className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                        >
-                          {method}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() =>
-                        setSettings((prev) => ({ ...prev, aiNerModel: model.name }))
-                      }
-                      className="px-3 py-2 rounded-xl text-sm bg-[#06C755]/10 text-[#06C755] hover:bg-[#06C755]/20"
-                    >
-                      ใช้กับ NER
-                    </button>
-                    <button
-                      onClick={() =>
-                        setSettings((prev) => ({ ...prev, aiMatchingModel: model.name }))
-                      }
-                      className="px-3 py-2 rounded-xl text-sm bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
-                    >
-                      ใช้กับ Matching
-                    </button>
-                    <button
-                      onClick={() =>
-                        setSettings((prev) => ({ ...prev, aiVisionModel: model.name }))
-                      }
-                      className="px-3 py-2 rounded-xl text-sm bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
-                    >
-                      ใช้กับ Vision
-                    </button>
-                    <button
-                      onClick={() =>
-                        setSettings((prev) => ({ ...prev, agentModel: model.name }))
-                      }
-                      className="px-3 py-2 rounded-xl text-sm bg-violet-500/10 text-violet-600 hover:bg-violet-500/20"
-                    >
-                      ใช้กับ Agent
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
+          <div>
+            <label className="text-xs text-gray-500">Gemini Agent Model</label>
+            <input
+              value={settings.agentModel || ""}
+              onChange={(e) =>
+                setSettings((prev) => ({ ...prev, agentModel: e.target.value }))
+              }
+              placeholder="models/gemini-2.5-flash"
+              className={inputClass}
+            />
           </div>
         </div>
       </main>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import InfoTooltip from "@/components/ui/info-tooltip";
+import { ApiKeyLabelLink } from "@/components/admin/api-key-label-link";
 import {
   WIZARD_FREE_OPENROUTER_MODELS,
   type WizardAiConfigInput,
@@ -84,7 +85,7 @@ export function StepAiConfig({
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <h2 className="text-base font-semibold text-text-primary">ตั้งค่า AI (ไม่บังคับ)</h2>
-        <InfoTooltip content="ใช้ free tier ได้ — ตั้งทีหลังในแผงแอดมินก็ได้" />
+        <InfoTooltip content="บันทึกได้โดยไม่ต้องทดสอบ — ตรวจและแก้คีย์ทีหลังในแผงแอดมินได้" />
       </div>
 
       <ValidationSummary issues={issues} title="กรุณาตรวจสอบข้อมูลในขั้นตอนนี้:" />
@@ -106,9 +107,12 @@ export function StepAiConfig({
 
       {showGemini ? (
         <div>
-          <label htmlFor={fieldId("geminiApiKey")} className="block text-sm font-medium mb-1">
-            Gemini API Key
-          </label>
+          <ApiKeyLabelLink
+            htmlFor={fieldId("geminiApiKey")}
+            label="Gemini API Key"
+            href="https://aistudio.google.com/"
+            ariaLabel="เปิด Google AI Studio"
+          />
           <input
             id={fieldId("geminiApiKey")}
             type="password"
@@ -130,9 +134,12 @@ export function StepAiConfig({
       {showOpenRouter ? (
         <>
           <div>
-            <label htmlFor={fieldId("openrouterApiKey")} className="block text-sm font-medium mb-1">
-              OpenRouter API Key
-            </label>
+            <ApiKeyLabelLink
+              htmlFor={fieldId("openrouterApiKey")}
+              label="OpenRouter API Key"
+              href="https://openrouter.ai/"
+              ariaLabel="เปิด OpenRouter"
+            />
             <input
               id={fieldId("openrouterApiKey")}
               type="password"
@@ -169,28 +176,9 @@ export function StepAiConfig({
         </>
       ) : null}
 
-      <div className="rounded-xl border border-border-light bg-bg-secondary p-3 text-xs text-text-secondary space-y-1">
-        <p>รับ API key ฟรีได้ที่ Google AI Studio และ OpenRouter</p>
-        <p>
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary underline"
-          >
-            Google AI Studio
-          </a>
-          {" · "}
-          <a
-            href="https://openrouter.ai/keys"
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary underline"
-          >
-            OpenRouter
-          </a>
-        </p>
-      </div>
+      <p className="text-xs text-text-secondary">
+        กดไอคอนข้างชื่อฟิลด์เพื่อไปรับ API key ฟรี — ตรวจคีย์ทีหลังได้ที่แผงแอดมิน
+      </p>
 
       <button
         type="button"
