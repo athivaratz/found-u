@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Save,
   AlertTriangle,
-  Activity,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { getAppSettingsWithMeta, updateAppSettings } from "@/lib/database";
@@ -32,17 +31,6 @@ type EndpointRow = {
   pricingPrompt?: string;
   pricingCompletion?: string;
   uptimeLast30m?: number | null;
-};
-
-type ProbeResult = {
-  ok: boolean;
-  model: string;
-  text: string;
-  finishReason?: string;
-  nativeFinishReason?: string;
-  provider?: string;
-  generationId?: string;
-  error?: string;
 };
 
 function parseCsvList(value: string): string[] {
@@ -63,14 +51,6 @@ export default function AdminOpenRouterSettingsPage() {
   const [endpoints, setEndpoints] = useState<EndpointRow[]>([]);
   const [endpointsLoading, setEndpointsLoading] = useState(false);
   const [endpointsError, setEndpointsError] = useState<string | null>(null);
-
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<ProbeResult | null>(null);
-
-  const modelId =
-    settings.agentOpenRouterModel ||
-    process.env.NEXT_PUBLIC_OPENROUTER_MODEL ||
-    DEFAULT_APP_SETTINGS.agentOpenRouterModel!;
 
   const selectedOrder = settings.agentOpenRouterProviderOrder ?? [];
   const ignoreText = (settings.agentOpenRouterProviderIgnore ?? []).join(", ");
@@ -166,29 +146,6 @@ export default function AdminOpenRouterSettingsPage() {
       console.error(error);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const runTest = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const res = await fetch("/api/agent/openrouter/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings }),
-      });
-      const data = (await res.json()) as ProbeResult;
-      setTestResult(data);
-    } catch (error) {
-      setTestResult({
-        ok: false,
-        model: modelId,
-        text: "",
-        error: error instanceof Error ? error.message : "ทดสอบไม่สำเร็จ",
-      });
-    } finally {
-      setTesting(false);
     }
   };
 
@@ -477,47 +434,6 @@ export default function AdminOpenRouterSettingsPage() {
               เลือกอย่างน้อย 1 provider แล้วเปิด Lock เพื่อบังคับใช้ endpoint เดิม
             </p>
           )}
-        </div>
-
-        <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Activity className="w-5 h-5 text-blue-500" />
-              ทดสอบการเชื่อมต่อ
-            </h2>
-            <button
-              type="button"
-              onClick={() => void runTest()}
-              disabled={testing}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium disabled:opacity-60"
-            >
-              {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              ทดสอบ
-            </button>
-          </div>
-
-          {testResult ? (
-            <div
-              className={`rounded-xl p-3 text-sm ${
-                testResult.ok
-                  ? "bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-200"
-                  : "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200"
-              }`}
-            >
-              {testResult.ok ? (
-                <>
-                  <p>OK — provider: <strong>{testResult.provider || "?"}</strong></p>
-                  <p>finish_reason: {testResult.finishReason ?? "-"}</p>
-                  {testResult.nativeFinishReason ? (
-                    <p>native: {testResult.nativeFinishReason}</p>
-                  ) : null}
-                  <p className="mt-1 opacity-90">{testResult.text.slice(0, 200)}</p>
-                </>
-              ) : (
-                <p>{testResult.error || "ทดสอบไม่สำเร็จ"}</p>
-              )}
-            </div>
-          ) : null}
         </div>
       </main>
     </div>

@@ -2,13 +2,15 @@ import {
   getPublicHeroImages,
   getPublicLandingSettings,
 } from "@/lib/landing-public-data";
+import { listHelpPages } from "@/lib/help/data";
 import { LandingPageClient } from "@/components/landing/landing-page-client";
 
 export async function LandingPage() {
-  const [settings, heroImages, mobileHeroImages] = await Promise.all([
+  const [settings, heroImages, mobileHeroImages, helpPages] = await Promise.all([
     getPublicLandingSettings(),
     getPublicHeroImages("img"),
     getPublicHeroImages("img/mobile_responsive"),
+    listHelpPages(),
   ]);
 
   return (
@@ -17,6 +19,10 @@ export async function LandingPage() {
       comingSoonMessage={settings.comingSoonMessage}
       heroImages={heroImages}
       mobileHeroImages={mobileHeroImages}
+      helpLinks={helpPages.map((page) => ({
+        href: `/help/${page.slug}`,
+        label: page.title,
+      }))}
     />
   );
 }

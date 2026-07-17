@@ -18,6 +18,7 @@ import {
 import { withProviderFallback, getAgentConfig } from "@/lib/agent/provider-router";
 import { resolveAiCredentials } from "@/lib/ai/credentials-resolver";
 import { buildOpenRouterRequestExtras } from "@/lib/agent/openrouter-routing";
+import { getRuntimeSchoolName } from "@/lib/agent/school-context";
 import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
 import { warnHallucinatedTrackingCodes } from "@/lib/agent/hallucination-guard";
 import { isAdminUser } from "@/lib/nfc-server";
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
 
     const settings = await getAppSettingsAdmin();
+    const schoolName = await getRuntimeSchoolName();
     const mergedSettings = normalizeAgentSettings({
       ...DEFAULT_APP_SETTINGS,
       ...settings,
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
           userId: user.id,
           isAdmin,
           memoryFacts: safeFacts,
+          schoolName,
           onStepLog: (step) => {
             collector.steps.push(step);
           },

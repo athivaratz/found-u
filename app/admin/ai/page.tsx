@@ -39,7 +39,7 @@ export default function AdminAIPage() {
           AI Center
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          จัดการโมเดล AI และทดสอบการเชื่อมต่อระบบ
+          ตั้งค่า AI, API keys และ pipeline models
         </p>
       </div>
 
@@ -80,7 +80,7 @@ export default function AdminAIPage() {
                   Gemini & Pipeline
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  NER, Matching, Vision, Gemini Agent model
+                  NER, Matching, Vision — กรอกชื่อโมเดลโดยตรง
                 </p>
               </div>
             </div>

@@ -11,6 +11,8 @@ const KNOWN_ROUTE_PREFIXES = [
   "/settings",
   "/setup",
   "/banned",
+  "/help",
+  "/blog",
 ] as const;
 
 const KNOWN_EXACT_PATHS = ["/"] as const;

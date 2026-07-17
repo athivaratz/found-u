@@ -167,7 +167,10 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
   overflow-y: auto;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -175,7 +178,10 @@ body {
   color: var(--text-primary);
   font-family: 'Kanit', sans-serif;
   min-height: 100vh;
-  overflow-x: hidden;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   overflow-y: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -646,4 +652,15 @@ html[data-magicui-theme-vt="active"]::view-transition-old(root) {
 
 html[data-magicui-theme-vt="active"]::view-transition-new(root) {
   clip-path: var(--magicui-theme-vt-clip-from, circle(0px at 50% 50%));
+}
+
+/* Shiki dual-theme code blocks (light/dark via CSS variables) */
+.shiki,
+.shiki span {
+  color: var(--shiki-light);
+  background-color: transparent;
+}
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark);
 }

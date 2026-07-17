@@ -181,17 +181,6 @@ export async function saveAiConfigAction(input: {
       parsed.data.openrouterModel?.trim() ||
       WIZARD_FREE_OPENROUTER_MODELS[0];
 
-    if (parsed.data.provider === "gemini" || parsed.data.provider === "auto") {
-      const key = parsed.data.geminiApiKey?.trim();
-      if (!key) return { ok: false, error: "กรุณากรอก Gemini API key" };
-      await testGeminiKey(key);
-    }
-    if (parsed.data.provider === "openrouter" || parsed.data.provider === "auto") {
-      const key = parsed.data.openrouterApiKey?.trim();
-      if (!key) return { ok: false, error: "กรุณากรอก OpenRouter API key" };
-      await testOpenRouterKey(key, model);
-    }
-
     await saveAiCredentialsData({
       provider: parsed.data.provider,
       ...(parsed.data.geminiApiKey?.trim()

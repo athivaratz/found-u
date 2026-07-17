@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Radio,
   MapPin,
+  Newspaper,
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -56,6 +57,12 @@ export const adminNavGroups: AdminNavGroup[] = [
       { href: "/admin/nfc", icon: Radio, label: "NFC Tags", description: "จัดการแท็ก NFC" },
       { href: "/admin/categories", icon: Tags, label: "หมวดหมู่", description: "เพิ่ม/ลบหมวดหมู่" },
       { href: "/admin/moderation", icon: Shield, label: "Moderation", description: "ตรวจสอบและอนุมัติ" },
+      {
+        href: "/admin/blog",
+        icon: Newspaper,
+        label: "บทความและคู่มือ",
+        description: "เขียนบทความ / แก้คู่มือ /help",
+      },
     ],
   },
   {
@@ -64,7 +71,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     items: [
       { href: "/admin/logs", icon: FileText, label: "Logs", description: "ประวัติการใช้งาน" },
       { href: "/admin/error-logs", icon: AlertTriangle, label: "Error Logs", description: "Errors ในระบบ" },
-      { href: "/admin/ai", icon: Bot, label: "AI", description: "โมเดลและการทดสอบ" },
+      { href: "/admin/ai", icon: Bot, label: "AI", description: "ตั้งค่า AI และ API keys" },
       { href: "/admin/maps", icon: MapPin, label: "แผนที่และ GPS", description: "ขอบเขตและแผนที่" },
       { href: "/admin/settings", icon: Settings, label: "ตั้งค่าระบบ", description: "System Settings" },
     ],

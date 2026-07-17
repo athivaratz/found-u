@@ -150,8 +150,8 @@ export function AgentMessageBubble({
 
   if (isUser) {
     return (
-      <div className="flex justify-end mb-4">
-        <div className="max-w-[85%] md:max-w-[70%] px-4 py-2.5 rounded-2xl rounded-br-md bg-line-green-light text-text-primary text-base leading-relaxed">
+      <div className="flex justify-end mb-4 min-w-0 max-w-full">
+        <div className="max-w-[85%] md:max-w-[70%] min-w-0 px-4 py-2.5 rounded-2xl rounded-br-md bg-line-green-light text-text-primary text-base leading-relaxed break-words [overflow-wrap:anywhere]">
           {text}
         </div>
       </div>
@@ -159,11 +159,11 @@ export function AgentMessageBubble({
   }
 
   return (
-    <div className="flex gap-3 mb-6 group">
+    <div className="flex gap-3 mb-6 group min-w-0 max-w-full">
       <div className="agent-avatar w-8 h-8 shrink-0 mt-0.5" aria-hidden>
         <Search className="w-4 h-4" strokeWidth={2.25} />
       </div>
-      <div className="flex-1 min-w-0 max-w-none">
+      <div className="flex-1 min-w-0 max-w-full overflow-hidden">
         {showThinkingLog ? (
           <AgentThinkingLog message={message} isStreaming={isStreaming} />
         ) : null}
@@ -171,7 +171,7 @@ export function AgentMessageBubble({
         {toolErrors.map((err, i) => (
           <div
             key={`tool-err-${i}`}
-            className="rounded-xl px-3 py-2 mb-3 text-xs text-status-error bg-status-error-light/80 border border-status-error/20"
+            className="rounded-xl px-3 py-2 mb-3 text-xs text-status-error bg-status-error-light/80 border border-status-error/20 break-words"
           >
             {err}
           </div>
@@ -182,14 +182,16 @@ export function AgentMessageBubble({
         ))}
 
         {items.length > 0 && (
-          <div className="flex gap-3 overflow-x-auto md:overflow-visible pb-2 mb-3 -mx-1 px-1 md:grid md:grid-cols-2 md:gap-3">
-            {items.map((item, index) => (
-              <ItemResultCard
-                key={`${itemArtifactKey(item)}-${index}`}
-                item={item}
-                isNew={newItemIds.has(item.id || "")}
-              />
-            ))}
+          <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-2 mb-3 -mx-1 px-1 [scrollbar-gutter:stable]">
+            <div className="flex gap-3 w-max max-w-none md:grid md:grid-cols-2 md:gap-3 md:w-full md:max-w-full">
+              {items.map((item, index) => (
+                <ItemResultCard
+                  key={`${itemArtifactKey(item)}-${index}`}
+                  item={item}
+                  isNew={newItemIds.has(item.id || "")}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -198,8 +200,8 @@ export function AgentMessageBubble({
         ))}
 
         {text ? (
-          <div className="relative">
-            <p className="text-base leading-relaxed text-text-primary whitespace-pre-wrap">
+          <div className="relative min-w-0 max-w-full">
+            <p className="text-base leading-relaxed text-text-primary whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
               {text}
               {isStreaming ? <span className="agent-stream-cursor" aria-hidden /> : null}
             </p>

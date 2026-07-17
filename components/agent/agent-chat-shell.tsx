@@ -101,7 +101,7 @@ function AgentChatInner() {
       <ChatSidebar variant="inline" />
       <ChatSidebar variant="drawer" />
 
-      <div className="flex flex-col min-h-0 flex-1 agent-surface-bg agent-chat-pane assistant-desktop:bg-bg-primary">
+      <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-x-hidden agent-surface-bg agent-chat-pane assistant-desktop:bg-bg-primary">
         <AgentTopBar
           status={status}
           onNewChat={() => void createSession()}
@@ -141,7 +141,7 @@ function AgentChatInner() {
 
         {messages.length > 0 ? (
           <ClassicQuickLinks
-            className="px-4 pb-2 shrink-0"
+            className="px-4 pb-2 shrink-0 w-full max-w-full min-w-0"
             onAgentPrompt={sendPrompt}
           />
         ) : null}
@@ -152,7 +152,7 @@ function AgentChatInner() {
           onSubmit={onSubmit}
           onVoiceClick={() => !isThinking && setVoiceOpen(true)}
           disabled={isThinking}
-          className="shrink-0"
+          className="shrink-0 w-full max-w-full min-w-0"
         />
 
         <VoiceSphereOverlay

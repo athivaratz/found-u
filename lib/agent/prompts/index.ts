@@ -1,4 +1,5 @@
-import { IDENTITY_SECTION } from "./identity";
+import { buildIdentitySection } from "./identity";
+import { DEFAULT_SCHOOL_NAME } from "@/lib/agent/school-context";
 import { SCOPE_SECTION } from "./scope";
 import { TOOL_POLICY_SECTION } from "./tool-policy";
 import { GROUNDING_SECTION } from "./grounding";
@@ -13,6 +14,7 @@ export type AgentPromptRuntime = {
   today?: string;
   userLoggedIn?: boolean;
   memoryFacts?: MemoryFact[];
+  schoolName?: string;
 };
 
 export function buildAgentSystemPrompt(runtime?: AgentPromptRuntime): string {
@@ -36,8 +38,12 @@ export function buildAgentSystemPrompt(runtime?: AgentPromptRuntime): string {
     ? buildMemorySection(runtime.memoryFacts)
     : null;
 
+  const identitySection = buildIdentitySection(
+    runtime?.schoolName?.trim() || DEFAULT_SCHOOL_NAME
+  );
+
   return [
-    IDENTITY_SECTION,
+    identitySection,
     `Today: ${today}`,
     authLine,
     memorySection,

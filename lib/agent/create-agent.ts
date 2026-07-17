@@ -11,7 +11,7 @@ import {
 } from "@/lib/types";
 
 const POST_TOOL_SYNTHESIS_HINT =
-  "You have tool results. Reply in complete Thai only — no more tool calls. Finish every sentence and list item; do not stop mid-word.";
+  "You have tool results. Reply in complete Thai — English only for technical terms (e.g. Tracking Code, LOST-XXXXXX). No Chinese/Japanese/Korean or other scripts. No more tool calls. Finish every sentence and list item; do not stop mid-word.";
 
 export function createFoundUAgent(options: {
   model: LanguageModel;
@@ -19,6 +19,7 @@ export function createFoundUAgent(options: {
   userId: string | null;
   isAdmin?: boolean;
   memoryFacts?: MemoryFact[];
+  schoolName?: string;
   onStepLog?: (step: AgentStepLog) => void;
 }) {
   const settings = normalizeAgentSettings(options.settings);
@@ -34,6 +35,7 @@ export function createFoundUAgent(options: {
   const baseInstructions = buildAgentSystemPrompt({
     userLoggedIn: Boolean(options.userId),
     memoryFacts: facts.length > 0 ? facts : undefined,
+    schoolName: options.schoolName,
   });
 
   return new ToolLoopAgent({

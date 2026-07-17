@@ -39,10 +39,10 @@ export function AgentComposer({
   };
 
   return (
-    <div className={cn("px-4 pb-4 pt-2 max-lg:safe-bottom assistant-desktop:px-5 assistant-desktop:pb-5", className)}>
+    <div className={cn("px-4 pb-4 pt-2 max-lg:safe-bottom assistant-desktop:px-5 assistant-desktop:pb-5 w-full max-w-full min-w-0", className)}>
       <div
         className={cn(
-          "flex items-end gap-2 p-2 rounded-2xl bg-bg-card",
+          "flex items-end gap-2 p-2 rounded-2xl bg-bg-card min-w-0",
           "border border-border-light",
           "focus-within:ring-2 focus-within:ring-line-green/25"
         )}
@@ -55,7 +55,7 @@ export function AgentComposer({
           placeholder={thaiCopy.agent.placeholder}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none bg-transparent px-3 py-2.5 text-base text-text-primary placeholder:text-text-tertiary outline-none max-h-[120px]"
+          className="flex-1 min-w-0 resize-none bg-transparent px-3 py-2.5 text-base text-text-primary placeholder:text-text-tertiary outline-none max-h-[120px]"
         />
         {onVoiceClick ? (
           <button
