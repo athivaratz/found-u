@@ -18,8 +18,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import {
-  HELP_SLUGS,
-  isHelpSlug,
   type HelpAudience,
   type HelpSectionType,
 } from "@/lib/help/types";
@@ -52,13 +50,13 @@ const emptySection = (): Omit<SectionRow, "id" | "page_slug" | "sort_order"> => 
 
 export default function AdminHelpEditorPage() {
   const params = useParams();
-  const slugParam = String(params.slug ?? "");
-  const slug = isHelpSlug(slugParam) ? slugParam : null;
+  const slug = String(params.slug ?? "").trim() || null;
   const { user } = useAuth();
   const { showAlert, showConfirm, dialog } = useAppDialog();
   const supabase = useMemo(() => createClient(), []);
 
   const [loading, setLoading] = useState(true);
+  const [notFoundPage, setNotFoundPage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pageForm, setPageForm] = useState<PageForm>({
     title: "",
@@ -77,23 +75,32 @@ export default function AdminHelpEditorPage() {
   const load = useCallback(async () => {
     if (!slug) return;
     setLoading(true);
+    setNotFoundPage(false);
     try {
-      const [{ data: page }, { data: sectionRows }] = await Promise.all([
-        supabase.from("help_pages").select("*").eq("slug", slug).maybeSingle(),
-        supabase
-          .from("help_sections")
-          .select("*")
-          .eq("page_slug", slug)
-          .order("sort_order", { ascending: true }),
-      ]);
+      const [{ data: page, error: pageError }, { data: sectionRows, error: sectionError }] =
+        await Promise.all([
+          supabase.from("help_pages").select("*").eq("slug", slug).maybeSingle(),
+          supabase
+            .from("help_sections")
+            .select("*")
+            .eq("page_slug", slug)
+            .order("sort_order", { ascending: true }),
+        ]);
 
-      if (page) {
-        setPageForm({
-          title: String(page.title ?? ""),
-          description: String(page.description ?? ""),
-          intro: String(page.intro ?? ""),
-        });
+      if (pageError) throw pageError;
+      if (sectionError) throw sectionError;
+
+      if (!page) {
+        setNotFoundPage(true);
+        setSections([]);
+        return;
       }
+
+      setPageForm({
+        title: String(page.title ?? ""),
+        description: String(page.description ?? ""),
+        intro: String(page.intro ?? ""),
+      });
 
       setSections(
         (sectionRows ?? []).map((row) => ({
@@ -120,8 +127,13 @@ export default function AdminHelpEditorPage() {
   }, [showAlert, slug, supabase]);
 
   useEffect(() => {
+    if (!slug) {
+      setLoading(false);
+      setNotFoundPage(true);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [load, slug]);
 
   const getToken = useCallback(async () => {
     if (!user) throw new Error("Not authenticated");
@@ -307,7 +319,7 @@ export default function AdminHelpEditorPage() {
     await load();
   };
 
-  if (!slug || !(HELP_SLUGS as readonly string[]).includes(slugParam)) {
+  if (!slug || notFoundPage) {
     return (
       <div className="p-8">
         <p className="text-red-500">ไม่พบหน้าคู่มือนี้</p>

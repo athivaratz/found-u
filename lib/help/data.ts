@@ -6,7 +6,6 @@ import type {
   HelpPageWithSections,
   HelpSection,
   HelpSectionType,
-  HelpSlug,
 } from "@/lib/help/types";
 
 function asSectionType(value: unknown): HelpSectionType {
@@ -44,7 +43,7 @@ function mapSection(row: Record<string, unknown>): HelpSection {
 }
 
 export async function getHelpPageWithSections(
-  slug: HelpSlug
+  slug: string
 ): Promise<HelpPageWithSections | null> {
   if (!hasSupabaseAdminEnv()) return null;
 

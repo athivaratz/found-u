@@ -6,21 +6,32 @@ import { GuideFaq } from "@/components/help/guide-faq";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import type { HelpSection } from "@/lib/help/types";
 
-type HowToUseGuideProps = {
+type HelpGuideProps = {
   intro: string | null;
   sections: HelpSection[];
 };
 
-export function HowToUseGuide({ intro, sections }: HowToUseGuideProps) {
+export function HelpGuide({ intro, sections }: HelpGuideProps) {
+  const hasAudienceSplit = useMemo(
+    () =>
+      sections.some(
+        (section) => section.audience === "student" || section.audience === "admin"
+      ),
+    [sections]
+  );
+
   const [audience, setAudience] = useState<"student" | "admin">("student");
 
   const visible = useMemo(() => {
+    if (!hasAudienceSplit) return sections;
     return sections.filter(
       (section) => section.audience === "all" || section.audience === audience
     );
-  }, [audience, sections]);
+  }, [audience, hasAudienceSplit, sections]);
 
-  const steps = visible.filter((s) => s.section_type === "step" || s.section_type === "note");
+  const steps = visible.filter(
+    (s) => s.section_type === "step" || s.section_type === "note"
+  );
   const faqs = visible.filter((s) => s.section_type === "faq");
 
   return (
@@ -31,15 +42,17 @@ export function HowToUseGuide({ intro, sections }: HowToUseGuideProps) {
         </p>
       ) : null}
 
-      <SegmentedTabs
-        items={[
-          { id: "student", label: "นักเรียน" },
-          { id: "admin", label: "แอดมิน" },
-        ]}
-        value={audience}
-        onChange={(id) => setAudience(id)}
-        className="max-w-md"
-      />
+      {hasAudienceSplit ? (
+        <SegmentedTabs
+          items={[
+            { id: "student", label: "นักเรียน" },
+            { id: "admin", label: "แอดมิน" },
+          ]}
+          value={audience}
+          onChange={(id) => setAudience(id)}
+          className="max-w-md"
+        />
+      ) : null}
 
       <div className="space-y-4">
         {steps.map((section, index) => (

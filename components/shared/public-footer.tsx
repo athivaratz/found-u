@@ -7,15 +7,28 @@ import {
 } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
+export type PublicFooterHelpLink = {
+  href: string;
+  label: string;
+};
+
 type PublicFooterProps = {
   className?: string;
   showHelpLinks?: boolean;
+  /** When omitted, shows a single link to /help. Pass rows from help_pages for CMS titles. */
+  helpLinks?: PublicFooterHelpLink[];
 };
 
 export function PublicFooter({
   className,
   showHelpLinks = true,
+  helpLinks,
 }: PublicFooterProps) {
+  const links =
+    helpLinks && helpLinks.length > 0
+      ? helpLinks
+      : [{ href: "/help", label: "ศูนย์ช่วยเหลือ" }];
+
   return (
     <footer
       className={cn("border-t border-border-light bg-bg-secondary safe-bottom", className)}
@@ -28,26 +41,19 @@ export function PublicFooter({
               "flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm"
             )}
           >
-            <Link
-              href="/help/how-to-use"
-              className={cn(
-                "rounded font-medium text-line-green-link hover:text-line-green-link-hover hover:underline",
-                focusRing,
-                "focus-visible:ring-offset-bg-secondary"
-              )}
-            >
-              วิธีใช้งาน
-            </Link>
-            <Link
-              href="/help/new-school"
-              className={cn(
-                "rounded font-medium text-line-green-link hover:text-line-green-link-hover hover:underline",
-                focusRing,
-                "focus-visible:ring-offset-bg-secondary"
-              )}
-            >
-              นำไปใช้ในโรงเรียนของคุณ
-            </Link>
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "rounded font-medium text-line-green-link hover:text-line-green-link-hover hover:underline",
+                  focusRing,
+                  "focus-visible:ring-offset-bg-secondary"
+                )}
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
         </div>
       )}

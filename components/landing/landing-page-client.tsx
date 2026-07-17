@@ -25,7 +25,7 @@ import {
   sectionYHero,
   shell,
 } from "@/components/landing/landing-tokens";
-import { PublicFooter } from "@/components/shared/public-footer";
+import { PublicFooter, type PublicFooterHelpLink } from "@/components/shared/public-footer";
 import type { PublicHeroImage } from "@/lib/landing-public-data";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +95,7 @@ export type LandingPageClientProps = {
   comingSoonMessage: string;
   heroImages: PublicHeroImage[];
   mobileHeroImages: PublicHeroImage[];
+  helpLinks?: PublicFooterHelpLink[];
 };
 
 export function LandingPageClient({
@@ -102,6 +103,7 @@ export function LandingPageClient({
   comingSoonMessage,
   heroImages,
   mobileHeroImages,
+  helpLinks,
 }: LandingPageClientProps) {
   const cardImages = useMemo(
     () => (heroImages.length > 0 ? heroImages : [FALLBACK_HERO_IMAGE]),
@@ -357,7 +359,7 @@ export function LandingPageClient({
         </section>
       </main>
 
-      <PublicFooter className={deferredSection} />
+      <PublicFooter className={deferredSection} helpLinks={helpLinks} />
     </div>
   );
 }

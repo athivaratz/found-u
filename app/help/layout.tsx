@@ -2,10 +2,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { PublicFooter } from "@/components/shared/public-footer";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
+import { listHelpPages } from "@/lib/help/data";
 import { focusRing, shell } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
-export default function HelpLayout({ children }: { children: React.ReactNode }) {
+export default async function HelpLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pages = await listHelpPages();
+
   return (
     <div className="min-h-screen bg-bg-secondary text-text-primary">
       <header className="sticky top-0 z-30 border-b border-border-light bg-bg-primary/95 backdrop-blur">
@@ -28,23 +35,27 @@ export default function HelpLayout({ children }: { children: React.ReactNode }) 
           </Link>
           <div className="flex items-center gap-2">
             <Link
-              href="/help/how-to-use"
+              href="/help"
               className={cn(
                 "hidden rounded-lg px-3 py-2 text-sm text-text-secondary hover:text-text-primary sm:inline-flex",
                 focusRing
               )}
             >
-              วิธีใช้งาน
+              ช่วยเหลือ
             </Link>
-            <Link
-              href="/help/new-school"
-              className={cn(
-                "hidden rounded-lg px-3 py-2 text-sm text-text-secondary hover:text-text-primary sm:inline-flex",
-                focusRing
-              )}
-            >
-              ติดตั้งโรงเรียนใหม่
-            </Link>
+            {pages.map((page) => (
+              <Link
+                key={page.slug}
+                href={`/help/${page.slug}`}
+                className={cn(
+                  "hidden max-w-[10rem] truncate rounded-lg px-3 py-2 text-sm text-text-secondary hover:text-text-primary lg:inline-flex",
+                  focusRing
+                )}
+                title={page.title}
+              >
+                {page.title}
+              </Link>
+            ))}
             <AnimatedThemeToggler />
           </div>
         </div>
@@ -52,7 +63,12 @@ export default function HelpLayout({ children }: { children: React.ReactNode }) 
 
       <main className={cn(shell, "py-8 md:py-12")}>{children}</main>
 
-      <PublicFooter />
+      <PublicFooter
+        helpLinks={pages.map((page) => ({
+          href: `/help/${page.slug}`,
+          label: page.title,
+        }))}
+      />
     </div>
   );
 }
