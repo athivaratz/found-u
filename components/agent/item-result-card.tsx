@@ -33,7 +33,10 @@ export function ItemResultCard({ item, className, isNew }: ItemResultCardProps) 
     <div
       className={cn(
         "rounded-2xl p-4 bg-bg-card border border-border-light",
-        "min-w-[260px] max-w-sm shrink-0 md:min-w-0 md:max-w-none md:shrink",
+        // Carousel: fixed card width that never exceeds the chat pane.
+        // Desktop grid: fill the column.
+        "w-[min(16.25rem,calc(100vw-5.5rem))] max-w-full shrink-0",
+        "md:w-auto md:min-w-0 md:max-w-none md:shrink",
         isNew && "ring-2 ring-line-green/40",
         className
       )}

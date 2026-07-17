@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Radio,
   MapPin,
+  BookOpen,
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -56,6 +57,12 @@ export const adminNavGroups: AdminNavGroup[] = [
       { href: "/admin/nfc", icon: Radio, label: "NFC Tags", description: "จัดการแท็ก NFC" },
       { href: "/admin/categories", icon: Tags, label: "หมวดหมู่", description: "เพิ่ม/ลบหมวดหมู่" },
       { href: "/admin/moderation", icon: Shield, label: "Moderation", description: "ตรวจสอบและอนุมัติ" },
+      {
+        href: "/admin/help",
+        icon: BookOpen,
+        label: "หน้าช่วยเหลือ",
+        description: "แก้ไขคู่มือใช้งาน/ติดตั้ง",
+      },
     ],
   },
   {

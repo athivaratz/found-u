@@ -191,6 +191,41 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["system_config"]["Row"]>;
         Relationships: [];
       };
+      help_pages: {
+        Row: {
+          slug: string;
+          title: string;
+          description: string | null;
+          intro: string | null;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["help_pages"]["Row"]> & {
+          slug: string;
+          title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["help_pages"]["Row"]>;
+        Relationships: [];
+      };
+      help_sections: {
+        Row: {
+          id: string;
+          page_slug: string;
+          section_type: string;
+          audience: string;
+          title: string;
+          body: string;
+          image_url: string | null;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["help_sections"]["Row"]> & {
+          page_slug: string;
+          title: string;
+          body: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["help_sections"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

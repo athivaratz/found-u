@@ -24,8 +24,8 @@ export const revalidate = 60;
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Avoid maximumScale:1 / userScalable:false — some Android browsers
+  // mishandle them and shrink the whole page to fit a desktop-width layout.
   viewportFit: "cover",
   themeColor: "#06C755",
 };

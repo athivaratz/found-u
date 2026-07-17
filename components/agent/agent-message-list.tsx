@@ -41,11 +41,12 @@ export function AgentMessageList({ messages, status }: AgentMessageListProps) {
   }, [messages, status, showTyping, reduceMotion]);
 
   return (
-    <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 md:px-6">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 w-full max-w-full px-4 py-4 md:px-6">
       <AnimatePresence initial={false}>
         {messages.map((message, index) => (
           <m.div
             key={`${message.id}-${index}`}
+            className="min-w-0 max-w-full"
             initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.25, 1, 0.5, 1] }}

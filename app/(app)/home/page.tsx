@@ -49,8 +49,10 @@ function UserNameSlot({
 }
 
 function HomeQuickMenu({ className }: { className?: string }) {
+  // Always single column — this menu is mobile-only; a 2-col grid on
+  // misreported viewports (≥640px CSS) is what makes phones look "squeezed".
   return (
-    <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-3", className)}>
+    <div className={cn("grid grid-cols-1 gap-3 w-full max-w-full", className)}>
       {menuItems
         .filter((m) => m.href !== "/home")
         .map((item) => {
@@ -59,20 +61,20 @@ function HomeQuickMenu({ className }: { className?: string }) {
             <Link
               key={item.href}
               href={item.href}
-              className="group block rounded-xl min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-secondary"
+              className="group block w-full rounded-xl min-h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-secondary"
             >
               <div className="bg-bg-card rounded-xl p-4 border border-border-light group-hover:border-border-medium transition-colors duration-200 motion-safe:group-active:scale-[0.99]">
                 <div className="flex items-center gap-4">
                   <div
                     className={cn(
-                      "w-12 h-12 shell-desktop:w-14 shell-desktop:h-14 rounded-xl shell-desktop:rounded-2xl flex items-center justify-center shrink-0",
+                      "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
                       item.color
                     )}
                   >
-                    <Icon className={cn("w-6 h-6 shell-desktop:w-7 shell-desktop:h-7", item.iconColor)} />
+                    <Icon className={cn("w-6 h-6", item.iconColor)} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base shell-desktop:text-lg font-semibold text-text-primary">
+                    <h3 className="text-base font-semibold text-text-primary">
                       {item.title}
                     </h3>
                     <p className="text-sm text-text-secondary line-clamp-1">{item.subtitle}</p>
@@ -136,7 +138,7 @@ export default function Home() {
   return (
     <div
       className={cn(
-        "bg-bg-primary transition-colors",
+        "bg-bg-primary transition-colors w-full max-w-full",
         "h-dvh max-h-dvh overflow-hidden flex flex-col",
         "shell-desktop:h-auto shell-desktop:max-h-none shell-desktop:min-h-screen shell-desktop:overflow-visible shell-desktop:flex-row"
       )}
@@ -145,13 +147,13 @@ export default function Home() {
 
       <div
         className={cn(
-          "flex flex-1 flex-col min-h-0 min-w-0 main-with-bottom-nav",
+          "flex flex-1 flex-col min-h-0 min-w-0 w-full max-w-full main-with-bottom-nav",
           shellSidebarInset
         )}
       >
         {/* Mobile header — switcher inside the green band */}
-        <header className={cn(shellMobileOnly, "bg-line-green text-white safe-top shrink-0")}>
-          <div className="px-5 pt-5 pb-4 flex flex-col gap-4">
+        <header className={cn(shellMobileOnly, "bg-line-green text-white safe-top shrink-0 w-full")}>
+          <div className="px-4 sm:px-5 pt-4 pb-4 flex flex-col gap-3 sm:gap-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center shrink-0">
@@ -302,12 +304,12 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="relative z-[1] flex-1 min-h-0 overflow-y-auto overscroll-contain min-w-0 bg-bg-secondary px-5 pt-5 pb-6 rounded-t-2xl -mt-3 shell-desktop:mt-0 shell-desktop:rounded-none shell-desktop:px-8 shell-desktop:pt-8 shell-desktop:pb-8 xl:px-12 xl:pb-12">
+        <main className="relative z-[1] flex-1 min-h-0 overflow-y-auto overflow-x-clip overscroll-contain min-w-0 w-full max-w-full bg-bg-secondary px-4 pt-5 pb-6 rounded-t-2xl -mt-3 sm:px-5 shell-desktop:mt-0 shell-desktop:rounded-none shell-desktop:px-8 shell-desktop:pt-8 shell-desktop:pb-8 xl:px-12 xl:pb-12">
           <HomeQuickMenu className={cn("mb-6", shellMobileOnly)} />
 
           <HomeDashboardSection
             {...dashboardProps}
-            className="mt-0"
+            className="mt-0 w-full max-w-full"
           />
         </main>
 

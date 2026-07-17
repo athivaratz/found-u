@@ -204,16 +204,16 @@ export function HomeDashboardSection({
     (effectiveMainPanel === "items" ? itemsLoading : nfcLoading);
 
   return (
-    <section className={cn("mt-8 min-h-[16rem]", className)}>
-      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className={cn("mt-8 min-h-[16rem] w-full max-w-full", className)}>
+      <div className="flex flex-col gap-3 mb-4 shell-desktop:flex-row shell-desktop:items-center shell-desktop:justify-between">
         <SegmentedTabs
           value={effectiveMainPanel}
           onChange={setMainPanel}
           items={mainTabs}
-          className="mb-0 sm:flex-1 sm:max-w-md"
+          className="mb-0 w-full shell-desktop:flex-1 shell-desktop:max-w-md"
         />
         {userId && (
-          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+          <div className="flex items-center gap-2 shrink-0 self-end shell-desktop:self-auto">
             {effectiveMainPanel === "items" && (
               <div className="relative" ref={filterRef}>
                 <button
@@ -223,16 +223,14 @@ export function HomeDashboardSection({
                   aria-haspopup="listbox"
                   aria-label="กรองประเภทรายการ"
                   className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-sm font-medium transition-colors",
+                    "flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
                     itemFilter !== "all" || filterOpen
                       ? "border-line-green/40 bg-line-green/10 text-line-green"
                       : "border-border-light bg-bg-card text-text-secondary hover:text-text-primary hover:border-border-medium"
                   )}
                 >
                   <SlidersHorizontal className="w-4 h-4" />
-                  <span className="hidden sm:inline max-w-[5rem] truncate">
-                    {activeFilterLabel}
-                  </span>
+                  <span className="max-w-[5rem] truncate">{activeFilterLabel}</span>
                 </button>
 
                 {filterOpen && (
