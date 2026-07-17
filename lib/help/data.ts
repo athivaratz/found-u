@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasSupabaseAdminEnv } from "@/lib/setup/db-url";
+import { getPublishedArticleBySlug } from "@/lib/blog/data";
+import type { Article } from "@/lib/blog/types";
 import type {
   HelpAudience,
   HelpPage,
@@ -59,11 +61,9 @@ export async function getHelpPageWithSections(
           .order("sort_order", { ascending: true }),
       ]);
 
-    if (pageError || sectionError || !pageRow) {
-      if (pageError) console.error("[help] page fetch error:", pageError);
-      if (sectionError) console.error("[help] sections fetch error:", sectionError);
-      return null;
-    }
+    if (pageError) console.error("[help] page fetch error:", pageError);
+    if (sectionError) console.error("[help] sections fetch error:", sectionError);
+    if (pageError || sectionError || !pageRow) return null;
 
     return {
       ...mapPage(pageRow as Record<string, unknown>),
@@ -77,20 +77,58 @@ export async function getHelpPageWithSections(
   }
 }
 
+/** Prefer rich articles (section=help); fall back to legacy help_pages */
+export async function getHelpContent(
+  slug: string
+): Promise<
+  | { kind: "legacy"; page: HelpPageWithSections }
+  | { kind: "article"; article: Article }
+  | null
+> {
+  const article = await getPublishedArticleBySlug(slug, "help");
+  if (article) return { kind: "article", article };
+
+  const legacy = await getHelpPageWithSections(slug);
+  if (legacy) return { kind: "legacy", page: legacy };
+
+  return null;
+}
+
 export async function listHelpPages(): Promise<HelpPage[]> {
   if (!hasSupabaseAdminEnv()) return [];
 
   try {
     const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("help_pages")
-      .select("*")
-      .order("slug", { ascending: true });
-    if (error) {
-      console.error("[help] listHelpPages:", error);
-      return [];
-    }
-    return (data ?? []).map((row) => mapPage(row as Record<string, unknown>));
+    const [{ data: legacyRows, error: legacyError }, { data: articleRows, error: articleError }] =
+      await Promise.all([
+        admin.from("help_pages").select("*").order("slug", { ascending: true }),
+        admin
+          .from("articles")
+          .select("slug, title, excerpt, updated_at")
+          .eq("section", "help")
+          .eq("status", "published")
+          .order("published_at", { ascending: false }),
+      ]);
+
+    if (legacyError) console.error("[help] listHelpPages legacy:", legacyError);
+    if (articleError) console.error("[help] listHelpPages articles:", articleError);
+
+    const legacy = (legacyRows ?? []).map((row) =>
+      mapPage(row as Record<string, unknown>)
+    );
+    const legacySlugs = new Set(legacy.map((p) => p.slug));
+
+    const fromArticles: HelpPage[] = (articleRows ?? [])
+      .filter((row) => !legacySlugs.has(String(row.slug)))
+      .map((row) => ({
+        slug: String(row.slug),
+        title: String(row.title ?? ""),
+        description: row.excerpt == null ? null : String(row.excerpt),
+        intro: null,
+        updated_at: String(row.updated_at ?? new Date().toISOString()),
+      }));
+
+    return [...legacy, ...fromArticles];
   } catch (error) {
     console.error("[help] listHelpPages:", error);
     return [];

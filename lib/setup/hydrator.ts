@@ -72,6 +72,7 @@ export async function hydrateDatabase(): Promise<HydrationResult> {
 
     await ensureAccountsTableWithSql(sql);
     await ensureStorageBucketsWithSql(sql);
+    await backfillSetupStatusIfNeeded(sql);
 
     return { ok: true, mode: "full" };
   } catch (error) {

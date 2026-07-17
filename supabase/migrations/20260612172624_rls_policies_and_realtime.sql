@@ -125,15 +125,38 @@ CREATE POLICY nfc_found_reports_update ON public.nfc_found_reports FOR UPDATE TO
 CREATE POLICY nfc_found_reports_delete ON public.nfc_found_reports FOR DELETE TO authenticated
   USING (public.is_admin());
 
--- Realtime publication
-ALTER PUBLICATION supabase_realtime ADD TABLE public.lost_items;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.found_items;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.categories;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.locations;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.contact_types;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.nfc_tags;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.nfc_found_reports;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.ai_usage;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings;
-;
+-- Realtime publication (best-effort: never abort hydration if Realtime is unavailable)
+DO $$
+DECLARE
+  tbl text;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    RAISE NOTICE 'publication supabase_realtime does not exist — skipping realtime table adds';
+    RETURN;
+  END IF;
+
+  FOREACH tbl IN ARRAY ARRAY[
+    'public.lost_items',
+    'public.found_items',
+    'public.profiles',
+    'public.categories',
+    'public.locations',
+    'public.contact_types',
+    'public.nfc_tags',
+    'public.nfc_found_reports',
+    'public.ai_usage',
+    'public.app_settings'
+  ]
+  LOOP
+    BEGIN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %s', tbl);
+    EXCEPTION
+      WHEN duplicate_object THEN
+        NULL; -- already in publication
+      WHEN undefined_table THEN
+        RAISE NOTICE 'skip realtime add for missing table %', tbl;
+      WHEN OTHERS THEN
+        RAISE NOTICE 'skip realtime add for %: %', tbl, SQLERRM;
+    END;
+  END LOOP;
+END $$;

@@ -9,6 +9,7 @@ export const SETUP_WIZARD_STEPS_COUNT = 3;
 export const SCHOOL_BRANDING_BUCKET = "school-branding";
 export const ITEM_UPLOADS_BUCKET = "item-uploads";
 export const HELP_ASSETS_BUCKET = "help-assets";
+export const BLOG_ASSETS_BUCKET = "blog-assets";
 
 export const SETUP_WIZARD_STEP_LABELS = [
   { id: "branding", label: "โรงเรียน" },

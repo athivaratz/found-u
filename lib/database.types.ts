@@ -226,6 +226,29 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["help_sections"]["Row"]>;
         Relationships: [];
       };
+      articles: {
+        Row: {
+          id: string;
+          slug: string;
+          section: string;
+          status: string;
+          title: string;
+          excerpt: string | null;
+          cover_image_url: string | null;
+          author_name: string | null;
+          tags: string[];
+          content_json: Record<string, unknown>;
+          published_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["articles"]["Row"]> & {
+          slug: string;
+          title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["articles"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

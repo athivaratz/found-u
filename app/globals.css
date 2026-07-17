@@ -653,3 +653,14 @@ html[data-magicui-theme-vt="active"]::view-transition-old(root) {
 html[data-magicui-theme-vt="active"]::view-transition-new(root) {
   clip-path: var(--magicui-theme-vt-clip-from, circle(0px at 50% 50%));
 }
+
+/* Shiki dual-theme code blocks (light/dark via CSS variables) */
+.shiki,
+.shiki span {
+  color: var(--shiki-light);
+  background-color: transparent;
+}
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark);
+}

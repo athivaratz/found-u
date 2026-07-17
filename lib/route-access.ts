@@ -4,7 +4,7 @@ import { AUTH_ROUTES, isAuthPublicPath, isSetupPublicPath } from "@/lib/auth-rou
 const PUBLIC_PATHS = ["/", "/banned"] as const;
 
 /** Prefixes that are known routes but must remain reachable without login */
-const PUBLIC_PREFIXES = ["/help"] as const;
+const PUBLIC_PREFIXES = ["/help", "/blog"] as const;
 
 function isPublicPrefix(pathname: string): boolean {
   return (PUBLIC_PREFIXES as readonly string[]).some(
