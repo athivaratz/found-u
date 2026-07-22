@@ -222,6 +222,7 @@ export function getAccuratePosition(
     };
 
     // Fast path when a fresh accurate reading is already available.
+    // If it already meets the target, do not start watchPosition (avoids long hangs).
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         consider(pos);

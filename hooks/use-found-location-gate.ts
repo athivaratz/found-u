@@ -6,6 +6,7 @@ import { isPointInPolygon, normalizeGeoPolygon } from "@/lib/utils";
 import {
   requestGeolocationAccess,
   watchGeolocationPermission,
+  type GeolocationPermissionState,
   type VerifyLocationMode,
 } from "@/lib/geolocation";
 
@@ -55,6 +56,10 @@ export function useFoundLocationGate({
   const [gateOpen, setGateOpen] = useState(false);
   /** Prevent auto re-open modal in the same failure turn after user dismisses. */
   const dismissTurnRef = useRef(false);
+  const verifyAbortRef = useRef<AbortController | null>(null);
+  const verifyInFlightRef = useRef(false);
+  const prevPermissionRef = useRef<GeolocationPermissionState | null>(null);
+  const didAutoVerifyKeyRef = useRef<string | null>(null);
 
   const onVerifiedCoordsRef = useRef(onVerifiedCoords);
   useEffect(() => {
@@ -89,6 +94,12 @@ export function useFoundLocationGate({
         return true;
       }
 
+      // Cancel any in-flight GPS wait so retries don't stack.
+      verifyAbortRef.current?.abort();
+      const abort = new AbortController();
+      verifyAbortRef.current = abort;
+      verifyInFlightRef.current = true;
+
       setLocationVerified(null);
       setLocationErrorType(null);
 
@@ -96,6 +107,7 @@ export function useFoundLocationGate({
         setLocationVerified(false);
         setLocationErrorType("boundary_not_configured");
         setGpsLoading(false);
+        verifyInFlightRef.current = false;
         return false;
       }
 
@@ -105,12 +117,21 @@ export function useFoundLocationGate({
         setLocationErrorType("position");
         setLocationVerified(false);
         setGpsLoading(false);
+        verifyInFlightRef.current = false;
         return false;
       }
 
       const result = await requestGeolocationAccess(requestMode, {
-        onProgress: (coords) => setUserCurrentCoords(coords),
+        onProgress: (coords) => {
+          if (!abort.signal.aborted) setUserCurrentCoords(coords);
+        },
+        signal: abort.signal,
       });
+
+      if (abort.signal.aborted) {
+        verifyInFlightRef.current = false;
+        return false;
+      }
 
       if (!result.ok) {
         if (result.error === "permission") {
@@ -124,6 +145,7 @@ export function useFoundLocationGate({
         }
         setLocationVerified(false);
         setGpsLoading(false);
+        verifyInFlightRef.current = false;
         return false;
       }
 
@@ -134,18 +156,20 @@ export function useFoundLocationGate({
       if (inside) {
         applyVerified(coords);
         setGpsLoading(false);
+        verifyInFlightRef.current = false;
         return true;
       }
 
       setLocationVerified(false);
       setLocationErrorType("outside");
       setGpsLoading(false);
+      verifyInFlightRef.current = false;
       return false;
     },
     [appSettings.mapEnforceFoundInSchool, polygon, applyVerified]
   );
 
-  // Auto / silent verify
+  // Auto / silent verify once per settings identity (avoid restart loops)
   useEffect(() => {
     if (!enabled || !appSettingsReady || adminGpsBypassed) return;
     if (!enforcementRequired) {
@@ -153,6 +177,9 @@ export function useFoundLocationGate({
       return;
     }
 
+    const key = `${mode}:${boundaryString}:${enforcementRequired}`;
+    if (didAutoVerifyKeyRef.current === key) return;
+    didAutoVerifyKeyRef.current = key;
     void verifyLocation("auto");
   }, [
     enabled,
@@ -164,34 +191,46 @@ export function useFoundLocationGate({
     verifyLocation,
   ]);
 
-  // Watch permission changes
+  // Watch permission: only re-verify on denied → granted (not on every result)
   useEffect(() => {
     if (!enabled || !enforcementRequired || adminGpsBypassed) return;
 
     const unwatch = watchGeolocationPermission((state) => {
+      const prev = prevPermissionRef.current;
+      prevPermissionRef.current = state;
+
       if (state === "denied") {
+        verifyAbortRef.current?.abort();
         setLocationVerified(false);
         setLocationErrorType("permission");
         setGpsLoading(false);
-      } else if (state === "granted" && locationVerified !== true) {
+        verifyInFlightRef.current = false;
+        return;
+      }
+
+      if (
+        state === "granted" &&
+        prev === "denied" &&
+        !verifyInFlightRef.current
+      ) {
         dismissTurnRef.current = false;
         void verifyLocation("userGesture");
       }
     });
 
     return unwatch;
-  }, [
-    enabled,
-    enforcementRequired,
-    adminGpsBypassed,
-    locationVerified,
-    verifyLocation,
-  ]);
+  }, [enabled, enforcementRequired, adminGpsBypassed, verifyLocation]);
+
+  useEffect(() => {
+    return () => {
+      verifyAbortRef.current?.abort();
+    };
+  }, []);
 
   const openGate = useCallback(() => {
     dismissTurnRef.current = false;
     setGateOpen(true);
-    if (locationVerified !== true) {
+    if (locationVerified !== true && !verifyInFlightRef.current) {
       void verifyLocation("userGesture");
     }
   }, [locationVerified, verifyLocation]);
