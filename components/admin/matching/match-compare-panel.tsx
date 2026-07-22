@@ -166,7 +166,7 @@ function ScoreSummary({
       </span>
       {match.reasons.length > 0 ? (
         <ul className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-          {match.reasons.slice(0, 3).map((reason) => (
+          {match.reasons.slice(0, 4).map((reason) => (
             <li
               key={reason}
               className="max-w-full truncate rounded-full bg-bg-card px-2 py-0.5 text-xs text-text-secondary"

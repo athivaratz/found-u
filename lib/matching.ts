@@ -2,44 +2,45 @@
 // Uses hierarchical filtering strategy: Category → Location → Time → Item → Description
 
 import { DEFAULT_APP_SETTINGS } from './types';
-import type { LostItem, FoundItem, ItemCategory } from './types';
+import type { LostItem, FoundItem, ItemCategory, MapZone } from './types';
 import { calculateSimilarity } from './ner';
 import { resolveAiCredentials, getGeminiApiKey } from '@/lib/ai/credentials-resolver';
 import { timestampToDate } from '@/lib/database';
+import {
+  haversineKm,
+  resolveMapZone,
+  zoneRelationScore,
+} from '@/lib/map-zones';
 
 function toDate(date: Date | undefined | unknown): Date {
   return timestampToDate(date);
 }
 
-function toRadians(value: number): number {
-  return (value * Math.PI) / 180;
-}
-
-function calculateDistanceKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(lat2 - lat1);
-  const dLng = toRadians(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadiusKm * c;
-}
-
+/** Pin-distance bands tuned for school campus (meters → score). */
 function distanceToScore(distanceKm: number): number {
-  if (distanceKm <= 0.1) return 1;
-  if (distanceKm <= 0.5) return 0.85;
-  if (distanceKm <= 1) return 0.7;
-  if (distanceKm <= 2) return 0.5;
-  if (distanceKm <= 5) return 0.3;
-  return 0;
+  if (distanceKm <= 0.05) return 1;
+  if (distanceKm <= 0.15) return 0.9;
+  if (distanceKm <= 0.4) return 0.75;
+  if (distanceKm <= 1) return 0.55;
+  if (distanceKm <= 2) return 0.35;
+  if (distanceKm <= 5) return 0.2;
+  return 0.05;
 }
+
+function formatPinDistanceReason(distanceKm: number): string {
+  const near = distanceKm <= 0.4;
+  if (distanceKm < 1) {
+    const meters = Math.round(distanceKm * 1000);
+    return near ? `พิกัดใกล้กัน (${meters} m)` : `พิกัดห่างกัน (${meters} m)`;
+  }
+  const kmLabel =
+    distanceKm < 10 ? `${distanceKm.toFixed(1)} km` : `${Math.round(distanceKm)} km`;
+  return near ? `พิกัดใกล้กัน (${kmLabel})` : `พิกัดห่างกัน (${kmLabel})`;
+}
+
+export type MatchContext = {
+  zones?: MapZone[];
+};
 
 export interface MatchScore {
   lostItem: LostItem;
@@ -170,7 +171,11 @@ export function calculateLocationSimilarity(loc1: string, loc2: string): number 
  * Calculate match score between a lost item and a found item
  * Uses hierarchical filtering approach
  */
-export function calculateMatchScore(lostItem: LostItem, foundItem: FoundItem): MatchScore {
+export function calculateMatchScore(
+  lostItem: LostItem,
+  foundItem: FoundItem,
+  ctx?: MatchContext
+): MatchScore {
   const reasons: string[] = [];
   let totalScore = 0;
 
@@ -196,25 +201,51 @@ export function calculateMatchScore(lostItem: LostItem, foundItem: FoundItem): M
     reasons.push(`ชื่อของคล้ายกัน (${Math.round(itemScore * 100)}%)`);
   }
 
-  // 3. Location similarity (using smart matching)
-  let locationScore = calculateLocationSimilarity(lostItem.locationLost, foundItem.locationFound);
+  // 3. Location: pin distance (when both coords) + zones + text
+  const textScore = calculateLocationSimilarity(
+    lostItem.locationLost,
+    foundItem.locationFound
+  );
   const lostCoords = lostItem.locationCoords;
   const foundCoords = foundItem.locationCoords;
+
+  let pinScore: number | undefined;
   if (lostCoords && foundCoords) {
-    const distanceKm = calculateDistanceKm(
-      lostCoords.lat,
-      lostCoords.lng,
-      foundCoords.lat,
-      foundCoords.lng
-    );
-    const distanceScore = distanceToScore(distanceKm);
-    locationScore = Math.max(locationScore, distanceScore);
-    if (distanceScore >= 0.5) {
-      reasons.push(`พิกัดใกล้กัน (${distanceKm.toFixed(2)} km)`);
-    }
+    const distanceKm = haversineKm(lostCoords, foundCoords);
+    pinScore = distanceToScore(distanceKm);
+    reasons.push(formatPinDistanceReason(distanceKm));
   }
+
+  const lostZone = resolveMapZone(
+    ctx?.zones,
+    lostCoords,
+    lostItem.locationLost
+  );
+  const foundZone = resolveMapZone(
+    ctx?.zones,
+    foundCoords,
+    foundItem.locationFound
+  );
+  const zoneRel = zoneRelationScore(lostZone, foundZone);
+  const zoneScore = zoneRel?.score;
+  if (zoneRel?.reason && zoneRel.score >= 0.7) {
+    reasons.push(zoneRel.reason);
+  }
+
+  let locationScore: number;
+  if (pinScore !== undefined) {
+    locationScore = Math.max(pinScore, zoneScore ?? 0, textScore * 0.5);
+  } else if (zoneScore !== undefined) {
+    locationScore = Math.max(zoneScore, textScore);
+  } else {
+    locationScore = textScore;
+  }
+
   totalScore += locationScore * WEIGHTS.locationSimilarity;
-  if (locationScore > 0.5) {
+  const hasPinOrZoneReason = reasons.some(
+    (r) => r.startsWith("พิกัด") || r.startsWith("โซน")
+  );
+  if (locationScore > 0.5 && !hasPinOrZoneReason) {
     reasons.push(`สถานที่ใกล้เคียง (${Math.round(locationScore * 100)}%)`);
   }
 
@@ -356,7 +387,8 @@ function isValidMatch(matchScore: MatchScore): boolean {
  */
 export function findMatchesForLostItem(
   lostItem: LostItem,
-  foundItems: FoundItem[]
+  foundItems: FoundItem[],
+  ctx?: MatchContext
 ): MatchScore[] {
   if (!isMatchableLostItem(lostItem)) {
     return [];
@@ -389,7 +421,7 @@ export function findMatchesForLostItem(
   // Step 4: Calculate scores for remaining candidates
   const matches: MatchScore[] = [];
   for (const foundItem of candidates) {
-    const matchScore = calculateMatchScore(lostItem, foundItem);
+    const matchScore = calculateMatchScore(lostItem, foundItem, ctx);
     // Only include if score is above threshold AND has valid reasons
     if (matchScore.score >= MATCH_THRESHOLD && isValidMatch(matchScore)) {
       matches.push(matchScore);
@@ -405,7 +437,8 @@ export function findMatchesForLostItem(
  */
 export function findMatchesForFoundItem(
   foundItem: FoundItem,
-  lostItems: LostItem[]
+  lostItems: LostItem[],
+  ctx?: MatchContext
 ): MatchScore[] {
   if (!isMatchableFoundItem(foundItem)) {
     return [];
@@ -436,7 +469,7 @@ export function findMatchesForFoundItem(
   // Step 4: Calculate scores for remaining candidates
   const matches: MatchScore[] = [];
   for (const lostItem of candidates) {
-    const matchScore = calculateMatchScore(lostItem, foundItem);
+    const matchScore = calculateMatchScore(lostItem, foundItem, ctx);
     // Only include if score is above threshold AND has valid reasons
     if (matchScore.score >= MATCH_THRESHOLD && isValidMatch(matchScore)) {
       matches.push(matchScore);
@@ -621,9 +654,10 @@ export async function findMatchesForLostItemAI(
   lostItem: LostItem,
   foundItems: FoundItem[],
   maxCandidates: number = 5,
-  config?: AIGenerationConfig
+  config?: AIGenerationConfig,
+  ctx?: MatchContext
 ): Promise<MatchScore[]> {
-  const traditionalMatches = findMatchesForLostItem(lostItem, foundItems);
+  const traditionalMatches = findMatchesForLostItem(lostItem, foundItems, ctx);
   const topCandidates = traditionalMatches.slice(0, maxCandidates);
 
   const evaluated = await mapWithConcurrency(
@@ -658,9 +692,10 @@ export async function findMatchesForFoundItemAI(
   foundItem: FoundItem,
   lostItems: LostItem[],
   maxCandidates: number = 5,
-  config?: AIGenerationConfig
+  config?: AIGenerationConfig,
+  ctx?: MatchContext
 ): Promise<MatchScore[]> {
-  const traditionalMatches = findMatchesForFoundItem(foundItem, lostItems);
+  const traditionalMatches = findMatchesForFoundItem(foundItem, lostItems, ctx);
   const topCandidates = traditionalMatches.slice(0, maxCandidates);
 
   const evaluated = await mapWithConcurrency(

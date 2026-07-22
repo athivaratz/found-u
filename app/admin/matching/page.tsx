@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import nextDynamic from "next/dynamic";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
@@ -103,7 +103,6 @@ const tabClass =
 export default function AdminMatchingPage() {
   const tabsId = useId();
   const confidenceId = useId();
-  const aiToggleId = useId();
   const statusLiveId = useId();
 
   const { user } = useAuth();
@@ -113,7 +112,6 @@ export default function AdminMatchingPage() {
   const prefersHover = useMediaQuery("(hover: hover) and (pointer: fine)");
 
   const [tab, setTab] = useState<Tab>("queue");
-  const [useAI, setUseAI] = useState(false);
   const [confidenceFilter, setConfidenceFilter] = useState<ConfidenceFilter>("all");
 
   const [matches, setMatches] = useState<AdminMatchPair[]>([]);
@@ -121,6 +119,7 @@ export default function AdminMatchingPage() {
   const [pool, setPool] = useState({ lost: 0, found: 0, highConfidence: 0 });
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [loadingBatch, setLoadingBatch] = useState(true);
+  const [rerankingAI, setRerankingAI] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<MatchBusyAction>(null);
   const [historyBusyKey, setHistoryBusyKey] = useState<string | null>(null);
@@ -136,8 +135,6 @@ export default function AdminMatchingPage() {
 
   const userRef = useRef(user);
   userRef.current = user;
-  const useAIRef = useRef(useAI);
-  useAIRef.current = useAI;
   const batchGenRef = useRef(0);
   const manualGenRef = useRef(0);
   const poolReadyRef = useRef(false);
@@ -145,6 +142,8 @@ export default function AdminMatchingPage() {
   showAlertRef.current = showAlert;
   const showConfirmRef = useRef(showConfirm);
   showConfirmRef.current = showConfirm;
+  const selectedItemRef = useRef(selectedItem);
+  selectedItemRef.current = selectedItem;
 
   const busy = busyAction !== null;
   const busyRef = useRef(busy);
@@ -174,11 +173,12 @@ export default function AdminMatchingPage() {
   }, []);
 
   const loadBatch = useCallback(
-    async (options?: { force?: boolean }) => {
+    async (options?: { force?: boolean; useAI?: boolean }) => {
       const currentUser = userRef.current;
       if (!currentUser?.uid) return;
 
-      const key = batchCacheKey(currentUser.uid, useAIRef.current);
+      const useAI = Boolean(options?.useAI);
+      const key = batchCacheKey(currentUser.uid, useAI);
       const cached = batchCache;
       if (
         !options?.force &&
@@ -189,17 +189,20 @@ export default function AdminMatchingPage() {
         applyBatchData(cached.data);
         setLoadError(null);
         setLoadingBatch(false);
+        setRerankingAI(false);
         return;
       }
 
       const gen = ++batchGenRef.current;
 
-      if (options?.force || !cached || cached.key !== key) {
+      if (useAI) {
+        setRerankingAI(true);
+      } else if (options?.force || !cached || cached.key !== key) {
         setLoadingBatch(true);
       }
 
       try {
-        const data = await fetchMatchBatch(getToken, { useAI: useAIRef.current });
+        const data = await fetchMatchBatch(getToken, { useAI });
         if (gen !== batchGenRef.current) return;
         batchCache = { key, data, at: Date.now() };
         applyBatchData(data);
@@ -212,6 +215,7 @@ export default function AdminMatchingPage() {
       } finally {
         if (gen === batchGenRef.current) {
           setLoadingBatch(false);
+          setRerankingAI(false);
         }
       }
     },
@@ -221,8 +225,8 @@ export default function AdminMatchingPage() {
   useEffect(() => {
     if (!user?.uid) return;
     void loadBatch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only userId + useAI
-  }, [user?.uid, useAI]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per user session
+  }, [user?.uid]);
 
   useEffect(() => {
     return () => {
@@ -415,14 +419,14 @@ export default function AdminMatchingPage() {
   }, [handleConfirm, handleReject, handleSkip]);
 
   const loadManualMatches = useCallback(
-    async (type: "lost" | "found", item: LostItem | FoundItem) => {
+    async (type: "lost" | "found", item: LostItem | FoundItem, useAI = false) => {
       setSelectedItem(item);
       setLoadingManual(true);
       setManualMatches([]);
       setManualError(null);
       const gen = ++manualGenRef.current;
       try {
-        const results = await fetchItemMatches(getToken, type, item.id, useAIRef.current);
+        const results = await fetchItemMatches(getToken, type, item.id, useAI);
         if (gen !== manualGenRef.current) return;
         setManualMatches(results);
       } catch (error) {
@@ -437,6 +441,24 @@ export default function AdminMatchingPage() {
     },
     [getToken]
   );
+
+  const handleAiRerank = useCallback(async () => {
+    if (busy || loadingBatch || rerankingAI || loadingManual) return;
+
+    if (tab === "manual" && selectedItemRef.current) {
+      const item = selectedItemRef.current;
+      const type = isLostItem(item) ? "lost" : "found";
+      setRerankingAI(true);
+      try {
+        await loadManualMatches(type, item, true);
+      } finally {
+        setRerankingAI(false);
+      }
+      return;
+    }
+
+    await loadBatch({ force: true, useAI: true });
+  }, [busy, loadingBatch, rerankingAI, loadingManual, tab, loadBatch, loadManualMatches]);
 
   const handleUnmatch = useCallback(
     async (pair: ConfirmedHistoryPair) => {
@@ -523,9 +545,11 @@ export default function AdminMatchingPage() {
 
   const liveStatus = loadingBatch
     ? "กำลังโหลดคิวจับคู่"
-    : loadError
-      ? `โหลดคิวไม่สำเร็จ: ${loadError}`
-      : summaryLine;
+    : rerankingAI
+      ? "กำลังจัดอันดับด้วย AI"
+      : loadError
+        ? `โหลดคิวไม่สำเร็จ: ${loadError}`
+        : summaryLine;
 
   return (
     <div className={adminPageShellClass}>
@@ -544,30 +568,40 @@ export default function AdminMatchingPage() {
         </div>
 
         <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center">
-          <label
-            htmlFor={aiToggleId}
+          <button
+            type="button"
+            onClick={() => void handleAiRerank()}
+            disabled={
+              loadingBatch ||
+              rerankingAI ||
+              busy ||
+              (tab === "manual" && !selectedItem) ||
+              (tab === "history")
+            }
+            title={
+              tab === "manual" && !selectedItem
+                ? "เลือกรายการก่อนจัดอันดับด้วย AI"
+                : "จัดอันดับคิวปัจจุบันด้วย AI ครั้งเดียว"
+            }
             className={cn(
               chipClass,
-              "flex-1 cursor-pointer bg-bg-secondary text-text-secondary sm:flex-none",
-              matchFocusRingClass,
-              "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-line-green/35",
-              "active:bg-bg-tertiary",
-              prefersHover && "hover:bg-bg-tertiary"
+              "flex-1 bg-line-green-light text-line-green sm:flex-none",
+              "active:opacity-90",
+              prefersHover && "hover:bg-line-green/15",
+              matchFocusRingClass
             )}
           >
-            <input
-              id={aiToggleId}
-              type="checkbox"
-              checked={useAI}
-              onChange={(e) => setUseAI(e.target.checked)}
-              className="rounded border-border-light text-line-green focus:ring-line-green"
-            />
-            {isMdUp ? "ใช้ AI ช่วยจัดอันดับ" : "ใช้ AI"}
-          </label>
+            {rerankingAI ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {isMdUp ? "จัดอันดับด้วย AI" : "AI"}
+          </button>
           <button
             type="button"
             onClick={() => void loadBatch({ force: true })}
-            disabled={loadingBatch || busy}
+            disabled={loadingBatch || rerankingAI || busy}
             className={cn(
               chipClass,
               "flex-1 bg-bg-secondary text-text-secondary sm:flex-none",
@@ -577,7 +611,7 @@ export default function AdminMatchingPage() {
             )}
           >
             <RefreshCw
-              className={cn("h-3.5 w-3.5", loadingBatch && "animate-spin")}
+              className={cn("h-3.5 w-3.5", loadingBatch && !rerankingAI && "animate-spin")}
               aria-hidden
             />
             รีเฟรช

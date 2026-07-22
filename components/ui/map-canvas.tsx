@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { cn } from "@/lib/utils";
+import { cn, isPointInPolygon } from "@/lib/utils";
 import type { GeoPoint, LocationCoords } from "@/lib/types";
 
 export type MapMode = "marker" | "polygon" | "view";
@@ -13,6 +13,14 @@ export interface MapMarker {
   position: GeoPoint;
   label?: string;
   color?: string;
+}
+
+export interface MapOverlayPolygon {
+  id?: string;
+  points: GeoPoint[];
+  color?: string;
+  /** School boundary frame vs other zones */
+  variant?: "zone" | "boundary";
 }
 
 interface MapCanvasProps {
@@ -25,6 +33,11 @@ interface MapCanvasProps {
   onMarkerChange?: (coords: LocationCoords | null) => void;
   polygon?: GeoPoint[];
   onPolygonChange?: (points: GeoPoint[]) => void;
+  polygonColor?: string;
+  /** Reject new polygon/marker points outside this polygon (e.g. school boundary) */
+  constrainToPolygon?: GeoPoint[];
+  onOutsideConstraint?: () => void;
+  overlayPolygons?: MapOverlayPolygon[];
   markers?: MapMarker[];
   fitPoints?: GeoPoint[];
   fitBoundsOnce?: boolean;
@@ -77,7 +90,8 @@ function syncPolygonLayer(
   map: L.Map,
   polygonRef: React.MutableRefObject<L.Polygon | null>,
   polylineRef: React.MutableRefObject<L.Polyline | null>,
-  points: GeoPoint[]
+  points: GeoPoint[],
+  color: string = POLYGON_STROKE
 ) {
   if (polylineRef.current) {
     polylineRef.current.remove();
@@ -94,21 +108,21 @@ function syncPolygonLayer(
 
   if (points.length >= 3) {
     polygonRef.current = L.polygon(latlngs, {
-      color: POLYGON_STROKE,
+      color,
       weight: 3,
       opacity: 0.95,
-      fillColor: POLYGON_FILL,
+      fillColor: color,
       fillOpacity: 0.22,
       lineJoin: "round",
       lineCap: "round",
     }).addTo(map);
-    polygonRef.current.bringToBack();
+    polygonRef.current.bringToFront();
     return;
   }
 
   if (points.length >= 2) {
     polylineRef.current = L.polyline(latlngs, {
-      color: POLYGON_STROKE,
+      color,
       weight: 3,
       opacity: 0.9,
       dashArray: "6 4",
@@ -128,6 +142,10 @@ export default function MapCanvas({
   onMarkerChange,
   polygon,
   onPolygonChange,
+  polygonColor = POLYGON_STROKE,
+  constrainToPolygon,
+  onOutsideConstraint,
+  overlayPolygons,
   markers,
   fitPoints,
   fitBoundsOnce = false,
@@ -140,10 +158,13 @@ export default function MapCanvas({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const overlayLayerRef = useRef<L.LayerGroup | null>(null);
   const polygonRef = useRef<L.Polygon | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
   const vertexLayerRef = useRef<L.LayerGroup | null>(null);
   const polygonPointsRef = useRef<GeoPoint[]>(polygon || []);
+  const constrainRef = useRef<GeoPoint[] | undefined>(constrainToPolygon);
+  const onOutsideRef = useRef(onOutsideConstraint);
   const lastFitKeyRef = useRef<string>("");
   const hasFittedOnceRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
@@ -151,6 +172,14 @@ export default function MapCanvas({
   useEffect(() => {
     polygonPointsRef.current = polygon || [];
   }, [polygon]);
+
+  useEffect(() => {
+    constrainRef.current = constrainToPolygon;
+  }, [constrainToPolygon]);
+
+  useEffect(() => {
+    onOutsideRef.current = onOutsideConstraint;
+  }, [onOutsideConstraint]);
 
   const invalidateMapSize = useCallback(() => {
     const map = mapRef.current;
@@ -174,9 +203,10 @@ export default function MapCanvas({
     }).addTo(map);
 
     markersLayerRef.current = L.layerGroup().addTo(map);
+    overlayLayerRef.current = L.layerGroup().addTo(map);
     vertexLayerRef.current = L.layerGroup().addTo(map);
 
-    syncPolygonLayer(map, polygonRef, polylineRef, polygonPointsRef.current);
+    syncPolygonLayer(map, polygonRef, polylineRef, polygonPointsRef.current, polygonColor);
     setMapReady(true);
 
     const resizeObserver =
@@ -246,19 +276,25 @@ export default function MapCanvas({
     if (!map) return;
 
     const handleClick = (event: L.LeafletMouseEvent) => {
+      const point: GeoPoint = {
+        lat: event.latlng.lat,
+        lng: event.latlng.lng,
+      };
+      const fence = constrainRef.current;
+      if (fence && fence.length >= 3 && !isPointInPolygon(point, fence)) {
+        onOutsideRef.current?.();
+        return;
+      }
+
       if (mode === "marker" && onMarkerChange) {
         onMarkerChange({
-          lat: event.latlng.lat,
-          lng: event.latlng.lng,
+          ...point,
           source: "map",
         });
       }
 
       if (mode === "polygon" && onPolygonChange) {
-        const nextPoints = [...(polygonPointsRef.current || []), {
-          lat: event.latlng.lat,
-          lng: event.latlng.lng,
-        }];
+        const nextPoints = [...(polygonPointsRef.current || []), point];
         onPolygonChange(nextPoints);
       }
     };
@@ -291,8 +327,34 @@ export default function MapCanvas({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    syncPolygonLayer(map, polygonRef, polylineRef, polygon || []);
-  }, [polygon, mapReady]);
+    syncPolygonLayer(map, polygonRef, polylineRef, polygon || [], polygonColor);
+  }, [polygon, polygonColor, mapReady]);
+
+  useEffect(() => {
+    const layer = overlayLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!overlayPolygons?.length) return;
+
+    for (const overlay of overlayPolygons) {
+      if (!overlay.points || overlay.points.length < 3) continue;
+      const color = overlay.color || POLYGON_FILL;
+      const isBoundary = overlay.variant === "boundary";
+      L.polygon(
+        overlay.points.map((p) => [p.lat, p.lng] as L.LatLngTuple),
+        {
+          color,
+          weight: isBoundary ? 3 : 2,
+          opacity: isBoundary ? 0.95 : 0.7,
+          fillColor: color,
+          fillOpacity: isBoundary ? 0.08 : 0.12,
+          dashArray: isBoundary ? "8 6" : undefined,
+          interactive: false,
+        }
+      ).addTo(layer);
+    }
+    layer.bringToBack();
+  }, [overlayPolygons, mapReady]);
 
   useEffect(() => {
     const layer = vertexLayerRef.current;

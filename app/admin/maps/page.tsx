@@ -7,6 +7,7 @@ import { MapPin, Save, Loader2, CheckCircle } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { getAppSettings, updateAppSettings } from "@/lib/database";
 import { normalizeGeoPolygon } from "@/lib/utils";
+import { normalizeMapZones } from "@/lib/map-zones";
 import type { AppSettings } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 import MapSettingsPanel from "@/components/admin/map-settings-panel";
@@ -27,6 +28,7 @@ export default function AdminMapsPage() {
         setSettings({
           ...loaded,
           mapSchoolBoundary: normalizeGeoPolygon(loaded.mapSchoolBoundary),
+          mapZones: normalizeMapZones(loaded.mapZones),
         });
       } catch (error) {
         console.error("Error loading map settings:", error);
@@ -51,6 +53,7 @@ export default function AdminMapsPage() {
           mapDefaultZoom: settings.mapDefaultZoom,
           mapEnforceFoundInSchool: settings.mapEnforceFoundInSchool,
           mapSchoolBoundary: normalizeGeoPolygon(settings.mapSchoolBoundary),
+          mapZones: normalizeMapZones(settings.mapZones),
         },
         user.uid
       );
@@ -80,7 +83,7 @@ export default function AdminMapsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">แผนที่และ GPS</h1>
             <p className="text-sm text-gray-500">
-              ตั้งค่าแผนที่ ขอบเขตโรงเรียน และการบังคับใช้ GPS สำหรับแจ้งเจอของ
+              ตั้งค่าแผนที่ ขอบเขตโรงเรียน โซนย่อยจับคู่ และการบังคับใช้ GPS สำหรับแจ้งเจอของ
             </p>
           </div>
         </div>

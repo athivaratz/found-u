@@ -9,10 +9,13 @@ import {
   findMatchesForLostItem,
   findMatchesForLostItemAI,
   getMatchConfidence,
+  type MatchContext,
   type MatchScore,
 } from "@/lib/matching";
 import type { AppSettings, FoundItem, LostItem } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
+import { coerceAppSettings } from "@/lib/database";
+import { normalizeMapZones } from "@/lib/map-zones";
 
 export type MatchAiConfig = {
   model?: string;
@@ -46,6 +49,11 @@ function aiConfigFromSettings(settings?: AppSettings | null): MatchAiConfig {
   };
 }
 
+function matchContextFromSettings(settings?: AppSettings | null): MatchContext {
+  const zones = normalizeMapZones(settings?.mapZones);
+  return zones.length ? { zones } : {};
+}
+
 function dateWindowBounds(anchor: Date): { from: string; to: string } {
   const ms = MATCH_TIME_WINDOW_DAYS * 24 * 60 * 60 * 1000;
   return {
@@ -62,7 +70,7 @@ export async function getAppSettingsAdmin(): Promise<AppSettings> {
     .eq("id", "default")
     .maybeSingle();
   const settings = (data?.settings as Record<string, unknown> | null) || {};
-  return { ...DEFAULT_APP_SETTINGS, ...settings } as AppSettings;
+  return coerceAppSettings(settings);
 }
 
 export async function loadMatchableLostItems(options?: {
@@ -151,7 +159,9 @@ export async function suggestForItem(options: {
   settings?: AppSettings | null;
 }): Promise<FormattedMatch[]> {
   const useAI = Boolean(options.useAI);
-  const aiConfig = useAI ? aiConfigFromSettings(options.settings) : undefined;
+  const settings = options.settings ?? (await getAppSettingsAdmin());
+  const aiConfig = useAI ? aiConfigFromSettings(settings) : undefined;
+  const matchCtx = matchContextFromSettings(settings);
   const dismissed = await loadDismissalKeys();
 
   if (options.type === "lost") {
@@ -159,8 +169,8 @@ export async function suggestForItem(options: {
     if (!lostItem) throw new Error("LOST_NOT_FOUND");
     const foundItems = await loadMatchableFoundItems({ aroundDate: lostItem.dateLost });
     const matches = useAI
-      ? await findMatchesForLostItemAI(lostItem, foundItems, 5, aiConfig)
-      : findMatchesForLostItem(lostItem, foundItems);
+      ? await findMatchesForLostItemAI(lostItem, foundItems, 5, aiConfig, matchCtx)
+      : findMatchesForLostItem(lostItem, foundItems, matchCtx);
     return filterDismissed(matches, dismissed).map(formatMatch);
   }
 
@@ -168,8 +178,8 @@ export async function suggestForItem(options: {
   if (!foundItem) throw new Error("FOUND_NOT_FOUND");
   const lostItems = await loadMatchableLostItems({ aroundDate: foundItem.dateFound });
   const matches = useAI
-    ? await findMatchesForFoundItemAI(foundItem, lostItems, 5, aiConfig)
-    : findMatchesForFoundItem(foundItem, lostItems);
+    ? await findMatchesForFoundItemAI(foundItem, lostItems, 5, aiConfig, matchCtx)
+    : findMatchesForFoundItem(foundItem, lostItems, matchCtx);
   return filterDismissed(matches, dismissed).map(formatMatch);
 }
 
@@ -181,7 +191,9 @@ export async function suggestAll(options?: {
   pool: { lost: number; found: number; highConfidence: number };
 }> {
   const useAI = Boolean(options?.useAI);
-  const aiConfig = useAI ? aiConfigFromSettings(options?.settings) : undefined;
+  const settings = options?.settings ?? (await getAppSettingsAdmin());
+  const aiConfig = useAI ? aiConfigFromSettings(settings) : undefined;
+  const matchCtx = matchContextFromSettings(settings);
   const [lostItems, foundItems, dismissed] = await Promise.all([
     loadMatchableLostItems(),
     loadMatchableFoundItems(),
@@ -193,8 +205,8 @@ export async function suggestAll(options?: {
 
   for (const lostItem of lostItems) {
     const itemMatches = useAI
-      ? await findMatchesForLostItemAI(lostItem, foundItems, 5, aiConfig)
-      : findMatchesForLostItem(lostItem, foundItems);
+      ? await findMatchesForLostItemAI(lostItem, foundItems, 5, aiConfig, matchCtx)
+      : findMatchesForLostItem(lostItem, foundItems, matchCtx);
 
     for (const match of itemMatches) {
       const key = `${match.lostItem.id}_${match.foundItem.id}`;

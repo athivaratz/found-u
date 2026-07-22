@@ -71,6 +71,8 @@ export interface AppSettings {
   mapDefaultCenter?: GeoPoint;
   mapDefaultZoom?: number;
   mapSchoolBoundary?: GeoPoint[]; // Polygon points
+  /** Campus sub-zones for matching location weight (not geofence) */
+  mapZones?: MapZone[];
   mapEnforceFoundInSchool?: boolean;
 
   // Notification settings
@@ -152,6 +154,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   mapDefaultCenter: { lat: 13.7563, lng: 100.5018 },
   mapDefaultZoom: 17,
   mapSchoolBoundary: [],
+  mapZones: [],
   mapEnforceFoundInSchool: true,
   notifyOnNewReport: true,
   notifyOnStatusChange: true,
@@ -302,6 +305,15 @@ export type ContactType = 'phone' | 'line' | 'instagram' | 'facebook' | 'email';
 export interface GeoPoint {
   lat: number;
   lng: number;
+}
+
+/** Named campus sub-zone polygon for matching weight */
+export interface MapZone {
+  id: string;
+  name: string;
+  aliases?: string[];
+  polygon: GeoPoint[];
+  color?: string;
 }
 
 export type LocationSource = 'gps' | 'map' | 'manual';

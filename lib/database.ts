@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { hasSupabaseClientEnv } from "@/lib/setup/db-url";
 import { coerceToDate, normalizeGeoPoint, normalizeGeoPolygon } from "@/lib/utils";
+import { normalizeMapZones } from "@/lib/map-zones";
 import { stripUndefined } from "@/lib/strip-undefined";
 import { normalizeAgentSettings } from "@/lib/agent/normalize-agent-settings";
 import {
@@ -247,6 +248,9 @@ function normalizeAppSettingsBlob(
     mapDefaultCenter: mapCenter,
     mapSchoolBoundary: normalizeGeoPolygon(
       settingsBlob.mapSchoolBoundary ?? settingsBlob.map_school_boundary
+    ),
+    mapZones: normalizeMapZones(
+      settingsBlob.mapZones ?? settingsBlob.map_zones ?? base.mapZones
     ),
     agentOpenRouterProviderOrder:
       normalizeStringList(
@@ -589,6 +593,10 @@ export async function updateAppSettings(settings: Partial<AppSettings>, updatedB
       payload.mapSchoolBoundary !== undefined
         ? normalizeGeoPolygon(payload.mapSchoolBoundary)
         : current.mapSchoolBoundary,
+    mapZones:
+      payload.mapZones !== undefined
+        ? normalizeMapZones(payload.mapZones)
+        : current.mapZones,
     updatedAt: new Date(),
     updatedBy,
   });
