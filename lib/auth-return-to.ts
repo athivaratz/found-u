@@ -7,7 +7,6 @@ const ALLOWED_PREFIXES = [
   "/lost",
   "/found",
   "/tracking",
-  "/list",
   "/nfc",
   "/settings",
   "/assistant",
@@ -19,16 +18,20 @@ export function isAllowedReturnPath(path: string): boolean {
   if (path === AUTH_ROUTES.hub || path.startsWith("/auth")) return false;
   if (path === "/setup" || path.startsWith("/setup/")) return false;
   if (path === "/banned") return false;
+  // /list collapsed → treat as /home
+  const normalized = path === "/list" || path.startsWith("/list/") ? "/home" : path;
   return ALLOWED_PREFIXES.some(
-    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`)
   );
 }
 
 export function saveReturnTo(path: string): void {
   if (typeof window === "undefined") return;
-  if (!isAllowedReturnPath(path)) return;
+  const normalized =
+    path === "/list" || path.startsWith("/list/") ? "/home" : path;
+  if (!isAllowedReturnPath(normalized)) return;
   try {
-    sessionStorage.setItem(STORAGE_KEY, path);
+    sessionStorage.setItem(STORAGE_KEY, normalized);
   } catch {
     // ignore quota / private mode
   }
@@ -56,6 +59,7 @@ export function consumeReturnTo(fallback = "/home"): string {
     } catch {
       // ignore
     }
+    if (fromQuery === "/list" || fromQuery.startsWith("/list/")) return "/home";
     return fromQuery;
   }
 

@@ -46,7 +46,7 @@ const tutorialSteps: TutorialStep[] = [
     id: 4,
     title: "ติดตามสถานะ",
     description:
-      "ใช้รหัสติดตามเพื่อเช็คสถานะของหาย\nหรือดูรายการทั้งหมดในหน้าติดตาม",
+      "ใช้รหัสติดตามเพื่อเช็คสถานะของหาย\nหรือดูรายการของคุณที่หน้าแรก",
     icon: <Clock className="w-10 h-10 text-status-info" aria-hidden />,
     bgColor: "bg-status-info-light",
   },

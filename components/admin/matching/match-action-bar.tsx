@@ -2,58 +2,90 @@
 
 import { CheckCircle2, SkipForward, XCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import {
+  matchFocusRingClass,
+  type MatchBusyAction,
+} from "@/components/admin/matching/matching-ui";
 
 export function MatchActionBar({
-  busy,
+  busyAction = null,
   onReject,
   onSkip,
   onConfirm,
 }: {
-  busy?: boolean;
+  busyAction?: MatchBusyAction;
   onReject: () => void;
   onSkip: () => void;
   onConfirm: () => void;
 }) {
+  const busy = busyAction !== null;
+  const prefersHover = useMediaQuery("(hover: hover) and (pointer: fine)");
+  const isLgUp = useMediaQuery("(min-width: 1024px)");
+
   return (
-    <div className="sticky bottom-0 z-10 -mx-4 border-t border-[#E5E7EB] bg-white/95 px-4 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 lg:mx-0 lg:rounded-2xl lg:border">
-      <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
+    <div
+      className={cn(
+        "z-30 border-t border-border-light bg-bg-card",
+        isLgUp
+          ? "relative rounded-2xl border px-4 py-3"
+          : "fixed inset-x-0 bottom-0 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-4"
+      )}
+      aria-busy={busy}
+    >
+      <div className="mx-auto flex max-w-3xl flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-center">
         <button
           type="button"
           onClick={onReject}
           disabled={busy}
+          aria-label="ไม่ตรงกัน (คีย์ลัด R)"
           className={cn(
-            "inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-[#E5E7EB] bg-white px-5 py-3 text-sm font-medium text-[#191919] transition hover:bg-[#F7F8FA] disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+            "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-border-light bg-bg-card px-4 py-2.5 text-sm font-medium text-text-primary motion-safe:transition-colors motion-safe:duration-200 disabled:opacity-50 sm:px-5 touch-manipulation",
+            "active:bg-bg-secondary",
+            prefersHover && "hover:bg-bg-secondary",
+            matchFocusRingClass
           )}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+          {busyAction === "reject" ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <XCircle className="h-4 w-4 text-text-secondary" aria-hidden />
+          )}
           ไม่ตรง
-          <kbd className="hidden rounded bg-[#ECEEF1] px-1.5 py-0.5 text-[10px] text-[#6B7280] sm:inline dark:bg-gray-700">
-            R
-          </kbd>
         </button>
         <button
           type="button"
           onClick={onSkip}
           disabled={busy}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-[#E5E7EB] bg-[#F7F8FA] px-5 py-3 text-sm font-medium text-[#6B7280] transition hover:bg-[#ECEEF1] disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+          aria-label="ข้ามคู่นี้ (คีย์ลัด S)"
+          className={cn(
+            "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-bg-secondary px-4 py-2.5 text-sm font-medium text-text-secondary motion-safe:transition-colors motion-safe:duration-200 disabled:opacity-50 sm:px-5 touch-manipulation",
+            "active:bg-bg-tertiary",
+            prefersHover && "hover:bg-bg-tertiary",
+            matchFocusRingClass
+          )}
         >
-          <SkipForward className="h-4 w-4" />
+          <SkipForward className="h-4 w-4" aria-hidden />
           ข้าม
-          <kbd className="hidden rounded bg-white px-1.5 py-0.5 text-[10px] text-[#6B7280] sm:inline dark:bg-gray-700">
-            S
-          </kbd>
         </button>
         <button
           type="button"
           onClick={onConfirm}
           disabled={busy}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#06C755] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#05b34d] disabled:opacity-50"
+          aria-label="ยืนยันจับคู่ (คีย์ลัด C)"
+          className={cn(
+            "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-line-green-cta px-4 py-2.5 text-sm font-medium text-white motion-safe:transition-colors motion-safe:duration-200 disabled:opacity-50 sm:px-5 touch-manipulation",
+            "active:bg-line-green-cta-hover",
+            prefersHover && "hover:bg-line-green-cta-hover",
+            matchFocusRingClass
+          )}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          {busyAction === "confirm" ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <CheckCircle2 className="h-4 w-4" aria-hidden />
+          )}
           ยืนยันจับคู่
-          <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 text-[10px] text-white sm:inline">
-            C
-          </kbd>
         </button>
       </div>
     </div>

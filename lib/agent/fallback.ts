@@ -1,5 +1,5 @@
 export const AGENT_FALLBACK_ROUTES = [
-  { href: "/list", labelKey: "list" as const },
+  { href: "/home", labelKey: "home" as const },
   { href: "/tracking", labelKey: "tracking" as const },
   { href: "/lost", labelKey: "lost" as const },
   { href: "/found", labelKey: "found" as const },

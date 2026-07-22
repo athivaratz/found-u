@@ -7,7 +7,8 @@ import type { AgentFallbackPayload } from "@/lib/agent/fallback";
 import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
-  list: thaiCopy.fallback.list,
+  home: thaiCopy.fallback.home,
+  list: thaiCopy.fallback.home, // legacy labelKey from older payloads
   tracking: thaiCopy.fallback.tracking,
   lost: thaiCopy.fallback.lost,
   found: thaiCopy.fallback.found,

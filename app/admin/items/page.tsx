@@ -14,7 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   MapPinned,
-  Sparkles,
+  Link2,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -50,6 +50,12 @@ import type { CategoryConfig, LocationConfig } from "@/lib/database";
 import { cn, formatThaiDate } from "@/lib/utils";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { StatusAlert } from "@/components/ui/status-alert";
+import {
+  adminCtaClass,
+  adminFocusRingClass,
+  adminPageShellClass,
+  adminSecondaryCtaClass,
+} from "@/components/admin/admin-ui";
 import { feedbackVariantStyles } from "@/lib/feedback/variant-styles";
 import { logStatusChanged, logActivity } from "@/lib/logger";
 import {
@@ -95,14 +101,15 @@ const surfaceClass =
 const fieldClass =
   "min-h-11 text-base bg-bg-tertiary border border-transparent rounded-xl focus:outline-none focus:bg-bg-primary focus:ring-2 focus:ring-line-green/35 focus:border-line-green/40 text-text-primary placeholder:text-text-secondary motion-safe:transition-colors motion-safe:duration-200";
 
-const iconActionClass =
-  "inline-flex items-center justify-center min-h-11 min-w-11 text-text-secondary rounded-lg motion-safe:transition-colors motion-safe:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary";
+const iconActionClass = cn(
+  "inline-flex items-center justify-center min-h-11 min-w-11 text-text-secondary rounded-lg motion-safe:transition-colors motion-safe:duration-200 touch-manipulation",
+  adminFocusRingClass
+);
 
-const tabBaseClass =
-  "flex flex-1 sm:flex-none items-center justify-center gap-2 min-h-11 px-4 py-2.5 rounded-xl font-medium whitespace-nowrap motion-safe:transition-colors motion-safe:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary";
-
-const ctaClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-line-green-cta px-5 text-sm font-medium text-white hover:bg-line-green-cta-hover active:bg-line-green-cta-hover motion-safe:transition-colors motion-safe:duration-200";
+const tabBaseClass = cn(
+  "flex flex-1 sm:flex-none items-center justify-center gap-2 min-h-11 px-4 py-2.5 rounded-xl font-medium whitespace-nowrap motion-safe:transition-colors motion-safe:duration-200 touch-manipulation snap-start",
+  adminFocusRingClass
+);
 
 function normalizeQuery(raw: string): string {
   return raw.trim().toLowerCase();
@@ -174,7 +181,7 @@ function SkeletonBar({ className }: { className?: string }) {
 function AdminItemsSkeleton() {
   return (
     <div
-      className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6 space-y-4 sm:space-y-5 lg:space-y-6"
+      className={cn(adminPageShellClass, "pb-4 sm:pb-5 lg:pb-6")}
       role="status"
       aria-live="polite"
       aria-busy="true"
@@ -193,21 +200,21 @@ function AdminItemsSkeleton() {
         <SkeletonBar className="h-11 w-full sm:w-44 rounded-xl" />
       </div>
       <div className={cn(surfaceClass, "p-0")}>
-        <div className="hidden md:block divide-y divide-border-light">
+        <div className="hidden lg:block divide-y divide-border-light">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex items-center gap-4 px-4 lg:px-6 py-4">
               <SkeletonBar className="h-4 w-20" />
               <div className="flex-1 space-y-2 min-w-0">
                 <SkeletonBar className="h-4 w-40 max-w-full" />
-                <SkeletonBar className="h-3 w-28 lg:hidden" />
+                <SkeletonBar className="h-3 w-28 xl:hidden" />
               </div>
-              <SkeletonBar className="hidden lg:block h-4 w-24" />
+              <SkeletonBar className="hidden xl:block h-4 w-24" />
               <SkeletonBar className="h-6 w-20 rounded-full" />
               <SkeletonBar className="h-9 w-20 rounded-lg shrink-0" />
             </div>
           ))}
         </div>
-        <div className="md:hidden divide-y divide-border-light">
+        <div className="lg:hidden divide-y divide-border-light">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-4">
               <div className="flex-1 space-y-2 min-w-0">
@@ -239,6 +246,8 @@ function ItemsEmptyState({
 }) {
   const Icon = activeTab === "lost" ? Search : Package;
   const otherLabel = activeTab === "lost" ? "ของเจอ" : "ของหาย";
+  const isMdUp = useMediaQuery("(min-width: 768px)");
+  const prefersHover = useMediaQuery("(hover: hover) and (pointer: fine)");
 
   if (hasActiveFilters) {
     return (
@@ -253,13 +262,19 @@ function ItemsEmptyState({
         >
           <Filter className="h-6 w-6" aria-hidden />
         </div>
-        <h3 className="text-base font-semibold text-text-primary text-balance">
+        <h3 className="text-base font-medium text-text-primary text-balance">
           ไม่พบรายการที่ตรงกับเงื่อนไข
         </h3>
         <p className="mt-2 text-sm text-text-secondary text-pretty">
-          ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองเพื่อดูรายการทั้งหมดอีกครั้ง
+          {isMdUp
+            ? "ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองเพื่อดูรายการทั้งหมดอีกครั้ง"
+            : "ลองเปลี่ยนคำค้นหา หรือล้างตัวกรอง"}
         </p>
-        <button type="button" onClick={onClear} className={cn(ctaClass, "mt-4")}>
+        <button
+          type="button"
+          onClick={onClear}
+          className={cn(adminCtaClass, "mt-4", prefersHover && "hover:bg-line-green-cta-hover")}
+        >
           ล้างตัวกรอง
         </button>
       </div>
@@ -278,24 +293,34 @@ function ItemsEmptyState({
       >
         <Icon className="h-6 w-6" aria-hidden />
       </div>
-      <h3 className="text-base font-semibold text-text-primary text-balance">
+      <h3 className="text-base font-medium text-text-primary text-balance">
         {activeTab === "lost" ? "ยังไม่มีรายการของหาย" : "ยังไม่มีรายการของเจอ"}
       </h3>
       <p className="mt-2 text-sm text-text-secondary text-pretty">
         {activeTab === "lost"
-          ? "เมื่อนักเรียนแจ้งของหาย รายการจะแสดงที่นี่ — ค้นหาด้วยรหัสติดตาม อัปเดตสถานะ หรือลบรายการที่ไม่ถูกต้อง"
-          : "เมื่อมีคนแจ้งของเจอ รายการจะแสดงที่นี่ — เปิดรายการแล้วยืนยันเมื่อของถึงห้องบุคคล เพื่อให้นักเรียนมารับได้"}
+          ? isMdUp
+            ? "เมื่อนักเรียนแจ้งของหาย รายการจะแสดงที่นี่ — ค้นหาด้วยรหัสติดตาม อัปเดตสถานะ หรือลบรายการที่ไม่ถูกต้อง"
+            : "เมื่อมีแจ้งของหาย จะแสดงที่นี่"
+          : isMdUp
+            ? "เมื่อมีคนแจ้งของเจอ รายการจะแสดงที่นี่ — เปิดรายการแล้วยืนยันเมื่อของถึงห้องบุคคล เพื่อให้นักเรียนมารับได้"
+            : "เมื่อมีแจ้งของเจอ จะแสดงที่นี่ — ยืนยันเมื่อถึงห้องบุคคล"}
       </p>
       <div className="mt-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3">
-        <Link href="/admin/matching" className={ctaClass}>
-          <Sparkles className="w-4 h-4" aria-hidden />
-          ไปที่ Matching
+        <Link
+          href="/admin/matching"
+          className={cn(adminCtaClass, prefersHover && "hover:bg-line-green-cta-hover")}
+        >
+          <Link2 className="w-4 h-4" aria-hidden />
+          ไปจับคู่รายการ
         </Link>
         {otherTabCount > 0 && (
           <button
             type="button"
             onClick={onSwitchTab}
-            className="inline-flex min-h-11 items-center justify-center rounded-full bg-bg-tertiary px-5 text-sm font-medium text-text-primary hover:bg-border-light active:bg-border-light motion-safe:transition-colors motion-safe:duration-200"
+            className={cn(
+              adminSecondaryCtaClass,
+              prefersHover && "hover:bg-border-light"
+            )}
           >
             ดู{otherLabel} ({otherTabCount})
           </button>
@@ -643,13 +668,15 @@ export default function AdminItemsPage() {
   }
 
   return (
-    <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6 space-y-4 sm:space-y-5 lg:space-y-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
+    <div className={adminPageShellClass}>
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold text-text-primary text-balance">
           จัดการรายการ
         </h1>
         <p className="text-text-secondary mt-1 text-sm sm:text-base">
-          ดูและจัดการรายการของหายและของเจอทั้งหมด
+          {isMdUp
+            ? "ดูและจัดการรายการของหายและของเจอทั้งหมด"
+            : "ค้นหา อัปเดตสถานะ และลบรายการ"}
         </p>
       </div>
 
@@ -676,7 +703,10 @@ export default function AdminItemsPage() {
           <button
             type="button"
             onClick={dismissTip}
-            className="absolute top-2 right-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-line-green-dark/80 hover:bg-line-green/15 active:bg-line-green/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
+            className={cn(
+              "absolute top-2 right-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-line-green-dark/80 active:bg-line-green/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 touch-manipulation",
+              prefersHover && "hover:bg-line-green/15"
+            )}
             aria-label="ปิดคำแนะนำ"
           >
             <X className="w-4 h-4" aria-hidden />
@@ -699,7 +729,7 @@ export default function AdminItemsPage() {
         )}
 
       <div
-        className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5"
+        className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 snap-x snap-mandatory"
         role="group"
         aria-label="ประเภทข้อมูล"
       >
@@ -789,7 +819,10 @@ export default function AdminItemsPage() {
             <button
               type="button"
               onClick={() => setSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-text-secondary hover:bg-bg-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35"
+              className={cn(
+                "absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-text-secondary active:bg-bg-secondary active:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 touch-manipulation",
+                prefersHover && "hover:bg-bg-secondary hover:text-text-primary"
+              )}
               aria-label="ล้างคำค้นหา"
             >
               <X className="w-4 h-4" aria-hidden />
@@ -845,7 +878,7 @@ export default function AdminItemsPage() {
               )}
             >
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-text-primary">แผนที่รายการ</h2>
+                <h2 className="text-sm font-medium text-text-primary">แผนที่รายการ</h2>
                 <p
                   className={cn(
                     "text-xs",
@@ -936,8 +969,8 @@ export default function AdminItemsPage() {
         ))}
 
       <div className={surfaceClass}>
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full min-w-[36rem] lg:min-w-0" aria-describedby={resultsStatusId}>
+        <div className="hidden lg:block overflow-x-auto">
+          <table className="w-full min-w-0" aria-describedby={resultsStatusId}>
             <thead className="bg-bg-secondary sticky top-0 z-[1]">
               <tr>
                 <th scope="col" className="text-left py-3 lg:py-4 px-4 lg:px-6 text-sm font-medium text-text-secondary">
@@ -946,7 +979,7 @@ export default function AdminItemsPage() {
                 <th scope="col" className="text-left py-3 lg:py-4 px-4 lg:px-6 text-sm font-medium text-text-secondary">
                   {activeTab === "lost" ? "สิ่งของ" : "รายละเอียด"}
                 </th>
-                <th scope="col" className="hidden lg:table-cell text-left py-4 px-6 text-sm font-medium text-text-secondary">
+                <th scope="col" className="text-left py-4 px-6 text-sm font-medium text-text-secondary">
                   สถานที่
                 </th>
                 <th scope="col" className="hidden xl:table-cell text-left py-4 px-6 text-sm font-medium text-text-secondary">
@@ -980,11 +1013,8 @@ export default function AdminItemsPage() {
                       <span className="text-text-primary block truncate" title={displayName}>
                         {displayName}
                       </span>
-                      <span className="lg:hidden block text-xs text-text-secondary truncate mt-0.5">
-                        {location || "—"}
-                      </span>
                     </td>
-                    <td className="hidden lg:table-cell py-4 px-6 text-text-secondary max-w-[10rem]">
+                    <td className="py-4 px-6 text-text-secondary max-w-[10rem]">
                       <span className="block truncate" title={location}>
                         {location || "—"}
                       </span>
@@ -1056,19 +1086,19 @@ export default function AdminItemsPage() {
           )}
         </div>
 
-        <div className="md:hidden divide-y divide-border-light">
+        <div className="lg:hidden divide-y divide-border-light">
           {visibleItems.map((item) => {
             const displayName = getItemDisplayName(item);
             const location =
               "locationLost" in item ? item.locationLost : item.locationFound;
             const statusConfig = getItemStatusConfig(item);
             return (
-              <div key={item.id} className="flex items-stretch">
+              <div key={item.id} className="flex items-stretch min-h-14">
                 <button
                   type="button"
                   onClick={() => openItem(item)}
                   className={cn(
-                    "flex-1 min-w-0 text-left px-4 py-3.5 active:bg-bg-secondary/80 motion-safe:transition-colors motion-safe:duration-200",
+                    "flex-1 min-w-0 text-left px-4 py-4 active:bg-bg-secondary/80 motion-safe:transition-colors motion-safe:duration-200 touch-manipulation",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-line-green/35"
                   )}
                   aria-label={`ดูรายละเอียด ${displayName} รหัส ${item.trackingCode}`}
@@ -1097,7 +1127,7 @@ export default function AdminItemsPage() {
                       >
                         {statusConfig.label}
                       </span>
-                      <ChevronRight className="w-4 h-4 text-text-tertiary" aria-hidden />
+                      <ChevronRight className="w-4 h-4 text-text-secondary" aria-hidden />
                     </div>
                   </div>
                 </button>
@@ -1106,9 +1136,10 @@ export default function AdminItemsPage() {
                   onClick={() => void handleDelete(item)}
                   disabled={busy}
                   className={cn(
-                    "shrink-0 self-stretch px-3 min-w-11 border-l border-border-light text-text-secondary",
+                    "shrink-0 self-stretch px-3 min-w-12 border-l border-border-light text-text-secondary touch-manipulation",
                     "active:bg-status-error-light active:text-status-error disabled:opacity-50",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-line-green/35"
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-line-green/35",
+                    prefersHover && "hover:bg-status-error-light hover:text-status-error"
                   )}
                   aria-label={`ลบ ${displayName}`}
                 >
@@ -1145,7 +1176,10 @@ export default function AdminItemsPage() {
                 type="button"
                 onClick={() => setShowModal(false)}
                 disabled={busy}
-                className="flex-1 min-h-11 py-3 rounded-full bg-bg-tertiary text-text-primary font-medium active:bg-border-light hover:bg-border-light motion-safe:transition-colors motion-safe:duration-200 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2"
+                className={cn(
+                  "flex-1 min-h-11 py-3 rounded-full bg-bg-tertiary text-text-primary font-medium active:bg-border-light motion-safe:transition-colors motion-safe:duration-200 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 touch-manipulation",
+                  prefersHover && "hover:bg-border-light"
+                )}
               >
                 ปิด
               </button>
@@ -1153,7 +1187,10 @@ export default function AdminItemsPage() {
                 type="button"
                 onClick={() => void handleDelete(selectedItem)}
                 disabled={busy}
-                className="sm:shrink-0 min-h-11 py-3 px-6 rounded-full bg-status-error-light text-red-800 dark:text-red-200 font-medium hover:bg-status-error hover:text-white active:bg-status-error active:text-white motion-safe:transition-colors motion-safe:duration-200 flex items-center justify-center gap-2 disabled:opacity-50 ring-1 ring-status-error/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error/40 focus-visible:ring-offset-2"
+                className={cn(
+                  "sm:shrink-0 min-h-11 py-3 px-6 rounded-full bg-status-error-light text-red-800 dark:text-red-200 font-medium active:bg-status-error active:text-white motion-safe:transition-colors motion-safe:duration-200 flex items-center justify-center gap-2 disabled:opacity-50 ring-1 ring-status-error/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error/40 focus-visible:ring-offset-2 touch-manipulation",
+                  prefersHover && "hover:bg-status-error hover:text-white"
+                )}
               >
                 {deleting ? (
                   <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
@@ -1175,6 +1212,7 @@ export default function AdminItemsPage() {
                   alt={`รูปของเจอ ${getItemDisplayName(selectedItem)}`}
                   fill
                   className="object-cover"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 32rem"
                   unoptimized
                 />
               </div>
@@ -1267,7 +1305,10 @@ export default function AdminItemsPage() {
                       type="button"
                       onClick={() => void handleConfirmRoomHandover(selectedItem)}
                       disabled={busy}
-                      className="w-full min-h-11 py-3 rounded-full bg-line-green-cta text-white font-semibold hover:bg-line-green-cta-hover active:bg-line-green-cta-hover disabled:opacity-50 flex items-center justify-center gap-2 motion-safe:transition-colors motion-safe:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2"
+                      className={cn(
+                        "w-full min-h-11 py-3 rounded-full bg-line-green-cta text-white font-medium active:bg-line-green-cta-hover disabled:opacity-50 flex items-center justify-center gap-2 motion-safe:transition-colors motion-safe:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 touch-manipulation",
+                        prefersHover && "hover:bg-line-green-cta-hover"
+                      )}
                     >
                       {updating ? (
                         <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
@@ -1285,7 +1326,7 @@ export default function AdminItemsPage() {
                 อัปเดตสถานะ
               </p>
               <div
-                className="flex flex-wrap gap-2"
+                className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 snap-x snap-mandatory sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0"
                 role="group"
                 aria-labelledby="status-update-label"
                 aria-busy={updating}
@@ -1307,11 +1348,12 @@ export default function AdminItemsPage() {
                       disabled={busy || isCurrent}
                       aria-pressed={isCurrent}
                       className={cn(
-                        "min-h-11 px-4 py-2 rounded-full text-sm font-medium motion-safe:transition-colors motion-safe:duration-200 disabled:opacity-60",
+                        "min-h-11 shrink-0 snap-start px-4 py-2 rounded-full text-sm font-medium motion-safe:transition-colors motion-safe:duration-200 disabled:opacity-60 touch-manipulation",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2",
                         isCurrent
                           ? `${STATUS_CONFIG[status].bgColor} ${STATUS_CONFIG[status].color} ring-2 ring-offset-2 ring-current`
-                          : "bg-bg-tertiary text-text-secondary active:bg-border-light hover:bg-border-light"
+                          : "bg-bg-tertiary text-text-secondary active:bg-border-light",
+                        !isCurrent && prefersHover && "hover:bg-border-light"
                       )}
                     >
                       {label}

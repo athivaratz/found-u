@@ -420,7 +420,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       reason: "unknown",
       message: thaiCopy.agent.aiBusy,
       suggestedRoutes: [
-        { href: "/list", labelKey: "list" },
+        { href: "/home", labelKey: "home" },
         { href: "/tracking", labelKey: "tracking" },
         { href: "/lost", labelKey: "lost" },
         { href: "/found", labelKey: "found" },

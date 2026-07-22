@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      { source: "/list", destination: "/home", permanent: true },
       { source: "/login", destination: "/auth/login", permanent: true },
       { source: "/login/register", destination: "/auth/register", permanent: true },
       { source: "/login/forgot-pin", destination: "/auth/login/forgot-pin", permanent: true },

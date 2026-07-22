@@ -62,11 +62,11 @@ export function ClassicQuickLinks({ className, onAgentPrompt }: ClassicQuickLink
             onAgentPrompt("แสดงรายการของที่ฉันแจ้งไว้");
             return;
           }
-          switchToClassic("/list");
+          switchToClassic("/home");
         }}
         className="inline-flex items-center gap-1.5 min-h-11 px-4 py-2.5 rounded-full text-sm font-medium bg-bg-card border border-border-light text-text-secondary hover:text-line-green hover:border-line-green/30 transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30"
       >
-        ดูรายการของ
+        รายการของฉัน
       </button>
     </div>
   );

@@ -16,7 +16,7 @@ export type AppMode = "classic" | "agent";
 const STORAGE_MODE_KEY = "foundu-app-mode";
 const STORAGE_CLASSIC_ROUTE_KEY = "foundu-last-classic-route";
 
-const CLASSIC_ROUTES = ["/home", "/lost", "/found", "/tracking", "/list", "/nfc", "/settings"];
+const CLASSIC_ROUTES = ["/home", "/lost", "/found", "/tracking", "/nfc", "/settings"];
 const AGENT_ROUTE = "/assistant";
 
 function readStoredMode(): AppMode {

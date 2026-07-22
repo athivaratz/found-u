@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Image from "next/image";
 import { MapPin, Calendar, Hash } from "lucide-react";
 import { cn, formatThaiDate } from "@/lib/utils";
@@ -7,30 +8,62 @@ import type { FoundItem, LostItem } from "@/lib/types";
 import type { AdminMatchPair } from "@/lib/match-admin-client";
 
 const CONFIDENCE_LABEL = {
-  high: { label: "มั่นใจสูง", className: "bg-[#e8f8ef] text-[#049c42]" },
-  medium: { label: "ปานกลาง", className: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
-  low: { label: "ต่ำ", className: "bg-[#ECEEF1] text-[#6B7280] dark:bg-gray-700 dark:text-gray-300" },
+  high: {
+    label: "มั่นใจสูง",
+    className: "bg-line-green-light text-line-green-dark dark:text-line-green",
+  },
+  medium: {
+    label: "ปานกลาง",
+    className: "bg-status-warning-light text-amber-800 dark:text-amber-200",
+  },
+  low: {
+    label: "ต่ำ",
+    className: "bg-bg-tertiary text-text-secondary",
+  },
 } as const;
 
 function ItemVisual({
   photoUrl,
   categoryIcon,
   alt,
+  compact,
+  priority,
 }: {
   photoUrl?: string | null;
   categoryIcon: string;
   alt: string;
+  compact?: boolean;
+  priority?: boolean;
 }) {
   if (photoUrl) {
     return (
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#F7F8FA]">
-        <Image src={photoUrl} alt={alt} fill className="object-cover" sizes="(max-width: 768px) 100vw, 40vw" unoptimized />
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-xl bg-bg-secondary",
+          compact ? "aspect-[16/10] sm:aspect-[4/3]" : "aspect-[4/3]"
+        )}
+      >
+        <Image
+          src={photoUrl}
+          alt={alt}
+          fill
+          className="object-cover"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
+          unoptimized
+          priority={priority}
+          loading={priority ? undefined : "lazy"}
+        />
       </div>
     );
   }
   return (
-    <div className="flex aspect-[4/3] w-full items-center justify-center rounded-xl bg-[#F7F8FA] dark:bg-gray-800">
-      <span className="text-5xl" aria-hidden>
+    <div
+      className={cn(
+        "flex w-full items-center justify-center rounded-xl bg-bg-secondary",
+        compact ? "aspect-[16/10] sm:aspect-[4/3]" : "aspect-[4/3]"
+      )}
+    >
+      <span className={cn(compact ? "text-3xl sm:text-4xl" : "text-4xl")} aria-hidden>
         {categoryIcon}
       </span>
     </div>
@@ -46,6 +79,8 @@ function SideCard({
   photoUrl,
   categoryIcon,
   meta,
+  className,
+  imagePriority,
 }: {
   kind: "lost" | "found";
   title: string;
@@ -55,42 +90,98 @@ function SideCard({
   photoUrl?: string | null;
   categoryIcon: string;
   meta?: string | null;
+  className?: string;
+  imagePriority?: boolean;
 }) {
   const kindLabel = kind === "lost" ? "ของหาย" : "ของเจอ";
   const kindClass =
     kind === "lost"
-      ? "text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-300"
-      : "text-[#049c42] bg-[#e8f8ef] dark:bg-[#06C755]/15 dark:text-[#4ade80]";
+      ? "bg-status-error-light text-red-800 dark:text-red-200"
+      : "bg-line-green-light text-line-green-dark dark:text-line-green";
 
   return (
-    <article className="flex min-w-0 flex-col gap-3 rounded-2xl border border-[#E5E7EB] bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex items-center gap-2">
-        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", kindClass)}>
+    <article
+      className={cn(
+        "flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border-light bg-bg-card p-3 sm:gap-3 sm:p-4",
+        className
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium", kindClass)}>
           {kindLabel}
         </span>
-        {meta ? <span className="truncate text-xs text-[#9CA3AF]">{meta}</span> : null}
+        {meta ? (
+          <span className="truncate text-xs text-text-secondary" title={meta}>
+            {meta}
+          </span>
+        ) : null}
       </div>
-      <ItemVisual photoUrl={photoUrl} categoryIcon={categoryIcon} alt={title} />
-      <div className="space-y-1.5">
-        <h3 className="line-clamp-2 text-base font-semibold text-[#191919] dark:text-white">{title}</h3>
-        <p className="flex items-start gap-1.5 text-sm text-[#6B7280]">
-          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span className="line-clamp-2">{location}</span>
+      <ItemVisual
+        photoUrl={photoUrl}
+        categoryIcon={categoryIcon}
+        alt={`รูป${kindLabel} ${title}`}
+        compact
+        priority={imagePriority}
+      />
+      <div className="min-w-0 space-y-1.5">
+        <h3 className="line-clamp-2 text-balance text-base font-medium text-text-primary">
+          {title}
+        </h3>
+        <p className="flex items-start gap-1.5 text-sm text-text-secondary">
+          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="line-clamp-2 break-words">{location || "—"}</span>
         </p>
-        <p className="flex items-center gap-1.5 text-sm text-[#6B7280]">
-          <Calendar className="h-3.5 w-3.5 shrink-0" />
-          {formatThaiDate(date)}
+        <p className="flex items-center gap-1.5 text-sm text-text-secondary">
+          <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="min-w-0 truncate">{formatThaiDate(date)}</span>
         </p>
-        <p className="flex items-center gap-1.5 text-xs text-[#9CA3AF]">
-          <Hash className="h-3 w-3 shrink-0" />
-          {trackingCode}
+        <p className="flex items-center gap-1.5 font-mono text-xs text-text-secondary">
+          <Hash className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="min-w-0 truncate">{trackingCode}</span>
         </p>
       </div>
     </article>
   );
 }
 
-export function MatchComparePanel({
+/** Compact score strip — text + badge, no decorative ring */
+function ScoreSummary({
+  match,
+  confidence,
+}: {
+  match: AdminMatchPair;
+  confidence: (typeof CONFIDENCE_LABEL)[keyof typeof CONFIDENCE_LABEL];
+}) {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-bg-secondary/80 px-3 py-2.5 sm:px-4"
+      aria-label={`คะแนนความคล้าย ${match.scorePercentage} เปอร์เซ็นต์ · ${confidence.label}`}
+    >
+      <p className="text-sm text-text-primary">
+        <span className="tabular-nums font-medium">{match.scorePercentage}%</span>
+        <span className="text-text-secondary"> ความคล้าย</span>
+      </p>
+      <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", confidence.className)}>
+        {confidence.label}
+      </span>
+      {match.reasons.length > 0 ? (
+        <ul className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+          {match.reasons.slice(0, 3).map((reason) => (
+            <li
+              key={reason}
+              className="max-w-full truncate rounded-full bg-bg-card px-2 py-0.5 text-xs text-text-secondary"
+              title={reason}
+            >
+              {reason}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function MatchComparePanelInner({
   match,
   getCategoryIcon,
 }: {
@@ -100,12 +191,15 @@ export function MatchComparePanel({
   const lost = match.lostItem as LostItem;
   const found = match.foundItem as FoundItem;
   const confidence = CONFIDENCE_LABEL[match.confidence];
-  const circumference = 2 * Math.PI * 36;
-  const progress = Math.min(1, Math.max(0, match.score)) * circumference;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-start">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+      <div className="order-1 sm:col-span-2">
+        <ScoreSummary match={match} confidence={confidence} />
+      </div>
+
       <SideCard
+        className="order-2"
         kind="lost"
         title={lost.itemName}
         location={lost.locationLost}
@@ -115,46 +209,8 @@ export function MatchComparePanel({
         meta={lost.description}
       />
 
-      <div className="flex flex-col items-center justify-center gap-3 px-2 py-4">
-        <div className="relative h-24 w-24">
-          <svg className="h-24 w-24 -rotate-90" viewBox="0 0 80 80" aria-hidden>
-            <circle cx="40" cy="40" r="36" fill="none" stroke="currentColor" strokeWidth="6" className="text-[#ECEEF1] dark:text-gray-700" />
-            <circle
-              cx="40"
-              cy="40"
-              r="36"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={`${progress} ${circumference}`}
-              className="text-[#06C755] transition-[stroke-dasharray] duration-500"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xl font-semibold text-[#191919] dark:text-white">
-              {match.scorePercentage}%
-            </span>
-          </div>
-        </div>
-        <span className={cn("rounded-full px-3 py-1 text-xs font-medium", confidence.className)}>
-          {confidence.label}
-        </span>
-        {match.reasons.length > 0 ? (
-          <ul className="flex max-w-[220px] flex-wrap justify-center gap-1.5">
-            {match.reasons.slice(0, 4).map((reason) => (
-              <li
-                key={reason}
-                className="rounded-full bg-[#F7F8FA] px-2 py-0.5 text-[11px] text-[#6B7280] dark:bg-gray-800 dark:text-gray-300"
-              >
-                {reason}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-
       <SideCard
+        className="order-3"
         kind="found"
         title={found.itemName?.trim() || found.description}
         location={found.locationFound}
@@ -163,7 +219,10 @@ export function MatchComparePanel({
         photoUrl={found.photoUrl}
         categoryIcon={getCategoryIcon(found.category)}
         meta={[found.brand, found.color].filter(Boolean).join(" · ") || found.description}
+        imagePriority
       />
     </div>
   );
 }
+
+export const MatchComparePanel = memo(MatchComparePanelInner);

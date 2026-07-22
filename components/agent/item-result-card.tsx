@@ -84,13 +84,13 @@ export function ItemResultCard({ item, className, isNew }: ItemResultCardProps) 
           </Link>
         ) : null}
         <Link
-          href="/list"
+          href="/home"
           className={cn(
             "inline-flex items-center justify-center min-h-11 text-center text-sm font-medium px-3 py-2 rounded-full bg-bg-tertiary text-text-primary hover:bg-bg-secondary transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30",
             showTracking ? "flex-1" : "w-full"
           )}
         >
-          ดูรายการ
+          รายการของฉัน
         </Link>
       </div>
     </div>
