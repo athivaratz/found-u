@@ -6,4 +6,5 @@ export const GROUNDING_SECTION = `Anti-hallucination rules (mandatory):
 5. Privacy: never show phone/Line/contacts, tracking codes, or database ids of other users' items — direct owners to their own tracking codes only.
 6. Location fidelity: if the user names a location and results are elsewhere → treat as not found.
 7. Uncertainty: if key fields are missing (item name, location) → ask the user; do not guess.
-8. Match disclaimer: matches are "likely" fits, not guarantees.`;
+8. Match disclaimer: matches are "likely" fits, not guarantees.
+9. Found GPS: if reportFoundItem fails because of location/permission, explain the tool message in Thai and invite the user to allow location or try again on campus — never say the found item was saved.`;

@@ -16,11 +16,13 @@ import {
   type ContactInfo,
   type DropOffLocation,
   type ItemCategory,
+  type LocationCoords,
 } from "@/lib/types";
 import { generateTrackingCode } from "@/lib/utils";
 import { computeHandoverDeadlineFromNow } from "@/lib/found-handover";
 import { ITEM_CATEGORIES } from "@/lib/agent/ner-field-hints";
 import { formatReportValidationError } from "@/lib/agent/report-validation-errors";
+import { assertFoundLocationAllowed } from "@/lib/found-location-guard";
 
 function normalizeCategory(category: string): ItemCategory {
   const lower = category.trim().toLowerCase();
@@ -187,6 +189,10 @@ export async function reportFoundItemServer(
     finderContacts?: ContactInfo[];
     contact?: string;
     contactType?: string;
+    /** Client-verified GPS only — never from LLM tool args. */
+    locationCoords?: LocationCoords | null;
+    /** Admin may bypass school geofence (same as /found UI). */
+    bypassLocationCheck?: boolean;
   },
   settings?: AppSettings
 ): Promise<
@@ -202,8 +208,21 @@ export async function reportFoundItemServer(
         foundItem: Awaited<ReturnType<typeof mapFoundItemRow>>;
       }>;
     }
-  | { ok: false; message: string; missingFields?: string[] }
+  | { ok: false; message: string; missingFields?: string[]; locationCode?: string }
 > {
+  const locationGuard = assertFoundLocationAllowed(
+    params.locationCoords,
+    settings,
+    { bypass: Boolean(params.bypassLocationCheck) }
+  );
+  if (!locationGuard.ok) {
+    return {
+      ok: false,
+      message: locationGuard.message,
+      locationCode: locationGuard.code,
+    };
+  }
+
   const supabase = await createClient();
   const trackingCode = generateTrackingCode("found");
   const handoverDeadlineAt = computeHandoverDeadlineFromNow(settings);
@@ -227,6 +246,7 @@ export async function reportFoundItemServer(
     ...(params.color?.trim() ? { color: params.color.trim() } : {}),
     ...(params.brand?.trim() ? { brand: params.brand.trim() } : {}),
     ...(handoverDeadlineAt ? { handoverDeadlineAt } : {}),
+    ...(locationGuard.coords ? { locationCoords: locationGuard.coords } : {}),
     finderContacts: buildContacts(
       params.finderContacts,
       params.contact,

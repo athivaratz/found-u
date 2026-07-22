@@ -30,7 +30,7 @@ import {
   serializeFoundItem,
   serializeLostItem,
 } from "@/lib/agent/row-mappers";
-import type { AppSettings } from "@/lib/types";
+import type { AppSettings, LocationCoords } from "@/lib/types";
 import {
   analyzeImageToolSchema,
   findMatchesToolSchema,
@@ -57,8 +57,21 @@ export function createAgentTools(options: {
   userId: string | null;
   isAdmin: boolean;
   settings: AppSettings;
+  /** Client-verified GPS from chat body — never from LLM. */
+  clientLocation?: LocationCoords | null;
+  /**
+   * Explicit admin UI bypass only — never auto-bypass just because isAdmin
+   * (admins testing from outside campus would otherwise skip geofence).
+   */
+  adminLocationBypass?: boolean;
 }) {
-  const { userId, isAdmin, settings } = options;
+  const {
+    userId,
+    isAdmin,
+    settings,
+    clientLocation,
+    adminLocationBypass = false,
+  } = options;
   const viewer = buildViewer(userId, isAdmin);
 
   return {
@@ -435,14 +448,22 @@ export function createAgentTools(options: {
         }
         try {
           const result = await reportFoundItemServer(
-            { userId, ...input },
+            {
+              userId,
+              ...input,
+              locationCoords: clientLocation ?? null,
+              bypassLocationCheck: Boolean(isAdmin && adminLocationBypass),
+            },
             settings
           );
           if (!result.ok) {
             return {
               ok: false,
               resultType: "report",
-              data: null,
+              data: {
+                locationBlocked: Boolean(result.locationCode),
+                locationCode: result.locationCode ?? null,
+              },
               message: result.message,
             };
           }

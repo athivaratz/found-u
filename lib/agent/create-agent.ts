@@ -8,6 +8,7 @@ import type { AgentStepLog } from "@/lib/agent/agent-step-log";
 import {
   AGENT_DEFAULT_MAX_OUTPUT_TOKENS,
   type AppSettings,
+  type LocationCoords,
 } from "@/lib/types";
 
 const POST_TOOL_SYNTHESIS_HINT =
@@ -20,6 +21,8 @@ export function createFoundUAgent(options: {
   isAdmin?: boolean;
   memoryFacts?: MemoryFact[];
   schoolName?: string;
+  clientLocation?: LocationCoords | null;
+  adminLocationBypass?: boolean;
   onStepLog?: (step: AgentStepLog) => void;
 }) {
   const settings = normalizeAgentSettings(options.settings);
@@ -27,6 +30,8 @@ export function createFoundUAgent(options: {
     userId: options.userId,
     isAdmin: options.isAdmin ?? false,
     settings,
+    clientLocation: options.clientLocation ?? null,
+    adminLocationBypass: Boolean(options.adminLocationBypass),
   });
 
   const maxSteps = settings.agentMaxSteps ?? 4;

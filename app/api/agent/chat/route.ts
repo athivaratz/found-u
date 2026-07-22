@@ -25,6 +25,7 @@ import { isAdminUser } from "@/lib/nfc-server";
 import type { MemoryFact } from "@/lib/chat/types";
 import { thaiCopy } from "@/lib/copy/thai-student";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
+import { parseClientLocation } from "@/lib/found-location-guard";
 
 export const maxDuration = 60;
 
@@ -43,6 +44,8 @@ export async function POST(request: NextRequest) {
     const messages = (body.messages || []) as UIMessage[];
     const memoryFacts = (body.memoryFacts || []) as MemoryFact[];
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
+    const clientLocation = parseClientLocation(body.clientLocation);
+    const adminLocationBypass = body.adminLocationBypass === true;
 
     const settings = await getAppSettingsAdmin();
     const schoolName = await getRuntimeSchoolName();
@@ -125,6 +128,8 @@ export async function POST(request: NextRequest) {
           isAdmin,
           memoryFacts: safeFacts,
           schoolName,
+          clientLocation,
+          adminLocationBypass: isAdmin && adminLocationBypass,
           onStepLog: (step) => {
             collector.steps.push(step);
           },

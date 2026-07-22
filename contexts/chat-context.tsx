@@ -40,7 +40,7 @@ import { dedupeFacts, extractFactsFromMessages } from "@/lib/chat/memory/extract
 import { buildTitleFromMessages } from "@/lib/chat/titles";
 import { buildAgentRequestContext } from "@/lib/chat/context/short-term";
 import { getAppSettings } from "@/lib/database";
-import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
+import { DEFAULT_APP_SETTINGS, type AppSettings, type LocationCoords } from "@/lib/types";
 import { thaiCopy } from "@/lib/copy/thai-student";
 import {
   extractTextFromUIMessageParts,
@@ -97,6 +97,12 @@ type ChatContextValue = {
   refreshSessions: () => Promise<void>;
   isThinking: boolean;
   loading: boolean;
+  /** Client GPS for found-item geofence — set by Assistant shell. */
+  setClientLocation: (coords: LocationCoords | null) => void;
+  clientLocation: LocationCoords | null;
+  /** Explicit admin GPS bypass (UI button only). */
+  setAdminLocationBypass: (bypass: boolean) => void;
+  adminLocationBypass: boolean;
 };
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -119,6 +125,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const activeSessionIdRef = useRef<string | null>(null);
   const prevStatusRef = useRef<string>("ready");
   const repairedMessageIdsRef = useRef<Set<string>>(new Set());
+  const clientLocationRef = useRef<LocationCoords | null>(null);
+  const [clientLocation, setClientLocationState] = useState<LocationCoords | null>(
+    null
+  );
+  const adminLocationBypassRef = useRef(false);
+  const [adminLocationBypass, setAdminLocationBypassState] = useState(false);
+
+  const setClientLocation = useCallback((coords: LocationCoords | null) => {
+    clientLocationRef.current = coords;
+    setClientLocationState(coords);
+  }, []);
+
+  const setAdminLocationBypass = useCallback((bypass: boolean) => {
+    adminLocationBypassRef.current = bypass;
+    setAdminLocationBypassState(bypass);
+  }, []);
 
   const refreshSessions = useCallback(async () => {
     if (!user) {
@@ -141,6 +163,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             messages: msgs,
             sessionId: id,
             memoryFacts: memoryFactsRef.current,
+            clientLocation: clientLocationRef.current,
+            adminLocationBypass: adminLocationBypassRef.current,
             contextMeta: {
               sessionId: id,
               totalMessages: msgs.length,
@@ -533,6 +557,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       refreshSessions,
       isThinking: status === "streaming" || status === "submitted",
       loading,
+      setClientLocation,
+      clientLocation,
+      setAdminLocationBypass,
+      adminLocationBypass,
     }),
     [
       sessions,
@@ -554,6 +582,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       clearAgentMemory,
       refreshSessions,
       loading,
+      setClientLocation,
+      clientLocation,
+      setAdminLocationBypass,
+      adminLocationBypass,
     ]
   );
 

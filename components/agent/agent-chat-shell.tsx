@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { MapPin } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { ChatProvider, useAutoTitle, useChatContext } from "@/contexts/chat-context";
 import { AgentTopBar } from "@/components/agent/agent-top-bar";
@@ -12,16 +13,30 @@ import { ClassicQuickLinks } from "@/components/agent/classic-quick-links";
 import { TraditionalFallbackPanel } from "@/components/agent/traditional-fallback-panel";
 import { VoiceSphereOverlay } from "@/components/agent/voice-sphere-overlay";
 import { ChatSidebar } from "@/components/agent/chat-sidebar";
+import { LocationPermissionGate } from "@/components/shared/location-permission-gate";
+import { useFoundLocationGate } from "@/hooks/use-found-location-gate";
+import {
+  assistantAskedForFoundDetails,
+  findLatestFoundLocationBlock,
+  isFoundReportPrompt,
+  isLostReportPrompt,
+  isNonFoundPivotPrompt,
+} from "@/lib/agent/found-location-client";
 import { thaiCopy } from "@/lib/copy/thai-student";
 import { cn } from "@/lib/utils";
 import { useMounted } from "@/hooks/use-mounted";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 
 function AgentChatInner() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, appSettings, appSettingsReady, isAdmin } =
+    useAuth();
   const mounted = useMounted();
   const [input, setInput] = useState("");
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const pendingFoundPromptRef = useRef<string | null>(null);
+  const lastBlockKeyRef = useRef<string | null>(null);
+  /** Sticky: once user starts a found-report flow, require GPS until verified. */
+  const [foundFlowNeedsGps, setFoundFlowNeedsGps] = useState(false);
 
   const {
     messages,
@@ -32,14 +47,141 @@ function AgentChatInner() {
     setSidebarOpen,
     createSession,
     sendPrompt,
-    handleSubmit,
     clearFallback,
     isThinking,
     loading: chatLoading,
     activeSessionId,
+    setClientLocation,
+    setAdminLocationBypass,
   } = useChatContext();
 
   useAutoTitle(messages, activeSessionId);
+
+  const locationGate = useFoundLocationGate({
+    appSettings,
+    appSettingsReady,
+    enabled: Boolean(user) && mounted,
+    mode: "lazy",
+    isAdmin,
+    onVerifiedCoords: (coords) => {
+      setAdminLocationBypass(false);
+      setClientLocation(coords);
+    },
+  });
+
+  const {
+    gpsLoading,
+    locationVerified,
+    locationErrorType,
+    userCurrentCoords,
+    verifiedCoords,
+    adminGpsBypassed,
+    enforcementRequired,
+    polygon,
+    showLazyGate,
+    openGate,
+    closeGate,
+    openGateForLocationFailure,
+    retryPermission,
+    bypassAsAdmin,
+  } = locationGate;
+
+  // Keep chat body location in sync (clear when not verified under enforcement)
+  useEffect(() => {
+    if (adminGpsBypassed) {
+      setAdminLocationBypass(true);
+      setFoundFlowNeedsGps(false);
+      return;
+    }
+    setAdminLocationBypass(false);
+
+    if (!enforcementRequired) {
+      if (verifiedCoords) setClientLocation(verifiedCoords);
+      setFoundFlowNeedsGps(false);
+      return;
+    }
+    if (locationVerified === true && verifiedCoords) {
+      setClientLocation(verifiedCoords);
+      setFoundFlowNeedsGps(false);
+    } else {
+      setClientLocation(null);
+    }
+  }, [
+    enforcementRequired,
+    adminGpsBypassed,
+    locationVerified,
+    verifiedCoords,
+    setClientLocation,
+    setAdminLocationBypass,
+  ]);
+
+  // After location succeeds with a pending found prompt — send it
+  useEffect(() => {
+    if (locationVerified !== true && !adminGpsBypassed) return;
+    const pending = pendingFoundPromptRef.current;
+    if (!pending) return;
+    pendingFoundPromptRef.current = null;
+    setFoundFlowNeedsGps(false);
+    closeGate();
+    sendPrompt(pending);
+  }, [locationVerified, adminGpsBypassed, closeGate, sendPrompt]);
+
+  // Open lazy gate when reportFoundItem fails on location (once per failure)
+  useEffect(() => {
+    if (!enforcementRequired) return;
+    if (status === "streaming" || status === "submitted") return;
+    const block = findLatestFoundLocationBlock(messages);
+    if (!block) return;
+    const key = `${messages.length}:${block.locationCode}:${block.message}`;
+    if (lastBlockKeyRef.current === key) return;
+    lastBlockKeyRef.current = key;
+    setFoundFlowNeedsGps(true);
+    openGateForLocationFailure();
+  }, [messages, status, enforcementRequired, openGateForLocationFailure]);
+
+  // If assistant already asked for found details without GPS, lock the flow
+  useEffect(() => {
+    if (!enforcementRequired || adminGpsBypassed) return;
+    if (locationVerified === true) return;
+    if (assistantAskedForFoundDetails(messages)) {
+      setFoundFlowNeedsGps(true);
+    }
+  }, [
+    messages,
+    enforcementRequired,
+    adminGpsBypassed,
+    locationVerified,
+  ]);
+
+  const needsFoundGpsGate =
+    enforcementRequired &&
+    !adminGpsBypassed &&
+    locationVerified !== true;
+
+  const sendOrGateFound = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    if (isLostReportPrompt(trimmed) || isNonFoundPivotPrompt(trimmed)) {
+      setFoundFlowNeedsGps(false);
+      pendingFoundPromptRef.current = null;
+      sendPrompt(trimmed);
+      return;
+    }
+
+    const isFoundStart = isFoundReportPrompt(trimmed);
+    const isFoundFollowUp =
+      foundFlowNeedsGps || assistantAskedForFoundDetails(messages);
+
+    if (needsFoundGpsGate && (isFoundStart || isFoundFollowUp)) {
+      setFoundFlowNeedsGps(true);
+      pendingFoundPromptRef.current = trimmed;
+      openGate();
+      return;
+    }
+
+    sendPrompt(trimmed);
+  };
 
   if ((authLoading && !user) || !mounted) {
     return (
@@ -86,9 +228,14 @@ function AgentChatInner() {
   }
 
   const onSubmit = () => {
-    handleSubmit(input);
+    sendOrGateFound(input);
     setInput("");
   };
+
+  const locationBlockedBanner = findLatestFoundLocationBlock(messages);
+  const showGpsBanner =
+    needsFoundGpsGate &&
+    (foundFlowNeedsGps || Boolean(locationBlockedBanner));
 
   return (
     <div
@@ -104,7 +251,11 @@ function AgentChatInner() {
       <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-x-hidden agent-surface-bg agent-chat-pane assistant-desktop:bg-bg-primary">
         <AgentTopBar
           status={status}
-          onNewChat={() => void createSession()}
+          onNewChat={() => {
+            setFoundFlowNeedsGps(false);
+            pendingFoundPromptRef.current = null;
+            void createSession();
+          }}
           onOpenHistory={() => setSidebarOpen(true)}
         />
 
@@ -129,7 +280,7 @@ function AgentChatInner() {
         {messages.length === 0 && !fallback ? (
           <AgentEmptyState
             className="flex-1 min-h-0"
-            onSelectPrompt={sendPrompt}
+            onSelectPrompt={sendOrGateFound}
           />
         ) : (
           <AgentMessageList messages={messages} status={status} />
@@ -139,10 +290,26 @@ function AgentChatInner() {
           <TraditionalFallbackPanel payload={fallback} className="mx-4 mb-2" />
         ) : null}
 
+        {showGpsBanner ? (
+          <div className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-status-warning/30 bg-status-warning-light px-3 py-2 text-sm text-text-primary shrink-0">
+            <MapPin className="w-4 h-4 text-status-warning shrink-0" aria-hidden />
+            <span className="flex-1 min-w-0 text-pretty text-xs sm:text-sm">
+              ต้องยืนยันตำแหน่งในโรงเรียนก่อนแจ้งเจอของ — ยังคุยเรื่องอื่นหรือแจ้งของหายได้ตามปกติ
+            </span>
+            <button
+              type="button"
+              onClick={() => void retryPermission()}
+              className="min-h-9 rounded-full bg-line-green px-3 py-1.5 text-xs font-medium text-white hover:bg-line-green-hover touch-manipulation"
+            >
+              ขอสิทธิ์ตำแหน่งอีกครั้ง
+            </button>
+          </div>
+        ) : null}
+
         {messages.length > 0 ? (
           <ClassicQuickLinks
             className="px-4 pb-2 shrink-0 w-full max-w-full min-w-0"
-            onAgentPrompt={sendPrompt}
+            onAgentPrompt={sendOrGateFound}
           />
         ) : null}
 
@@ -161,8 +328,32 @@ function AgentChatInner() {
           onTranscript={(text) => {
             clearFallback();
             setVoiceOpen(false);
-            sendPrompt(text);
+            sendOrGateFound(text);
           }}
+        />
+
+        <LocationPermissionGate
+          open={showLazyGate}
+          onClose={closeGate}
+          waitingForSettings={Boolean(user) && !appSettingsReady}
+          gpsLoading={gpsLoading}
+          locationVerified={locationVerified}
+          locationErrorType={locationErrorType}
+          userCurrentCoords={userCurrentCoords}
+          appSettings={appSettings}
+          schoolPolygon={polygon}
+          isAdmin={isAdmin}
+          onRetry={() => void retryPermission()}
+          onAdminBypass={bypassAsAdmin}
+          dismissLabel="ปิดแล้วคุยต่อ"
+          onDismiss={() => {
+            // Keep sticky GPS requirement; do not send the found prompt yet.
+            pendingFoundPromptRef.current = null;
+            setFoundFlowNeedsGps(true);
+            closeGate();
+          }}
+          closeOnBackdrop
+          showCloseButton
         />
       </div>
     </div>

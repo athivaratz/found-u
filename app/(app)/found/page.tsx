@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -22,7 +22,6 @@ import InfoTooltip from "@/components/ui/info-tooltip";
 import CameraCapture from "@/components/ui/camera-capture";
 import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
 import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
-import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { AnimatePresence, m } from "framer-motion";
 import { slideUp, scaleIn, staggerContainer, staggerItem, fade, motionSafe, duration, easeOut } from "@/lib/motion";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -38,7 +37,6 @@ import {
   cn,
   generateTrackingCode,
   isPointInPolygon,
-  STRICT_GPS_MAX_ACCURACY_METERS,
 } from "@/lib/utils";
 import {
   addFoundItem,
@@ -48,19 +46,14 @@ import {
   getCompressionOptionsFromSettings,
   getMaxUploadBytes,
 } from "@/lib/image-upload-settings";
-import {
-  getAccuratePosition,
-  getMapDisplayPosition,
-  isIOSDevice,
-  queryGeolocationPermission,
-  watchGeolocationPermission,
-} from "@/lib/geolocation";
+import { getMapDisplayPosition } from "@/lib/geolocation";
+import { useFoundLocationGate } from "@/hooks/use-found-location-gate";
+import { LocationPermissionGate } from "@/components/shared/location-permission-gate";
 import { useAuth } from "@/contexts/auth-context";
 import { useCategories, useContactTypes } from "@/contexts/DataContext";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useMapView } from "@/hooks/use-map-view";
-import { resolveMapView } from "@/lib/map-utils";
 import { logItemCreated } from "@/lib/logger";
 import type { MatchScore } from "@/lib/matching";
 import {
@@ -118,20 +111,6 @@ export default function ReportFoundPage() {
   const reportModeLayoutId = "found-report-mode-indicator";
   const [formStep, setFormStep] = useState(0);
 
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
-  const [adminGpsBypassed, setAdminGpsBypassed] = useState(false);
-  const [locationErrorType, setLocationErrorType] = useState<
-    | "permission"
-    | "timeout"
-    | "position"
-    | "outside"
-    | "boundary_not_configured"
-    | "low_accuracy"
-    | null
-  >(null);
-  const [userCurrentCoords, setUserCurrentCoords] = useState<LocationCoords | null>(null);
-
   const [reportMode, setReportMode] = useState<ReportMode>("vision");
   const [visionQuota, setVisionQuota] = useState<{
     enabled: boolean;
@@ -156,6 +135,25 @@ export default function ReportFoundPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [locationCoords, setLocationCoords] = useState<LocationCoords | null>(null);
+
+  const {
+    gpsLoading,
+    locationVerified,
+    locationErrorType,
+    userCurrentCoords,
+    polygon: schoolPolygonNormalized,
+    showBlockingGate,
+    retryPermission,
+    bypassAsAdmin,
+    setAdminGpsBypassed,
+  } = useFoundLocationGate({
+    appSettings,
+    appSettingsReady,
+    enabled: Boolean(user) && !authPending && !configLoading,
+    mode: "blocking",
+    isAdmin,
+    onVerifiedCoords: (coords) => setLocationCoords(coords),
+  });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -241,12 +239,9 @@ export default function ReportFoundPage() {
     return () => clearInterval(interval);
   }, [user?.uid, reportMode]);
 
-  const enforcementRequired = appSettingsReady && !!appSettings.mapEnforceFoundInSchool;
   const waitingForSettings =
     !authLoading && !configLoading && !!user && !appSettingsReady;
-  const showLocationGate =
-    waitingForSettings ||
-    (enforcementRequired && !adminGpsBypassed && locationVerified !== true);
+  const showLocationGate = waitingForSettings || showBlockingGate;
 
   const mapFallbackCenter = useMemo(
     () => appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 },
@@ -254,8 +249,11 @@ export default function ReportFoundPage() {
   );
   const mapFallbackZoom = appSettings.mapDefaultZoom ?? 17;
   const schoolPolygon = useMemo(
-    () => appSettings.mapSchoolBoundary || [],
-    [appSettings.mapSchoolBoundary]
+    () =>
+      schoolPolygonNormalized.length > 0
+        ? schoolPolygonNormalized
+        : appSettings.mapSchoolBoundary || [],
+    [schoolPolygonNormalized, appSettings.mapSchoolBoundary]
   );
 
   const {
@@ -270,122 +268,6 @@ export default function ReportFoundPage() {
     marker: locationCoords,
     locateUser: true,
   });
-
-  const gateMapView = useMemo(
-    () =>
-      resolveMapView({
-        fallbackCenter: mapFallbackCenter,
-        fallbackZoom: mapFallbackZoom,
-        polygon: schoolPolygon,
-        marker: userCurrentCoords,
-        userLocation: userCurrentCoords,
-      }),
-    [mapFallbackCenter, mapFallbackZoom, schoolPolygon, userCurrentCoords]
-  );
-
-  const verifyLocation = useCallback(async () => {
-    const polygon = appSettings.mapSchoolBoundary || [];
-
-    if (!appSettings.mapEnforceFoundInSchool) {
-      setLocationVerified(true);
-      setLocationErrorType(null);
-      setGpsLoading(false);
-      return;
-    }
-
-    setLocationVerified(null);
-    setLocationErrorType(null);
-
-    if (polygon.length < 3) {
-      setLocationVerified(false);
-      setLocationErrorType("boundary_not_configured");
-      setGpsLoading(false);
-      return;
-    }
-
-    setGpsLoading(true);
-
-    if (!navigator.geolocation) {
-      setLocationErrorType("position");
-      setLocationVerified(false);
-      setGpsLoading(false);
-      return;
-    }
-
-    const permission = await queryGeolocationPermission();
-    if (permission === "denied") {
-      setLocationErrorType("permission");
-      setLocationVerified(false);
-      setGpsLoading(false);
-      return;
-    }
-
-    const result = await getAccuratePosition({
-      onProgress: (coords) => setUserCurrentCoords(coords),
-    });
-
-    if (!result.ok) {
-      if (result.error === "permission") {
-        setLocationErrorType("permission");
-      } else if (result.error === "timeout") {
-        setLocationErrorType("timeout");
-      } else if (result.error === "low_accuracy") {
-        setLocationErrorType("low_accuracy");
-      } else {
-        setLocationErrorType("position");
-      }
-      setLocationVerified(false);
-      setGpsLoading(false);
-      return;
-    }
-
-    const coords = result.coords;
-    setUserCurrentCoords(coords);
-
-    const inside = isPointInPolygon(coords, polygon);
-    if (inside) {
-      setLocationVerified(true);
-      setLocationCoords(coords);
-    } else {
-      setLocationVerified(false);
-      setLocationErrorType("outside");
-    }
-    setGpsLoading(false);
-  }, [appSettings.mapEnforceFoundInSchool, appSettings.mapSchoolBoundary]);
-
-  const boundaryString = JSON.stringify(appSettings?.mapSchoolBoundary || []);
-
-  useEffect(() => {
-    if (adminGpsBypassed) return;
-    if (!authPending && !configLoading && appSettingsReady && user) {
-      void verifyLocation();
-    }
-  }, [
-    adminGpsBypassed,
-    authPending,
-    configLoading,
-    appSettingsReady,
-    user,
-    appSettings.mapEnforceFoundInSchool,
-    boundaryString,
-    verifyLocation,
-  ]);
-
-  useEffect(() => {
-    if (!enforcementRequired || adminGpsBypassed) return;
-
-    const unwatch = watchGeolocationPermission((state) => {
-      if (state === "denied") {
-        setLocationVerified(false);
-        setLocationErrorType("permission");
-        setGpsLoading(false);
-      } else if (state === "granted" && locationVerified !== true) {
-        void verifyLocation();
-      }
-    });
-
-    return unwatch;
-  }, [enforcementRequired, adminGpsBypassed, locationVerified, verifyLocation]);
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -1432,190 +1314,27 @@ export default function ReportFoundPage() {
         </form>
       </div>
 
-      <ResponsiveModal
+      <LocationPermissionGate
         open={showLocationGate}
         onClose={() => router.push("/home")}
-        size="md"
-        showCloseButton={false}
+        waitingForSettings={waitingForSettings}
+        gpsLoading={gpsLoading}
+        locationVerified={locationVerified}
+        locationErrorType={locationErrorType}
+        userCurrentCoords={userCurrentCoords}
+        appSettings={appSettings}
+        schoolPolygon={schoolPolygon}
+        isAdmin={isAdmin}
+        onRetry={() => {
+          setAdminGpsBypassed(false);
+          void retryPermission();
+        }}
+        onAdminBypass={bypassAsAdmin}
+        dismissLabel="กลับหน้าหลัก"
+        onDismiss={() => router.push("/home")}
         closeOnBackdrop={false}
-      >
-          <AnimatePresence mode="wait">
-            {waitingForSettings ? (
-              <m.div
-                key="gate-settings"
-                initial={reduced ? false : fade.initial}
-                animate={fade.animate}
-                exit={reduced ? undefined : fade.exit}
-                transition={fade.transition}
-                className="flex flex-col items-center text-center"
-              >
-                <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light">
-                  <Loader2 className="w-7 h-7 text-line-green animate-spin motion-reduce:animate-none" aria-hidden />
-                </div>
-                <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">กำลังโหลดการตั้งค่า</h2>
-                <p className="text-text-secondary text-sm leading-relaxed">
-                  ระบบกำลังดึงขอบเขตพื้นที่และกฎ GPS จากเซิร์ฟเวอร์
-                </p>
-              </m.div>
-            ) : gpsLoading || locationVerified === null ? (
-              <m.div
-                key="gate-verifying"
-                initial={reduced ? false : fade.initial}
-                animate={fade.animate}
-                exit={reduced ? undefined : fade.exit}
-                transition={fade.transition}
-                className="flex flex-col items-center text-center"
-              >
-                <div
-                  className={cn(
-                    "w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light",
-                    !reduced && "animate-pulse-green"
-                  )}
-                >
-                  <MapPin className="w-7 h-7 text-line-green" aria-hidden />
-                </div>
-                <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">กำลังยืนยันตำแหน่งของคุณ</h2>
-                <p className="text-text-secondary text-sm leading-relaxed mb-4">
-                  เพื่อความปลอดภัยและป้องกันข้อมูลเท็จ ระบบกำลังตรวจสอบว่าตำแหน่งอุปกรณ์ของคุณอยู่ภายในขอบเขตสถาบันการศึกษาหรือไม่
-                </p>
-                <div className="flex items-center gap-2 text-xs text-text-tertiary justify-center">
-                  <Loader2 className="w-4 h-4 animate-spin text-text-tertiary motion-reduce:animate-none" aria-hidden />
-                  <span>
-                    {userCurrentCoords?.accuracy != null
-                      ? `กำลังปรับความแม่นยำ GPS… (±${Math.round(userCurrentCoords.accuracy)} ม.)`
-                      : "กำลังเรียกพิกัดจาก GPS…"}
-                  </span>
-                </div>
-                {isIOSDevice() && (
-                  <p className="text-xs text-text-tertiary mt-3 leading-relaxed max-w-sm mx-auto">
-                    บน iPhone/iPad อาจใช้เวลา 10–25 วินาที กรุณาอยู่กลางแจ้ง เปิด Location Services และเปิด Precise Location สำหรับเบราว์เซอร์
-                  </p>
-                )}
-              </m.div>
-            ) : (
-              <m.div
-                key={locationErrorType ?? "gate-error"}
-                initial={reduced ? false : fade.initial}
-                animate={fade.animate}
-                exit={reduced ? undefined : fade.exit}
-                transition={fade.transition}
-                className="flex flex-col items-center text-center"
-              >
-                {locationErrorType === "outside" || locationErrorType === "low_accuracy" ? (
-                  <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light">
-                    <MapPin className="w-7 h-7 text-status-warning" aria-hidden />
-                  </div>
-                ) : (
-                  <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light">
-                    <X className="w-7 h-7 text-status-error" aria-hidden />
-                  </div>
-                )}
-
-                {locationErrorType === "boundary_not_configured" ? (
-                  <>
-                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
-                      ยังไม่ได้ตั้งค่าขอบเขตพื้นที่
-                    </h2>
-                    <p className="text-text-secondary text-sm leading-relaxed mb-8">
-                      ผู้ดูแลระบบเปิดบังคับตรวจ GPS แล้ว แต่ยังไม่ได้วาด Polygon ขอบเขตใน Admin → แผนที่และ GPS
-                      (ต้องมีอย่างน้อย 3 จุด) กรุณาติดต่อผู้ดูแลระบบ
-                    </p>
-                  </>
-                ) : locationErrorType === "outside" ? (
-                  <>
-                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">อยู่นอกพื้นที่ขอบเขตที่กำหนด</h2>
-                    <p className="text-text-secondary text-sm leading-relaxed mb-6">
-                      ขออภัยด้วยครับ ระบบแจ้งเจอของได้รับการกำหนดให้ใช้ได้เฉพาะภายในพื้นที่ที่กำหนดเท่านั้น (เช่น บริเวณโรงเรียน/มหาวิทยาลัย) เพื่อให้ของที่เจอได้รับการคืนสู่เจ้าของอย่างรวดเร็วและถูกต้อง
-                    </p>
-                    
-                    {appSettings.mapsEnabled && appSettings.mapSchoolBoundary && (
-                      <div className="w-full mb-6 relative overflow-hidden rounded-xl border border-border-light">
-                        <MapCanvasLazy
-                          center={gateMapView.center}
-                          zoom={gateMapView.zoom}
-                          fitPoints={gateMapView.fitPoints}
-                          tileUrl={appSettings.mapTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
-                          attribution={appSettings.mapAttribution || ""}
-                          mode="view"
-                          marker={userCurrentCoords}
-                          polygon={schoolPolygon}
-                          showPolygonVertices={false}
-                          className="h-[200px] sm:h-[240px] rounded-xl overflow-hidden"
-                        />
-                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-xs text-white px-2 py-1 rounded">
-                          🔵 ตำแหน่งของคุณอยู่นอกขอบเขตสีเขียว
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : locationErrorType === "low_accuracy" ? (
-                  <>
-                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
-                      ตำแหน่งไม่แม่นยำพอ (ไม่ใช่ GPS จริง)
-                    </h2>
-                    <p className="text-text-secondary text-sm leading-relaxed mb-8">
-                      ระบบยังไม่ได้รับพิกัดที่แม่นยำพอ (ต้องไม่เกิน {STRICT_GPS_MAX_ACCURACY_METERS} เมตร)
-                      {isIOSDevice()
-                        ? " บน iPhone/iPad ให้เปิด Settings → Privacy & Security → Location Services → Safari/Chrome แล้วเปิด Precise Location ยืนยันว่าอยู่กลางแจ้ง แล้วกดลองใหม่ (รอได้ถึง 25 วินาที)"
-                        : " กรุณาใช้มือถือที่เปิด GPS และอยู่ในบริเวณโรงเรียน"}
-                    </p>
-                  </>
-                ) : locationErrorType === "permission" ? (
-                  <>
-                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">ปิดการเข้าถึงตำแหน่ง (GPS)</h2>
-                    <p className="text-text-secondary text-sm leading-relaxed mb-8">
-                      เบราว์เซอร์ไม่อนุญาตให้ใช้ตำแหน่งสำหรับเว็บนี้ ไปที่ไอคอนกุญแจในแถบที่อยู่ → Location → ตั้งเป็น Allow
-                      แล้วกดลองใหม่อีกครั้ง (หรือปิด Sensors override ใน DevTools ถ้าเปิดทดสอบ)
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">ไม่สามารถระบุตำแหน่งได้</h2>
-                    <p className="text-text-secondary text-sm leading-relaxed mb-8">
-                      ไม่สามารถดึงตำแหน่ง GPS ของคุณได้ในขณะนี้ กรุณาตรวจสอบสิทธิ์พิกัดหรือการเชื่อมต่อ GPS บนโทรศัพท์/คอมพิวเตอร์ของคุณแล้วลองใหม่อีกครั้ง
-                    </p>
-                  </>
-                )}
-
-                <div className="w-full space-y-3">
-                  <button
-                    onClick={() => {
-                      setAdminGpsBypassed(false);
-                      void verifyLocation();
-                    }}
-                    type="button"
-                    className="w-full py-3 bg-line-green text-white rounded-xl font-medium hover:bg-line-green-hover transition-[transform,colors] duration-150 active:scale-[0.98] motion-reduce:active:scale-100"
-                  >
-                    ลองใหม่อีกครั้ง
-                  </button>
-
-                  {isAdmin && (
-                    <button
-                      onClick={() => {
-                        setAdminGpsBypassed(true);
-                        setLocationVerified(true);
-                        setLocationErrorType(null);
-                        setGpsLoading(false);
-                      }}
-                      type="button"
-                      className="w-full py-3 border border-status-warning text-status-warning rounded-xl font-medium hover:bg-status-warning-light transition-colors"
-                    >
-                      ข้ามการตรวจสอบ (ผู้ดูแลระบบ)
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => router.push("/home")}
-                    type="button"
-                    className="w-full py-3 bg-bg-secondary text-text-secondary rounded-xl font-medium hover:bg-bg-tertiary transition-colors border border-border-light"
-                  >
-                    กลับหน้าหลัก
-                  </button>
-                </div>
-              </m.div>
-            )}
-          </AnimatePresence>
-      </ResponsiveModal>
+        showCloseButton={false}
+      />
       {dialog}
     </StudentAppShell>
   );

@@ -9,6 +9,8 @@ export type GeolocationErrorCode =
   | "unavailable"
   | "low_accuracy";
 
+export type GeolocationPlatform = "ios" | "android" | "desktop";
+
 /** Looser threshold for map centering / pin placement (not school gate). */
 export const MAP_DISPLAY_TARGET_ACCURACY_METERS = 120;
 
@@ -30,12 +32,39 @@ export type AccuratePositionOptions = {
   signal?: AbortSignal;
 };
 
+export type VerifyLocationMode = "auto" | "userGesture";
+
 export function isIOSDevice(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
   if (/iPad|iPhone|iPod/.test(ua)) return true;
   // iPadOS 13+ reports as Mac
   return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
+export function isAndroidDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+export function getGeolocationPlatform(): GeolocationPlatform {
+  if (isIOSDevice()) return "ios";
+  if (isAndroidDevice()) return "android";
+  return "desktop";
+}
+
+/** Platform-specific instructions when location permission is denied. */
+export function getGeolocationPermissionHelpText(
+  platform: GeolocationPlatform = getGeolocationPlatform()
+): string {
+  switch (platform) {
+    case "ios":
+      return "ไปที่ Settings → Privacy & Security → Location Services → เปิดสำหรับ Safari/Chrome แล้วเปิด Precise Location จากนั้นกลับมาที่นี่แล้วกด「ขอสิทธิ์เข้าถึงตำแหน่งอีกครั้ง」";
+    case "android":
+      return "แตะไอคอนกุญแจหรือข้อมูลไซต์ในแถบที่อยู่ → Permissions → Location → Allow แล้วกลับมากด「ขอสิทธิ์เข้าถึงตำแหน่งอีกครั้ง」";
+    default:
+      return "คลิกไอคอนกุญแจในแถบที่อยู่ → Location → Allow แล้วกด「ขอสิทธิ์เข้าถึงตำแหน่งอีกครั้ง」(หรือปิด Sensors override ใน DevTools ถ้าเปิดทดสอบ)";
+  }
 }
 
 /** iOS cold GPS fix often needs 15–25s; Android is usually faster. */
@@ -224,6 +253,30 @@ export function getAccuratePosition(
       finish({ ok: false, error: "low_accuracy" });
     }, timeoutMs);
   });
+}
+
+/**
+ * Request / refresh geolocation.
+ * - `auto`: may short-circuit when Permissions API reports denied (show UI without prompting).
+ * - `userGesture`: always calls getAccuratePosition so browsers can re-prompt or pick up
+ *   settings changes after the user taps "request again".
+ */
+export async function requestGeolocationAccess(
+  mode: VerifyLocationMode,
+  options: AccuratePositionOptions = {}
+): Promise<AccuratePositionResult> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return { ok: false, error: "unavailable" };
+  }
+
+  if (mode === "auto") {
+    const permission = await queryGeolocationPermission();
+    if (permission === "denied") {
+      return { ok: false, error: "permission" };
+    }
+  }
+
+  return getAccuratePosition(options);
 }
 
 /** Map preview / pin — accept best reading after wait (iOS-friendly). */
