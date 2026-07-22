@@ -34,6 +34,7 @@ import {
   isFoundItem,
   isFoundPendingRoomConfirm,
   isLostItem,
+  DEFAULT_APP_SETTINGS,
   type LostItem,
   type FoundItem,
   type ItemStatus,
@@ -50,6 +51,7 @@ import {
 import { triggerFoundHandoverExpirySweep } from "@/lib/found-handover-client";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
+import { useMapView } from "@/hooks/use-map-view";
 import MapCanvas from "@/components/ui/map-canvas";
 
 type Tab = "lost" | "found";
@@ -102,8 +104,19 @@ export default function AdminItemsPage() {
     }
   }, [appSettingsReady]);
 
-  const mapCenter = appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 };
-  const mapZoom = appSettings.mapDefaultZoom ?? 17;
+  const fallbackCenter =
+    appSettings.mapDefaultCenter || DEFAULT_APP_SETTINGS.mapDefaultCenter!;
+  const fallbackZoom = appSettings.mapDefaultZoom ?? DEFAULT_APP_SETTINGS.mapDefaultZoom ?? 17;
+  const schoolBoundary = appSettings.mapSchoolBoundary || [];
+
+  const { center: mapCenter, zoom: mapZoom, fitPoints: mapFitPoints } = useMapView({
+    enabled: Boolean(appSettings.mapsEnabled),
+    fallbackCenter,
+    fallbackZoom,
+    polygon: schoolBoundary,
+    preferPolygonFit: true,
+    locateUser: false,
+  });
 
   const handleStatusUpdate = async (item: LostItem | FoundItem, newStatus: ItemStatus) => {
     setUpdating(true);
@@ -359,10 +372,12 @@ export default function AdminItemsPage() {
               <MapCanvas
                 center={mapCenter}
                 zoom={mapZoom}
+                fitPoints={mapFitPoints}
+                fitBoundsOnce
                 tileUrl={appSettings.mapTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
                 attribution={appSettings.mapAttribution || ""}
                 mode="view"
-                polygon={appSettings.mapSchoolBoundary || []}
+                polygon={schoolBoundary}
                 markers={mapMarkers}
                 className="h-72"
               />

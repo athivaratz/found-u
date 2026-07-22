@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MapPin, Settings2 } from "lucide-react";
 import MapCanvas from "@/components/ui/map-canvas";
+import { PlaceSearchInput } from "@/components/admin/place-search-input";
 import { useMapView } from "@/hooks/use-map-view";
 import { cn } from "@/lib/utils";
 import type { AppSettings, GeoPoint } from "@/lib/types";
@@ -17,8 +18,16 @@ type MapSettingsPanelProps = {
 
 type MapTab = "general" | "boundary";
 
+type SearchView = {
+  center: GeoPoint;
+  zoom: number;
+};
+
+const SEARCH_ZOOM = 17;
+
 export default function MapSettingsPanel({ settings, onChange }: MapSettingsPanelProps) {
   const [tab, setTab] = useState<MapTab>("general");
+  const [searchView, setSearchView] = useState<SearchView | null>(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   const mapCenter = settings.mapDefaultCenter || DEFAULT_APP_SETTINGS.mapDefaultCenter!;
@@ -33,6 +42,10 @@ export default function MapSettingsPanel({ settings, onChange }: MapSettingsPane
     preferPolygonFit: true,
     locateUser: false,
   });
+
+  const viewCenter = searchView?.center ?? center;
+  const viewZoom = searchView?.zoom ?? zoom;
+  const viewFitPoints = searchView ? undefined : fitPoints;
 
   return (
     <div className="space-y-6">
@@ -213,14 +226,22 @@ export default function MapSettingsPanel({ settings, onChange }: MapSettingsPane
                   ขอบเขตโรงเรียน (Polygon)
                 </label>
                 <p className="text-xs text-gray-500 mt-1">
-                  คลิกบนแผนที่เพื่อเพิ่มจุด — พื้นที่สีเขียวคือขอบเขตที่บันทึกไว้
+                  ค้นหาสถานที่หรือคลิกบนแผนที่เพื่อเพิ่มจุด — พื้นที่สีเขียวคือขอบเขตที่บันทึกไว้
                 </p>
               </div>
+              <PlaceSearchInput
+                onSelect={(place) =>
+                  setSearchView({
+                    center: { lat: place.lat, lng: place.lng },
+                    zoom: SEARCH_ZOOM,
+                  })
+                }
+              />
               <MapCanvas
-                center={center}
-                zoom={zoom}
-                fitPoints={fitPoints}
-                fitBoundsOnce
+                center={viewCenter}
+                zoom={viewZoom}
+                fitPoints={viewFitPoints}
+                fitBoundsOnce={!searchView}
                 tileUrl={settings.mapTileUrl || DEFAULT_APP_SETTINGS.mapTileUrl!}
                 attribution={settings.mapAttribution || DEFAULT_APP_SETTINGS.mapAttribution}
                 mode="polygon"
