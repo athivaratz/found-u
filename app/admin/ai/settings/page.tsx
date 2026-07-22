@@ -45,8 +45,8 @@ function isPlaceholderKeyInput(value: string): boolean {
 
 const TABS = [
   { id: "agent", label: "Agent ร่วม", icon: Settings2 },
-  { id: "gemini", label: "Gemini & Pipeline", icon: Sparkles },
-  { id: "openrouter", label: "OpenRouter", icon: Route },
+  { id: "gemini", label: "Gemini Key", icon: Sparkles },
+  { id: "openrouter", label: "OpenRouter Key", icon: Route },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -459,7 +459,10 @@ function AdminAiSettingsContent() {
         {activeTab === "gemini" ? (
           <div className="bg-bg-primary dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 space-y-4">
             <p className="text-sm text-gray-500">
-              ตั้งค่า Gemini API key — บันทึกได้โดยไม่ต้องทดสอบก่อน ตรวจคีย์ด้วยปุ่มทดสอบด้านล่าง
+              ตั้งค่า Gemini API key — โมเดล pipeline อยู่ที่หน้า{" "}
+              <Link href="/admin/ai/gemini" className="text-[#06C755] hover:underline">
+                Gemini Settings
+              </Link>
             </p>
 
             {loadingCredentials ? (
@@ -546,10 +549,10 @@ function AdminAiSettingsContent() {
             ) : null}
 
             <Link
-              href="/admin/ai/models"
+              href="/admin/ai/gemini"
               className="inline-flex items-center gap-2 text-[#06C755] hover:underline text-sm"
             >
-              ตั้งค่า NER / Matching / Vision / Agent model →
+              ตั้งโมเดล pipeline ที่ Gemini Settings →
             </Link>
           </div>
         ) : null}

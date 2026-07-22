@@ -465,7 +465,49 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {(settingsTab === "seo" || settingsTab === "ai") && (
+        {settingsTab === "ai" && (
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-5">
+            <Link
+              href="/admin/ai"
+              className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl hover:border-[#06C755]/40 border border-transparent transition-colors"
+            >
+              <div className="w-10 h-10 rounded-lg bg-[#06C755]/10 flex items-center justify-center flex-shrink-0">
+                <Settings className="w-5 h-5 text-[#06C755]" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-medium text-gray-900 dark:text-white">
+                  ไปที่ AI Center
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  ตั้งค่า Agent, Gemini, OpenRouter, Rate Limit และดูกราฟ API Requests ได้ที่นี่
+                </p>
+                <p className="text-sm text-[#06C755] mt-2">
+                  เปิด AI Center →
+                </p>
+              </div>
+            </Link>
+            <Link
+              href="/admin/ai/usage"
+              className="mt-3 flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl hover:border-[#06C755]/40 border border-transparent transition-colors"
+            >
+              <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                <RefreshCw className="w-5 h-5 text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-medium text-gray-900 dark:text-white">
+                  Usage & Rate Limit
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  จำกัดการใช้งาน AI และดู API Usage Chart
+                </p>
+              </div>
+            </Link>
+          </div>
+        </div>
+        )}
+
+        {settingsTab === "seo" && (
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -674,156 +716,6 @@ export default function AdminSettingsPage() {
                 </div>
               </Link>
               </>
-              )}
-
-              {settingsTab === "ai" && (
-              <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-                  <RefreshCw className="w-5 h-5 text-purple-600" />
-                </div>
-                <div className="flex-1 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium text-gray-900 dark:text-white">AI Rate Limit</h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        จำกัดการใช้งาน AI ต่อผู้ใช้เพื่อป้องกันการใช้งานมากเกินไป
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setSettings({ ...settings, aiRateLimitEnabled: !settings.aiRateLimitEnabled })}
-                      className={cn(
-                        "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                        settings.aiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                          settings.aiRateLimitEnabled ? "right-1" : "left-1"
-                        )}
-                      />
-                    </button>
-                  </div>
-
-                  {settings.aiRateLimitEnabled && (
-                    <>
-                      {/* Limit per Minute */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          จำกัดต่อนาที (Per Minute)
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={1}
-                            max={100}
-                            value={settings.aiRateLimitPerMinute || 5}
-                            onChange={(e) => setSettings({ ...settings, aiRateLimitPerMinute: parseInt(e.target.value) || 5 })}
-                            className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                          />
-                          <span className="text-sm text-gray-500">ครั้ง / นาที / ผู้ใช้</span>
-                        </div>
-                      </div>
-
-                      {/* Limit per Hour */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          จำกัดต่อชั่วโมง (Per Hour)
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={1}
-                            max={1000}
-                            value={settings.aiRateLimitPerHour || 30}
-                            onChange={(e) => setSettings({ ...settings, aiRateLimitPerHour: parseInt(e.target.value) || 30 })}
-                            className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                          />
-                          <span className="text-sm text-gray-500">ครั้ง / ชั่วโมง / ผู้ใช้</span>
-                        </div>
-                      </div>
-
-                      {/* Rate Limit Message */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          ข้อความเมื่อถูก Limit
-                        </label>
-                        <input
-                          type="text"
-                          value={settings.aiRateLimitMessage || ''}
-                          onChange={(e) => setSettings({ ...settings, aiRateLimitMessage: e.target.value })}
-                          placeholder="คุณใช้งาน AI บ่อยเกินไป กรุณารอสักครู่"
-                          className="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                        />
-                      </div>
-
-                      {/* System-wide Rate Limit Section */}
-                      <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h4 className="font-medium text-gray-900 dark:text-white">Rate Limit ระดับระบบ (System-wide)</h4>
-                            <p className="text-sm text-gray-500 mt-1">
-                              จำกัดการใช้งาน AI รวมทั้งระบบ (ทุก user รวมกัน)
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => setSettings({ ...settings, systemAiRateLimitEnabled: !settings.systemAiRateLimitEnabled })}
-                            className={cn(
-                              "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                              settings.systemAiRateLimitEnabled ? "bg-line-green" : "bg-gray-300 dark:bg-gray-600"
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform",
-                                settings.systemAiRateLimitEnabled ? "right-1" : "left-1"
-                              )}
-                            />
-                          </button>
-                        </div>
-
-                        {settings.systemAiRateLimitEnabled && (
-                          <div className="space-y-3 pl-4 border-l-2 border-purple-200 dark:border-purple-800">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                จำกัดต่อนาที (ทั้งระบบ)
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={1000}
-                                  value={settings.systemAiRateLimitPerMinute || 20}
-                                  onChange={(e) => setSettings({ ...settings, systemAiRateLimitPerMinute: parseInt(e.target.value) || 20 })}
-                                  className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                                />
-                                <span className="text-sm text-gray-500">ครั้ง / นาที (ทุก user รวมกัน)</span>
-                              </div>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                จำกัดต่อชั่วโมง (ทั้งระบบ)
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={10000}
-                                  value={settings.systemAiRateLimitPerHour || 100}
-                                  onChange={(e) => setSettings({ ...settings, systemAiRateLimitPerHour: parseInt(e.target.value) || 100 })}
-                                  className="w-24 px-4 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-line-green"
-                                />
-                                <span className="text-sm text-gray-500">ครั้ง / ชั่วโมง (ทุก user รวมกัน)</span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
               )}
 
             </div>
