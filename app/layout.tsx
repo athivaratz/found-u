@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { SetupAwareProviders } from "@/components/providers/setup-aware-providers";
+import { AndroidViewportGuard } from "@/components/layout/android-viewport-guard";
 import { buildSiteMetadata } from "@/lib/seo-metadata";
 
 // โหลดฟอนต์ Kanit สำหรับภาษาไทย
@@ -24,8 +25,9 @@ export const revalidate = 60;
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Avoid maximumScale:1 / userScalable:false — some Android browsers
-  // mishandle them and shrink the whole page to fit a desktop-width layout.
+  // Block shrink-to-fit zoom-out (Samsung/Android) without locking pinch-zoom
+  // via maximumScale — that combo previously caused desktop-width shrink.
+  minimumScale: 1,
   viewportFit: "cover",
   themeColor: "#06C755",
 };
@@ -51,7 +53,10 @@ export default function RootLayout({
             enableSystem
             storageKey="theme"
           >
-            <SetupAwareProviders>{children}</SetupAwareProviders>
+            <SetupAwareProviders>
+              <AndroidViewportGuard />
+              {children}
+            </SetupAwareProviders>
           </ThemeProvider>
         </ErrorBoundary>
       </body>

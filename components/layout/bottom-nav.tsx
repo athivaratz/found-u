@@ -20,11 +20,19 @@ export default function BottomNav() {
 
   return (
     <nav
-      className={cn("fixed bottom-0 inset-x-0 z-50 safe-bottom bg-bg-primary border-t border-border-light", shellMobileOnly)}
-      style={{ height: "var(--bottom-nav-height)" }}
+      className={cn(
+        "fixed bottom-0 inset-x-0 z-50 bg-bg-primary border-t border-border-light",
+        "pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))]",
+        shellMobileOnly
+      )}
+      style={{
+        // Content band + safe-area below labels (not subtracted from content)
+        minHeight:
+          "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px))",
+      }}
       aria-label="เมนูหลัก"
     >
-      <div className="flex h-full items-stretch justify-around px-1">
+      <div className="flex items-stretch justify-around px-1">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
@@ -35,7 +43,7 @@ export default function BottomNav() {
               href={item.href}
               onClick={() => setMode("classic", { navigate: false })}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 py-2 min-h-[var(--bottom-nav-height)]",
+                "flex flex-1 flex-col items-center justify-center gap-0.5 py-1 min-h-11",
                 "rounded-xl transition-colors duration-200 touch-manipulation",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/30 focus-visible:ring-inset",
                 isActive ? "text-line-green" : "text-text-tertiary hover:text-text-secondary"
@@ -43,14 +51,14 @@ export default function BottomNav() {
             >
               <span
                 className={cn(
-                  "flex items-center justify-center p-2 rounded-full transition-colors",
+                  "flex items-center justify-center size-10 rounded-full transition-colors",
                   isActive && "bg-line-green-light"
                 )}
                 aria-hidden
               >
                 <Icon className={cn("w-5 h-5", isActive && "stroke-[2.5]")} />
               </span>
-              <span className="text-xs font-medium leading-[1.3] truncate max-w-full px-0.5">
+              <span className="text-xs font-medium leading-none pb-0.5 truncate max-w-full px-0.5">
                 {item.label}
               </span>
             </Link>

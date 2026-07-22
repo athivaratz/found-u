@@ -43,7 +43,6 @@ export function LocationPermissionGate({
   onClose,
   waitingForSettings = false,
   gpsLoading,
-  locationVerified,
   locationErrorType,
   userCurrentCoords,
   appSettings,
@@ -81,7 +80,9 @@ export function LocationPermissionGate({
       ? "ขอสิทธิ์เข้าถึงตำแหน่งอีกครั้ง"
       : "ลองใหม่อีกครั้ง";
 
-  const verifying = !waitingForSettings && (gpsLoading || locationVerified === null);
+  // Loading UI follows gpsLoading only — never leave a blank "verifying" state
+  // when locationVerified is null after an aborted/stale GPS request.
+  const verifying = !waitingForSettings && gpsLoading;
 
   return (
     <ResponsiveModal

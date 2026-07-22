@@ -69,7 +69,8 @@
   --spacing-page-x: var(--space-4);
   --spacing-section: var(--space-6);
   --spacing-field: var(--space-2);
-  --bottom-nav-height: 64px;
+  /* Icon + Thai label + padding; safe-area is added on top of this */
+  --bottom-nav-height: 4.5rem;
 }
 
 /* Dark Theme */
@@ -123,7 +124,8 @@
   --spacing-page-x: var(--space-4);
   --spacing-section: var(--space-6);
   --spacing-field: var(--space-2);
-  --bottom-nav-height: 64px;
+  /* Icon + Thai label + padding; safe-area is added on top of this */
+  --bottom-nav-height: 4.5rem;
 }
 
 @theme inline {
@@ -169,6 +171,8 @@ html {
   scroll-behavior: smooth;
   overflow-x: clip;
   overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -185,6 +189,12 @@ body {
   overflow-y: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Keep the app tree from exceeding the device width (Android shrink-to-fit) */
+body > div {
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Custom Scrollbar */

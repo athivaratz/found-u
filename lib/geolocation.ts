@@ -187,6 +187,7 @@ export function getAccuratePosition(
     signal?.addEventListener("abort", onAbort);
 
     const consider = (pos: GeolocationPosition) => {
+      if (settled) return;
       const coords = positionToCoords(pos);
       const accuracy = coords.accuracy ?? Number.POSITIVE_INFINITY;
 
@@ -202,6 +203,21 @@ export function getAccuratePosition(
     };
 
     const onError = (error: GeolocationPositionError) => {
+      if (settled) return;
+      // getCurrentPosition error: keep waiting on watch if active.
+      // watchPosition error: end (unless we already have a best-effort reading).
+      if (watchId != null) {
+        if (best && acceptBestEffort) {
+          finish({ ok: true, coords: best });
+          return;
+        }
+        // If watch errors but getCurrent might still be pending, only finish on
+        // permission denial; otherwise let the wall-clock timer decide.
+        if (error.code === error.PERMISSION_DENIED) {
+          finish({ ok: false, error: "permission" });
+        }
+        return;
+      }
       if (best && acceptBestEffort) {
         finish({ ok: true, coords: best });
         return;
@@ -209,27 +225,23 @@ export function getAccuratePosition(
       finish({ ok: false, error: mapPositionError(error) });
     };
 
+    // Align browser per-call timeout with our wall clock (iOS 60s caused long hangs
+    // when callbacks never fired after a prior successful grant).
+    const geoTimeout = Math.max(timeoutMs, 5000);
     const watchOptions: PositionOptions = {
       enableHighAccuracy: true,
       maximumAge,
-      // Per-update timeout: keep high on iOS so watchPosition is not cut off early.
-      timeout: isIOSDevice() ? 60000 : 20000,
+      timeout: geoTimeout,
     };
 
-    const startWatch = () => {
-      if (settled || watchId != null) return;
-      watchId = navigator.geolocation.watchPosition(consider, onError, watchOptions);
-    };
+    // Start watch immediately — do not wait for getCurrentPosition (iPadOS often
+    // leaves getCurrentPosition hanging on the 2nd+ call even after GPS icon stops).
+    watchId = navigator.geolocation.watchPosition(consider, onError, watchOptions);
 
-    // Fast path when a fresh accurate reading is already available.
-    // If it already meets the target, do not start watchPosition (avoids long hangs).
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        consider(pos);
-        if (!settled) startWatch();
-      },
+      (pos) => consider(pos),
       () => {
-        startWatch();
+        // Ignore — watchPosition is already running.
       },
       watchOptions
     );
@@ -277,7 +289,15 @@ export async function requestGeolocationAccess(
     }
   }
 
-  return getAccuratePosition(options);
+  // Retries after a prior fix: allow a short-lived cached reading so iOS/Android
+  // don't hang waiting for a brand-new satellite lock.
+  const maximumAge =
+    options.maximumAge ?? (mode === "userGesture" ? 10_000 : 0);
+
+  return getAccuratePosition({
+    ...options,
+    maximumAge,
+  });
 }
 
 /** Map preview / pin — accept best reading after wait (iOS-friendly). */
