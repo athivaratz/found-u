@@ -119,61 +119,81 @@ export function useFoundLocationGate({
         return false;
       }
 
-      const result = await requestGeolocationAccess(requestMode, {
-        onProgress: (coords) => {
-          if (gen === verifyGenRef.current) setUserCurrentCoords(coords);
-        },
-        signal: abort.signal,
-      });
-
-      // Stale generation (a newer verify started) — do not touch UI / inFlight.
-      if (gen !== verifyGenRef.current) {
-        return false;
-      }
-
-      if (abort.signal.aborted) {
-        setGpsLoading(false);
+      const applyFailure = (errorType: LocationGateErrorType) => {
+        if (gen !== verifyGenRef.current) return;
+        setLocationErrorType(errorType);
         setLocationVerified(false);
-        setLocationErrorType((prev) => prev ?? "timeout");
-        return false;
-      }
+        setGpsLoading(false);
+      };
 
-      if (!result.ok) {
-        if (result.error === "permission") {
-          setLocationErrorType("permission");
-        } else if (result.error === "timeout") {
-          setLocationErrorType("timeout");
-        } else if (result.error === "low_accuracy") {
-          setLocationErrorType("low_accuracy");
-        } else {
-          setLocationErrorType("position");
+      try {
+        const result = await requestGeolocationAccess(requestMode, {
+          onProgress: (coords) => {
+            if (gen === verifyGenRef.current) setUserCurrentCoords(coords);
+          },
+          signal: abort.signal,
+        });
+
+        // Stale generation (a newer verify started) — do not touch UI.
+        if (gen !== verifyGenRef.current) {
+          return false;
         }
-        setLocationVerified(false);
-        setGpsLoading(false);
+
+        if (abort.signal.aborted) {
+          applyFailure("timeout");
+          return false;
+        }
+
+        if (!result.ok) {
+          if (result.error === "permission") {
+            applyFailure("permission");
+          } else if (result.error === "timeout") {
+            applyFailure("timeout");
+          } else if (result.error === "low_accuracy") {
+            applyFailure("low_accuracy");
+          } else {
+            applyFailure("position");
+          }
+          return false;
+        }
+
+        const coords = result.coords;
+        setUserCurrentCoords(coords);
+
+        const inside = isPointInPolygon(coords, polygon);
+        if (inside) {
+          applyVerified(coords);
+          setGpsLoading(false);
+          return true;
+        }
+
+        applyFailure("outside");
         return false;
+      } catch {
+        applyFailure("position");
+        return false;
+      } finally {
+        // Belt-and-suspenders: never leave the active generation spinning forever.
+        if (gen === verifyGenRef.current) {
+          setGpsLoading(false);
+        }
       }
-
-      const coords = result.coords;
-      setUserCurrentCoords(coords);
-
-      const inside = isPointInPolygon(coords, polygon);
-      if (inside) {
-        applyVerified(coords);
-        setGpsLoading(false);
-        return true;
-      }
-
-      setLocationVerified(false);
-      setLocationErrorType("outside");
-      setGpsLoading(false);
-      return false;
     },
     [appSettings.mapEnforceFoundInSchool, polygon, applyVerified]
   );
 
   // Auto / silent verify once per settings identity (avoid restart loops)
   useEffect(() => {
-    if (!enabled || !appSettingsReady || adminGpsBypassed) return;
+    if (!enabled || !appSettingsReady || adminGpsBypassed) {
+      if (!enabled) {
+        // Stop in-flight GPS when the page gate turns off (auth/config flicker).
+        // Keep didAutoVerifyKeyRef so a brief flicker does not restart forever.
+        verifyAbortRef.current?.abort();
+        verifyGenRef.current += 1;
+        setGpsLoading(false);
+      }
+      return;
+    }
     if (!enforcementRequired) {
       setLocationVerified(true);
       return;

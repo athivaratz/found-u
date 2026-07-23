@@ -67,9 +67,44 @@ export function getGeolocationPermissionHelpText(
   }
 }
 
-/** iOS cold GPS fix often needs 15–25s; Android is usually faster. */
+/** Wall-clock wait for an accurate GPS fix (watchPosition + getCurrentPosition). */
 export function getGeolocationTimeoutMs(): number {
-  return isIOSDevice() ? 25000 : 15000;
+  return 15_000;
+}
+
+export function getGeolocationTimeoutSec(): number {
+  return Math.ceil(getGeolocationTimeoutMs() / 1000);
+}
+
+const PERMISSION_QUERY_TIMEOUT_MS = 2_000;
+
+function raceWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => T,
+  signal?: AbortSignal
+): Promise<T> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(onTimeout());
+      return;
+    }
+
+    let settled = false;
+    const finish = (value: T) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      resolve(value);
+    };
+
+    const onAbort = () => finish(onTimeout());
+    signal?.addEventListener("abort", onAbort);
+
+    const timer = setTimeout(() => finish(onTimeout()), timeoutMs);
+    promise.then(finish, () => finish(onTimeout()));
+  });
 }
 
 export async function queryGeolocationPermission(): Promise<GeolocationPermissionState> {
@@ -78,8 +113,13 @@ export async function queryGeolocationPermission(): Promise<GeolocationPermissio
   }
 
   try {
-    const result = await navigator.permissions.query({ name: "geolocation" });
-    return result.state as GeolocationPermissionState;
+    return await raceWithTimeout(
+      navigator.permissions
+        .query({ name: "geolocation" })
+        .then((result) => result.state as GeolocationPermissionState),
+      PERMISSION_QUERY_TIMEOUT_MS,
+      () => "unsupported" as GeolocationPermissionState
+    );
   } catch {
     return "unsupported";
   }
@@ -159,7 +199,11 @@ export function getAccuratePosition(
 
     const cleanup = () => {
       if (watchId != null) {
-        navigator.geolocation.clearWatch(watchId);
+        try {
+          navigator.geolocation.clearWatch(watchId);
+        } catch {
+          // ignore
+        }
         watchId = null;
       }
       if (timer != null) {
@@ -185,6 +229,29 @@ export function getAccuratePosition(
       return;
     }
     signal?.addEventListener("abort", onAbort);
+
+    const settleOnDeadline = () => {
+      if (!best) {
+        finish({ ok: false, error: "timeout" });
+        return;
+      }
+
+      const accuracy = best.accuracy ?? Number.POSITIVE_INFINITY;
+      if (accuracy <= targetAccuracyMeters) {
+        finish({ ok: true, coords: best });
+        return;
+      }
+
+      if (acceptBestEffort) {
+        finish({ ok: true, coords: best });
+        return;
+      }
+
+      finish({ ok: false, error: "low_accuracy" });
+    };
+
+    // Arm wall-clock first so a thrown / hanging geolocation API cannot strand us.
+    timer = setTimeout(settleOnDeadline, timeoutMs);
 
     const consider = (pos: GeolocationPosition) => {
       if (settled) return;
@@ -234,37 +301,25 @@ export function getAccuratePosition(
       timeout: geoTimeout,
     };
 
-    // Start watch immediately — do not wait for getCurrentPosition (iPadOS often
-    // leaves getCurrentPosition hanging on the 2nd+ call even after GPS icon stops).
-    watchId = navigator.geolocation.watchPosition(consider, onError, watchOptions);
+    try {
+      // Start watch immediately — do not wait for getCurrentPosition (iPadOS often
+      // leaves getCurrentPosition hanging on the 2nd+ call even after GPS icon stops).
+      watchId = navigator.geolocation.watchPosition(
+        consider,
+        onError,
+        watchOptions
+      );
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => consider(pos),
-      () => {
-        // Ignore — watchPosition is already running.
-      },
-      watchOptions
-    );
-
-    timer = setTimeout(() => {
-      if (!best) {
-        finish({ ok: false, error: "timeout" });
-        return;
-      }
-
-      const accuracy = best.accuracy ?? Number.POSITIVE_INFINITY;
-      if (accuracy <= targetAccuracyMeters) {
-        finish({ ok: true, coords: best });
-        return;
-      }
-
-      if (acceptBestEffort) {
-        finish({ ok: true, coords: best });
-        return;
-      }
-
-      finish({ ok: false, error: "low_accuracy" });
-    }, timeoutMs);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => consider(pos),
+        () => {
+          // Ignore — watchPosition is already running.
+        },
+        watchOptions
+      );
+    } catch {
+      settleOnDeadline();
+    }
   });
 }
 
@@ -282,22 +337,46 @@ export async function requestGeolocationAccess(
     return { ok: false, error: "unavailable" };
   }
 
-  if (mode === "auto") {
-    const permission = await queryGeolocationPermission();
-    if (permission === "denied") {
-      return { ok: false, error: "permission" };
-    }
+  const timeoutMs = options.timeoutMs ?? getGeolocationTimeoutMs();
+  const controller = new AbortController();
+
+  const onParentAbort = () => controller.abort();
+  if (options.signal?.aborted) {
+    return { ok: false, error: "timeout" };
   }
+  options.signal?.addEventListener("abort", onParentAbort);
 
-  // Retries after a prior fix: allow a short-lived cached reading so iOS/Android
-  // don't hang waiting for a brand-new satellite lock.
-  const maximumAge =
-    options.maximumAge ?? (mode === "userGesture" ? 10_000 : 0);
+  // Hard ceiling for permission query + GPS — abort in-flight watch on deadline.
+  const deadline = setTimeout(() => controller.abort(), timeoutMs);
 
-  return getAccuratePosition({
-    ...options,
-    maximumAge,
-  });
+  try {
+    if (mode === "auto") {
+      const permission = await queryGeolocationPermission();
+      if (controller.signal.aborted) {
+        return { ok: false, error: "timeout" };
+      }
+      if (permission === "denied") {
+        return { ok: false, error: "permission" };
+      }
+    }
+
+    // Retries after a prior fix: allow a short-lived cached reading so iOS/Android
+    // don't hang waiting for a brand-new satellite lock.
+    const maximumAge =
+      options.maximumAge ?? (mode === "userGesture" ? 10_000 : 0);
+
+    return await getAccuratePosition({
+      ...options,
+      timeoutMs,
+      maximumAge,
+      signal: controller.signal,
+    });
+  } catch {
+    return { ok: false, error: "unavailable" };
+  } finally {
+    clearTimeout(deadline);
+    options.signal?.removeEventListener("abort", onParentAbort);
+  }
 }
 
 /** Map preview / pin — accept best reading after wait (iOS-friendly). */

@@ -8,13 +8,14 @@ import type { LocationGateErrorType } from "@/hooks/use-found-location-gate";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   getGeolocationPermissionHelpText,
+  getGeolocationTimeoutSec,
   isIOSDevice,
 } from "@/lib/geolocation";
 import { fade } from "@/lib/motion";
 import type { AppSettings, GeoPoint, LocationCoords } from "@/lib/types";
 import { cn, STRICT_GPS_MAX_ACCURACY_METERS } from "@/lib/utils";
 import { resolveMapView } from "@/lib/map-utils";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type LocationPermissionGateProps = {
   open: boolean;
@@ -56,6 +57,9 @@ export function LocationPermissionGate({
   showCloseButton = false,
 }: LocationPermissionGateProps) {
   const reduced = useReducedMotion();
+  const timeoutSec = getGeolocationTimeoutSec();
+  const [remainingSec, setRemainingSec] = useState(timeoutSec);
+  const [countdownExpired, setCountdownExpired] = useState(false);
 
   const mapFallbackCenter = useMemo(
     () => appSettings.mapDefaultCenter || { lat: 13.7563, lng: 100.5018 },
@@ -76,13 +80,39 @@ export function LocationPermissionGate({
   );
 
   const retryLabel =
-    locationErrorType === "permission"
+    locationErrorType === "permission" && !countdownExpired
       ? "ขอสิทธิ์เข้าถึงตำแหน่งอีกครั้ง"
       : "ลองใหม่อีกครั้ง";
 
-  // Loading UI follows gpsLoading only — never leave a blank "verifying" state
-  // when locationVerified is null after an aborted/stale GPS request.
-  const verifying = !waitingForSettings && gpsLoading;
+  // Loading UI follows gpsLoading — if countdown hits 0 but loading is stuck,
+  // fall through to the timeout error UI so the modal is never endless.
+  const verifying = !waitingForSettings && gpsLoading && !countdownExpired;
+  const displayErrorType: LocationGateErrorType | null = countdownExpired
+    ? "timeout"
+    : locationErrorType;
+
+  useEffect(() => {
+    if (!gpsLoading || waitingForSettings) {
+      setRemainingSec(timeoutSec);
+      setCountdownExpired(false);
+      return;
+    }
+
+    const startedAt = Date.now();
+    setRemainingSec(timeoutSec);
+    setCountdownExpired(false);
+
+    const tick = () => {
+      const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+      const left = Math.max(0, timeoutSec - elapsedSec);
+      setRemainingSec(left);
+      if (left <= 0) setCountdownExpired(true);
+    };
+
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [gpsLoading, waitingForSettings, timeoutSec]);
 
   return (
     <ResponsiveModal
@@ -140,7 +170,18 @@ export function LocationPermissionGate({
               เพื่อความปลอดภัยและป้องกันข้อมูลเท็จ
               ระบบกำลังตรวจสอบว่าตำแหน่งอุปกรณ์ของคุณอยู่ภายในขอบเขตสถาบันการศึกษาหรือไม่
             </p>
-            <div className="flex items-center gap-2 text-xs text-text-tertiary justify-center">
+            <p
+              className="text-2xl font-semibold tabular-nums text-text-primary tracking-tight mb-1"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {remainingSec}
+              <span className="text-sm font-medium text-text-tertiary ml-1.5">
+                วินาที
+              </span>
+            </p>
+            <p className="text-xs text-text-tertiary mb-1">หมดเวลายืนยัน</p>
+            <div className="flex items-center gap-2 text-xs text-text-tertiary justify-center mt-3">
               <Loader2
                 className="w-4 h-4 animate-spin text-text-tertiary motion-reduce:animate-none"
                 aria-hidden
@@ -153,22 +194,22 @@ export function LocationPermissionGate({
             </div>
             {isIOSDevice() && (
               <p className="text-xs text-text-tertiary mt-3 leading-relaxed max-w-sm mx-auto">
-                บน iPhone/iPad อาจใช้เวลา 10–25 วินาที กรุณาอยู่กลางแจ้ง เปิด
-                Location Services และเปิด Precise Location สำหรับเบราว์เซอร์
+                บน iPhone/iPad อาจใช้เวลาถึง {timeoutSec} วินาที กรุณาอยู่กลางแจ้ง
+                เปิด Location Services และเปิด Precise Location สำหรับเบราว์เซอร์
               </p>
             )}
           </m.div>
         ) : (
           <m.div
-            key={locationErrorType ?? "gate-error"}
+            key={displayErrorType ?? "gate-error"}
             initial={reduced ? false : fade.initial}
             animate={fade.animate}
             exit={reduced ? undefined : fade.exit}
             transition={fade.transition}
             className="flex flex-col items-center text-center"
           >
-            {locationErrorType === "outside" ||
-            locationErrorType === "low_accuracy" ? (
+            {displayErrorType === "outside" ||
+            displayErrorType === "low_accuracy" ? (
               <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mb-5 border border-border-light">
                 <MapPin className="w-7 h-7 text-status-warning" aria-hidden />
               </div>
@@ -178,7 +219,7 @@ export function LocationPermissionGate({
               </div>
             )}
 
-            {locationErrorType === "boundary_not_configured" ? (
+            {displayErrorType === "boundary_not_configured" ? (
               <>
                 <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
                   ยังไม่ได้ตั้งค่าขอบเขตพื้นที่
@@ -189,7 +230,7 @@ export function LocationPermissionGate({
                   กรุณาติดต่อผู้ดูแลระบบ
                 </p>
               </>
-            ) : locationErrorType === "outside" ? (
+            ) : displayErrorType === "outside" ? (
               <>
                 <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
                   อยู่นอกพื้นที่ขอบเขตที่กำหนด
@@ -224,7 +265,7 @@ export function LocationPermissionGate({
                   </div>
                 )}
               </>
-            ) : locationErrorType === "low_accuracy" ? (
+            ) : displayErrorType === "low_accuracy" ? (
               <>
                 <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
                   ตำแหน่งไม่แม่นยำพอ (ไม่ใช่ GPS จริง)
@@ -233,17 +274,27 @@ export function LocationPermissionGate({
                   ระบบยังไม่ได้รับพิกัดที่แม่นยำพอ (ต้องไม่เกิน{" "}
                   {STRICT_GPS_MAX_ACCURACY_METERS} เมตร)
                   {isIOSDevice()
-                    ? " บน iPhone/iPad ให้เปิด Settings → Privacy & Security → Location Services → Safari/Chrome แล้วเปิด Precise Location ยืนยันว่าอยู่กลางแจ้ง แล้วกดลองใหม่ (รอได้ถึง 25 วินาที)"
+                    ? ` บน iPhone/iPad ให้เปิด Settings → Privacy & Security → Location Services → Safari/Chrome แล้วเปิด Precise Location ยืนยันว่าอยู่กลางแจ้ง แล้วกดลองใหม่ (รอได้ถึง ${timeoutSec} วินาที)`
                     : " กรุณาใช้มือถือที่เปิด GPS และอยู่ในบริเวณโรงเรียน"}
                 </p>
               </>
-            ) : locationErrorType === "permission" ? (
+            ) : displayErrorType === "permission" ? (
               <>
                 <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
                   ปิดการเข้าถึงตำแหน่ง (GPS)
                 </h2>
                 <p className="text-text-secondary text-sm leading-relaxed mb-8">
                   {getGeolocationPermissionHelpText()}
+                </p>
+              </>
+            ) : displayErrorType === "timeout" ? (
+              <>
+                <h2 className="text-lg font-semibold text-text-primary mb-2 text-balance">
+                  หมดเวลายืนยันตำแหน่ง
+                </h2>
+                <p className="text-text-secondary text-sm leading-relaxed mb-8">
+                  ระบบรอพิกัด GPS ครบ {timeoutSec} วินาทีแล้วยังไม่ได้ผล
+                  กรุณาอยู่กลางแจ้ง เปิด Location Services แล้วกดลองใหม่อีกครั้ง
                 </p>
               </>
             ) : (
