@@ -18,8 +18,6 @@ type PlaceSearchInputProps = {
   placeholder?: string;
 };
 
-const DEBOUNCE_MS = 400;
-
 export function PlaceSearchInput({
   onSelect,
   className,
@@ -40,61 +38,63 @@ export function PlaceSearchInput({
     setOpen(false);
   }, []);
 
-  useEffect(() => {
+  const runSearch = useCallback(async () => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       abortRef.current?.abort();
       setLoading(false);
-      clearResults();
+      setError("พิมพ์อย่างน้อย 2 ตัวอักษรแล้วกด Enter");
+      setResults([]);
+      setOpen(true);
       return;
     }
 
-    const timer = window.setTimeout(async () => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      setLoading(true);
-      setError(null);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading(true);
+    setError(null);
 
-      try {
-        const response = await fetch(
-          `/api/geocode/search?q=${encodeURIComponent(trimmed)}`,
-          { signal: controller.signal, credentials: "same-origin" }
-        );
+    try {
+      const response = await fetch(
+        `/api/geocode/search?q=${encodeURIComponent(trimmed)}`,
+        { signal: controller.signal, credentials: "same-origin" }
+      );
 
-        if (response.status === 429) {
-          setError("ค้นหาถี่เกินไป กรุณารอสักครู่");
-          setResults([]);
-          setOpen(true);
-          return;
-        }
-
-        if (!response.ok) {
-          setError("ค้นหาไม่สำเร็จ ลองอีกครั้ง");
-          setResults([]);
-          setOpen(true);
-          return;
-        }
-
-        const data = (await response.json()) as { results?: PlaceSearchResult[] };
-        const next = Array.isArray(data.results) ? data.results : [];
-        setResults(next);
-        setError(next.length === 0 ? "ไม่พบสถานที่ที่ตรงกัน" : null);
+      if (response.status === 429) {
+        setError("ค้นหาถี่เกินไป กรุณารอสักครู่");
+        setResults([]);
         setOpen(true);
-      } catch (err) {
-        if ((err as Error).name === "AbortError") return;
+        return;
+      }
+
+      if (!response.ok) {
         setError("ค้นหาไม่สำเร็จ ลองอีกครั้ง");
         setResults([]);
         setOpen(true);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        return;
       }
-    }, DEBOUNCE_MS);
 
+      const data = (await response.json()) as { results?: PlaceSearchResult[] };
+      const next = Array.isArray(data.results) ? data.results : [];
+      setResults(next);
+      setError(next.length === 0 ? "ไม่พบสถานที่ที่ตรงกัน" : null);
+      setOpen(true);
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setError("ค้นหาไม่สำเร็จ ลองอีกครั้ง");
+      setResults([]);
+      setOpen(true);
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
     return () => {
-      window.clearTimeout(timer);
+      abortRef.current?.abort();
     };
-  }, [query, clearResults]);
+  }, []);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
@@ -129,7 +129,21 @@ export function PlaceSearchInput({
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            // Typing alone must not hit the geocode API
+            if (open) setOpen(false);
+            if (results.length > 0 || error) {
+              setResults([]);
+              setError(null);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void runSearch();
+            }
+          }}
           onFocus={() => {
             if (results.length > 0 || error) setOpen(true);
           }}
@@ -163,6 +177,7 @@ export function PlaceSearchInput({
           )}
         </div>
       </div>
+      <p className="mt-1 text-xs text-text-tertiary">กด Enter เพื่อค้นหา</p>
 
       {open && (results.length > 0 || error) && (
         <div
