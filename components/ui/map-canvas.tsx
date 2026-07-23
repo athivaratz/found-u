@@ -351,9 +351,10 @@ export default function MapCanvas({
           dashArray: isBoundary ? "8 6" : undefined,
           interactive: false,
         }
-      ).addTo(layer);
+      )
+        .addTo(layer)
+        .bringToBack();
     }
-    layer.bringToBack();
   }, [overlayPolygons, mapReady]);
 
   useEffect(() => {
