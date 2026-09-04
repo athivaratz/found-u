@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import { FormStepper } from "@/components/ui/form-stepper";
 import { completeRegistration, lookupRegistration } from "@/lib/student-auth-api";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth-validation";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { AUTH_COPY } from "@/lib/auth-copy";
+import { isAllowedReturnPath } from "@/lib/auth-return-to";
 import { AuthCard, AuthCardHeader, AuthFooter, AuthShell } from "@/components/auth/auth-shell";
 import {
   authFormStackClass,
@@ -35,6 +36,7 @@ import { ValidationSummary } from "@/components/ui/validation-summary";
 import { StatusAlert } from "@/components/ui/status-alert";
 import { fieldErrorId, fieldId, recordToIssues } from "@/lib/feedback/types";
 import { cn } from "@/lib/utils";
+import { AuthLoadingScreen } from "@/components/auth/auth-loading-screen";
 
 const STEPS = [
   { id: "student-id", label: AUTH_COPY.registerStepStudentId },
@@ -44,7 +46,22 @@ const STEPS = [
 ] as const;
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={<AuthLoadingScreen />}>
+      <RegisterPageContent />
+    </Suspense>
+  );
+}
+
+function RegisterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
+  const destination = returnTo && isAllowedReturnPath(returnTo) ? returnTo : "/home";
+  const loginHref =
+    destination !== "/home"
+      ? `${AUTH_ROUTES.login}?returnTo=${encodeURIComponent(destination)}`
+      : AUTH_ROUTES.login;
   const [step, setStep] = useState(0);
   const [studentId, setStudentId] = useState("");
   const [registrationToken, setRegistrationToken] = useState("");
@@ -134,7 +151,7 @@ export default function RegisterPage() {
           password,
           pin,
         });
-        router.push("/home");
+        router.push(destination);
       } catch (err) {
         setFormError(err instanceof Error ? err.message : AUTH_COPY.registerFailed);
       } finally {
@@ -426,7 +443,7 @@ export default function RegisterPage() {
 
       {step === 0 ? (
         <AuthFooter>
-          <Link href={AUTH_ROUTES.login} className={authLinkClass}>
+          <Link href={loginHref} className={authLinkClass}>
             {AUTH_COPY.hasAccountSignIn}
           </Link>
         </AuthFooter>

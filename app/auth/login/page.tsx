@@ -17,7 +17,11 @@ import {
 import { AuthCard, AuthCardHeader, AuthShell } from "@/components/auth/auth-shell";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { AUTH_COPY } from "@/lib/auth-copy";
-import { captureReturnToFromQuery, consumeReturnTo } from "@/lib/auth-return-to";
+import {
+  captureReturnToFromQuery,
+  consumeReturnTo,
+  isAllowedReturnPath,
+} from "@/lib/auth-return-to";
 import { StatusAlert } from "@/components/ui/status-alert";
 import { AuthLoadingScreen } from "@/components/auth/auth-loading-screen";
 import {
@@ -34,7 +38,7 @@ import {
   authSuccessBannerClass,
   authTouchTextActionClass,
 } from "@/components/auth/auth-ui";
-import { fieldErrorId, fieldId } from "@/lib/feedback/types";
+import { fieldId } from "@/lib/feedback/types";
 import { cn } from "@/lib/utils";
 
 type LoginView = "quick" | "full";
@@ -256,6 +260,11 @@ function LoginPageContent() {
   const [showSetupDoneBanner] = useState(
     () => searchParams.get("setup") === "done"
   );
+  const returnTo = searchParams.get("returnTo");
+  const registerHref =
+    returnTo && isAllowedReturnPath(returnTo)
+      ? `${AUTH_ROUTES.register}?returnTo=${encodeURIComponent(returnTo)}`
+      : AUTH_ROUTES.register;
 
   useEffect(() => {
     if (!showSetupDoneBanner) return;
@@ -445,7 +454,7 @@ function LoginPageContent() {
               {!needsRegistrationHint ? (
                 <p className="text-sm text-center text-text-secondary">
                   {AUTH_COPY.noAccountRegister}{" "}
-                  <Link href={AUTH_ROUTES.register} className={authLinkClass}>
+                  <Link href={registerHref} className={authLinkClass}>
                     สมัครสมาชิก
                   </Link>
                 </p>
@@ -457,7 +466,7 @@ function LoginPageContent() {
         {errorMsg ? <StatusAlert variant="error" message={errorMsg} className="mt-4" /> : null}
         {needsRegistrationHint ? (
           <p className="mt-4 text-sm text-center">
-            <Link href={AUTH_ROUTES.register} className={`${authLinkClass} font-medium`}>
+            <Link href={registerHref} className={`${authLinkClass} font-medium`}>
               {AUTH_COPY.noAccountRegisterLink}
             </Link>
           </p>

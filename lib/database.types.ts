@@ -44,6 +44,49 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["accounts"]["Row"]>;
         Relationships: [];
       };
+      discord_links: {
+        Row: {
+          id: string;
+          guild_id: string;
+          discord_user_id: string;
+          account_id: string;
+          role_ids: string[];
+          verified_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["discord_links"]["Row"]> & {
+          guild_id: string;
+          discord_user_id: string;
+          account_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["discord_links"]["Row"]>;
+        Relationships: [];
+      };
+      discord_verification_sessions: {
+        Row: {
+          id: string;
+          token_hash: string;
+          guild_id: string;
+          discord_user_id: string;
+          account_id: string | null;
+          role_ids: string[];
+          status: "pending" | "verified" | "fulfilled" | "expired";
+          failure_reason: string | null;
+          requested_at: string;
+          expires_at: string;
+          verified_at: string | null;
+          fulfilled_at: string | null;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["discord_verification_sessions"]["Row"]> & {
+          token_hash: string;
+          guild_id: string;
+          discord_user_id: string;
+          expires_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["discord_verification_sessions"]["Row"]>;
+        Relationships: [];
+      };
       passkey_lookup: {
         Row: {
           credential_id: string;

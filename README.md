@@ -72,6 +72,7 @@
 | แผนที่ | [Leaflet](https://leafletjs.com/) + OpenStreetMap |
 | ที่เก็บไฟล์ | Cloudflare R2 (หรือ Supabase Storage สำหรับโรงเรียนที่ deploy ใหม่) |
 | Runtime | [Bun](https://bun.sh/) 1.3 |
+| Discord Bot | [discord.js](https://discord.js.org/) 14 + Found-U protected API |
 
 ## โครงสร้างโปรเจกต์
 
@@ -183,6 +184,42 @@ Vercel จะ clone โค้ดและสร้าง repo `found-u` ใน�
 - **AI (ไม่บังคับ)**: `GEMMA_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` — ตั้งผ่าน Setup Wizard หรือใส่เป็น env ก็ได้
 - **Storage (ไม่บังคับ)**: `R2_*` — ถ้าไม่ใส่ ระบบจะใช้ Supabase Storage แทนโดยอัตโนมัติ
 - **ค้นหา**: `SEARCH_USE_TRGM`, `SEARCH_SIMILARITY_THRESHOLD`, `AGENT_SEARCH_SIMILARITY_THRESHOLD`
+
+## Discord: ยืนยันตัวตนและรับ Role
+
+บอทใช้การยืนยันสองฝั่ง: นักเรียนเรียก `/verify` ใน Discord แล้วเปิดลิงก์แบบใช้ครั้งเดียว (หมดอายุใน 15 นาที) เพื่อเข้าสู่ระบบ Found-U บัญชีที่ผ่านการยืนยันและยัง active เท่านั้นจึงเชื่อม Discord ได้ จากนั้นบอทจะมอบ Role ภายในไม่กี่วินาที ผู้ใช้สามารถเรียก `/sync` เพื่อคำนวณ Role ใหม่จากข้อมูลล่าสุดใน Found-U
+
+ข้อมูลที่ใช้กำหนด Role คือ `role` ของ Found-U (`user` / `admin`), `grade_level` และ `room_number` เท่านั้น บอทไม่อ่านรหัสผ่านหรือ Supabase service-role key; ติดต่อเว็บผ่าน API ภายในด้วย secret แยกต่างหาก
+
+### ตั้งค่าใน Discord Developer Portal
+
+1. สร้าง Application และ Bot ที่ [Discord Developer Portal](https://discord.com/developers/applications) แล้วคัดลอก **Application ID** และ **Bot Token**
+2. เชิญบอทเข้าเซิร์ฟเวอร์ด้วย scopes `bot` และ `applications.commands` พร้อมสิทธิ์ **Manage Roles**
+3. เปิด Developer Mode ใน Discord แล้วคัดลอก Server ID และ Role ID ที่ต้องการ
+4. ลาก Role ของบอทให้อยู่เหนือทุก Role ที่บอทต้องจัดการ มิฉะนั้น Discord จะปฏิเสธการเพิ่ม/ลบ Role
+
+### Environment
+
+กำหนดค่าในเว็บไซต์และ process ของบอทตาม [`.env.example`](.env.example) โดยต้องมี `DISCORD_GUILD_ID`, `DISCORD_BOT_API_SECRET` (สุ่มอย่างน้อย 32 ตัวอักษร), `DISCORD_VERIFIED_ROLE_ID` หรือกฎใน `DISCORD_ROLE_RULES_JSON` และสำหรับ process บอทต้องเพิ่ม `FOUNDU_BASE_URL`, `DISCORD_BOT_TOKEN`, `DISCORD_APPLICATION_ID`
+
+ตัวอย่างการกำหนด Role เพิ่มตามชั้น/ห้อง:
+
+```env
+DISCORD_VERIFIED_ROLE_ID=123456789012345678
+DISCORD_ADMIN_ROLE_ID=234567890123456789
+DISCORD_ROLE_RULES_JSON=[{"roleId":"345678901234567890","when":{"gradeLevel":"ม.6"}},{"roleId":"456789012345678901","when":{"gradeLevel":"ม.6","roomNumber":"1"}}]
+```
+
+รัน migration ตามปกติ แล้วติดตั้ง dependency และรันบอทเป็น process แยกจาก Next.js:
+
+```bash
+npm install
+bun run db:push
+# บอทจะอ่าน .env.local อัตโนมัติในเครื่อง; production ควรตั้งใน process manager
+npm run discord:bot
+```
+
+บน production ให้ตั้ง environment เดียวกันกับเว็บไซต์สำหรับ `DISCORD_GUILD_ID`, `DISCORD_BOT_API_SECRET`, `DISCORD_VERIFIED_ROLE_ID`, `DISCORD_ADMIN_ROLE_ID`, `DISCORD_ROLE_RULES_JSON` และตั้งค่าเฉพาะบอท (`FOUNDU_BASE_URL`, `DISCORD_BOT_TOKEN`, `DISCORD_APPLICATION_ID`) ใน service/process manager ของบอท ห้ามใส่ `DISCORD_BOT_TOKEN` ในตัวแปร `NEXT_PUBLIC_*`
 
 เจอ `500 MIDDLEWARE_INVOCATION_FAILED` หรือ `/setup?reason=missing_env` แปลว่ายังไม่มี env จาก Supabase integration หรือมีค่า `-` เป็น placeholder หลงเหลืออยู่ — แก้แล้ว redeploy ใหม่
 

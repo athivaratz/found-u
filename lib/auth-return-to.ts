@@ -9,6 +9,7 @@ const ALLOWED_PREFIXES = [
   "/tracking",
   "/nfc",
   "/settings",
+  "/discord",
   "/assistant",
   "/admin",
 ] as const;
