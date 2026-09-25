@@ -330,6 +330,10 @@ function createRealtimeSubscription(options: {
 // Users
 // ========================================
 
+/** Columns a signed-in client may read. Secret hashes stay off this list. */
+const ACCOUNT_PUBLIC_COLUMNS =
+  "id, email, display_name, photo_url, role, student_id, first_name, last_name, nickname, shown_name, is_student_verified, auth_methods, must_change_password, has_seen_tutorial, ban_status, ban_reason, banned_at, banned_by, timeout_until, linked_uid, created_at, updated_at";
+
 export async function createOrUpdateUser(userData: {
   uid: string;
   email: string;
@@ -339,7 +343,7 @@ export async function createOrUpdateUser(userData: {
   const supabase = createClient();
   const { data: existing } = await supabase
     .from(COLLECTIONS.USERS)
-    .select("*")
+    .select(ACCOUNT_PUBLIC_COLUMNS)
     .eq("id", userData.uid)
     .maybeSingle();
 
@@ -385,7 +389,7 @@ export async function getUser(uid: string): Promise<AppUser | null> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from(COLLECTIONS.USERS)
-    .select("*")
+    .select(ACCOUNT_PUBLIC_COLUMNS)
     .or(`id.eq.${uid},linked_uid.eq.${uid}`)
     .maybeSingle();
   if (error) throw error;
@@ -409,7 +413,7 @@ export async function getAllUsers(): Promise<AppUser[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from(COLLECTIONS.USERS)
-    .select("*")
+    .select(ACCOUNT_PUBLIC_COLUMNS)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((row) => mapAppUserRow(row as DbRow));
