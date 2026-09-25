@@ -10,10 +10,9 @@ function getEncryptionKey(): Buffer {
   if (!secret && process.env.NODE_ENV === "production") {
     throw new Error("SETUP_SECRETS_KEY is required in production");
   }
-  const material =
-    secret || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const material = secret || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!material) {
-    throw new Error("Missing encryption key material for setup secrets");
+    throw new Error("Missing encryption key material for stored AI credentials");
   }
   return scryptSync(material, KEY_SALT, 32);
 }

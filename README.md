@@ -82,7 +82,6 @@ app/
   api/       REST API — auth, vision, ner, match, agent, storage, nfc
   auth/      ล็อกอิน เปลี่ยนรหัส ตั้ง PIN
   nfc/       ลงทะเบียนแท็ก / แท็กของฉัน / แจ้งพบผ่าน NFC
-  setup/     wizard ตั้งค่าระบบครั้งแรก (deploy ใหม่)
 components/  UI, layout, map, camera, agent, dialogs
 contexts/    auth, data (Realtime subscriptions)
 lib/
@@ -91,7 +90,7 @@ lib/
   search/    fuzzy search (pg_trgm), relevance ranking
   supabase/  client, server, admin, passkey auth, auth session
   validations/  Zod schemas
-supabase/migrations/  schema + RLS ทั้งหมด (รันอัตโนมัติหลัง deploy)
+supabase/migrations/  schema + RLS ทั้งหมด (รันด้วย bun run db:push)
 ```
 
 ## เริ่มพัฒนาในเครื่อง
@@ -111,7 +110,13 @@ bun run db:push   # sync schema/migrations เข้า Supabase
 bun dev           # http://localhost:3000
 ```
 
-เปิด `/setup` ครั้งแรกเพื่อสร้างบัญชีแอดมินผ่าน wizard หรือใช้ `bun run create:admin` จากเทอร์มินัลก็ได้ คำสั่งอื่นที่มีให้:
+สร้างบัญชีแอดมินคนแรกจากเทอร์มินัล หลัง `db:push` แล้ว:
+
+```bash
+bun run create:admin --student-id 11111 --password your-password
+```
+
+คำสั่งอื่นที่มีให้:
 
 | คำสั่ง | ใช้ทำอะไร |
 |--------|-----------|
@@ -119,30 +124,6 @@ bun dev           # http://localhost:3000
 | `bun test` | รัน unit tests |
 | `bun run gen:students` / `import:students` | สร้าง/นำเข้ารายชื่อนักเรียนจาก CSV |
 | `bun run test:login` | ทดสอบ flow ล็อกอินนักเรียน |
-
-### ทดสอบ Setup Wizard แบบ Sandbox (ไม่กระทบ `.env.local`)
-
-ใช้ **Supabase project แยก** สำหรับลอง wizard ซ้ำๆ โดยไม่ต้อง redeploy และไม่ต้องเปลี่ยน env หลักที่เชื่อม deploy อยู่แล้ว
-
-```bash
-# 1) สร้างโปรเจกต์ Supabase ฟรีอีกตัว (เช่น found-u-setup-sandbox)
-cp .env.setup.example .env.setup.local
-# แก้ .env.setup.local ใส่ URL / keys / POSTGRES ของ sandbox
-
-# 2) รีเซ็ตสถานะ wizard (ทำซ้ำได้ทุกครั้งหลังทดสอบ)
-bun run setup:reset
-
-# 3) รัน dev ด้วย sandbox env (override .env.local ชั่วคราว)
-bun run dev:setup
-# เปิด http://localhost:3000/setup
-```
-
-| คำสั่ง | ใช้ทำอะไร |
-|--------|-----------|
-| `bun run dev:setup` | `next dev` โดยโหลด `.env.setup.local` |
-| `bun run setup:reset` | รีเซ็ต `setup_status`, branding, AI config, แอดมินที่สร้างจาก wizard |
-
-DB ว่างครั้งแรก: เปิด `/setup` แล้ว hydrator จะรัน migration อัตโนมัติ (เหมือน production) — ไม่ต้อง `db:push` ถ้าใช้ sandbox ใหม่เปล่าๆ
 
 ## Deploy ให้โรงเรียนใหม่
 
@@ -154,7 +135,10 @@ DB ว่างครั้งแรก: เปิด `/setup` แล้ว hydr
 
 1. กด **Deploy with Vercel** แล้วล็อกอินด้วย GitHub / Vercel
 2. เลือก **Supabase** → Region **Singapore** → Plan **Free** → **Deploy**
-3. เปิด `https://<ชื่อโปรเจกต์>.vercel.app/setup` แล้วทำตาม wizard 3 ขั้นเพื่อสร้างบัญชีแอดมิน
+3. จากเครื่องที่ลิงก์ Supabase CLI กับโปรเจกต์นั้น รัน `bun run db:push` แล้ว `bun run create:admin --student-id 11111 --password <password>`
+4. เข้าสู่ระบบ ตั้งชื่อโรงเรียนที่ Admin Settings และตั้งคีย์ AI ที่ Admin AI settings (หรือใส่ `GEMMA_API_KEY` / `OPENROUTER_API_KEY` ใน env)
+
+แอปไม่รัน migration ตอนบูต และไม่มีหน้า `/setup`
 
 Vercel จะ clone โค้ดและสร้าง repo `found-u` ในบัญชี GitHub ของคุณเอง ตอนนี้ยังไม่มี upstream จึงยังกด Sync fork ไม่ได้ — ไปทำขั้นที่ 2 เมื่อพร้อม
 
@@ -164,7 +148,7 @@ Vercel จะ clone โค้ดและสร้าง repo `found-u` ใน�
 2. ใน Vercel: **Settings → Git** → Disconnect repo เดิม → Connect เลือก `ชื่อคุณ/found-u`
 3. Redeploy (env และ Supabase ยังอยู่ครบ ไม่ต้องตั้งใหม่)
 
-จากนั้นอัปเดตได้ทุกครั้งด้วย GitHub → **Sync fork → Update branch** แล้ว Vercel จะ deploy ให้อัตโนมัติ migration ของฐานข้อมูลรันเองหลัง deploy ข้อมูลโรงเรียนเดิมไม่หาย
+จากนั้นอัปเดตได้ทุกครั้งด้วย GitHub → **Sync fork → Update branch** แล้ว Vercel จะ deploy ให้อัตโนมัติ หลังมี migration ใหม่ให้รัน `bun run db:push` อีกครั้ง ข้อมูลโรงเรียนเดิมไม่หาย
 
 > Vercel รองรับติดตั้ง Supabase พร้อมกันได้เฉพาะตอน deploy จาก `/new/clone` เท่านั้น จะ fork ก่อนแล้วติด Supabase ทีเดียวไม่ได้ — ต้องเริ่มจากขั้นที่ 1 เสมอ
 
@@ -178,13 +162,15 @@ Vercel จะ clone โค้ดและสร้าง repo `found-u` ใน�
 
 ดูรายการเต็มพร้อมคำอธิบายได้ใน [`.env.example`](.env.example)
 
-- **ต้องมี** (Vercel + Supabase integration ใส่ให้อัตโนมัติ): `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`
-- **ใส่หลังรู้โดเมน** (ไม่บังคับตอน deploy ครั้งแรก): `NEXT_PUBLIC_APP_URL`, `SCHOOL_AUTH_DOMAIN` — ถ้ายังไม่รู้ URL ให้เว้นไว้ แอปจะใช้ `VERCEL_URL` แทนชั่วคราว
-- **AI (ไม่บังคับ)**: `GEMMA_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` — ตั้งผ่าน Setup Wizard หรือใส่เป็น env ก็ได้
+- **ต้องมี** (Vercel + Supabase integration ใส่ให้อัตโนมัติ): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- **ใส่หลังรู้โดเมน**: `NEXT_PUBLIC_APP_URL`, `SCHOOL_AUTH_DOMAIN` — ถ้ายังไม่รู้ URL ให้เว้น `NEXT_PUBLIC_APP_URL` ไว้ แอปจะใช้ `VERCEL_URL` แทนชั่วคราว
+- **AI (ไม่บังคับ)**: `GEMMA_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` — ตั้งในแผงแอดมินหรือใส่เป็น env ก็ได้ คีย์ที่เก็บในฐานข้อมูลเข้ารหัสด้วย `SETUP_SECRETS_KEY` (ถ้าไม่ตั้ง จะใช้ service role key)
 - **Storage (ไม่บังคับ)**: `R2_*` — ถ้าไม่ใส่ ระบบจะใช้ Supabase Storage แทนโดยอัตโนมัติ
 - **ค้นหา**: `SEARCH_USE_TRGM`, `SEARCH_SIMILARITY_THRESHOLD`, `AGENT_SEARCH_SIMILARITY_THRESHOLD`
 
-เจอ `500 MIDDLEWARE_INVOCATION_FAILED` หรือ `/setup?reason=missing_env` แปลว่ายังไม่มี env จาก Supabase integration หรือมีค่า `-` เป็น placeholder หลงเหลืออยู่ — แก้แล้ว redeploy ใหม่
+Schema ใช้ `bun run db:push` จากเครื่องที่ `supabase link` แล้ว แอปไม่ได้อ่าน `POSTGRES_URL` ตอนรัน
+
+เจอ `500 MIDDLEWARE_INVOCATION_FAILED` แปลว่ายังไม่มี env จาก Supabase integration หรือมีค่า `-` เป็น placeholder หลงเหลืออยู่ — แก้แล้ว redeploy ใหม่
 
 ## ทีมงาน
 
@@ -213,7 +199,7 @@ This research and innovation activity is funded by National Research Council of 
 
 Found-U is a school lost-and-found web app. Reporters and finders coordinate through tracking codes and automatic matching instead of lost-and-found boxes and bulletin boards. It also ships an AI assistant (chat, powered by Gemini/OpenRouter through the Vercel AI SDK) that can search, file reports, run matching, and read photos in one conversation, plus NFC tags that let anyone who finds a tagged item message the owner instantly.
 
-Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, and Supabase (Postgres, Auth, Realtime, RLS). Deploy your own instance with the **Deploy with Vercel** button above — it provisions Supabase, runs migrations automatically, and walks you through a setup wizard at `/setup`. See the Thai sections above for the full deploy guide, environment variables, and local dev instructions (mostly self-explanatory from the commands and tables).
+Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, and Supabase (Postgres, Auth, Realtime, RLS). Deploy your own instance with the **Deploy with Vercel** button above — it provisions Supabase. Then run `bun run db:push` and `bun run create:admin` from a linked machine, and finish the school name and AI keys in the admin screens. See the Thai sections above for the full deploy guide, environment variables, and local dev instructions.
 
 This research and innovation activity is funded by National Research Council of Thailand (NRCT) and National Science and Technology Development Agency (NSTDA).
 

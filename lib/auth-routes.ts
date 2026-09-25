@@ -1,7 +1,3 @@
-export const SETUP_ROUTES = {
-  setup: "/setup",
-} as const;
-
 export const AUTH_ROUTES = {
   hub: "/auth",
   login: "/auth/login",
@@ -10,17 +6,7 @@ export const AUTH_ROUTES = {
   resetPassword: "/auth/login/reset-password",
   changePassword: "/auth/change-password",
   setupPin: "/auth/setup-pin",
-  ...SETUP_ROUTES,
 } as const;
-
-export const SETUP_PUBLIC_PATHS = [SETUP_ROUTES.setup] as const;
-
-export function isSetupPublicPath(pathname: string): boolean {
-  return (
-    (SETUP_PUBLIC_PATHS as readonly string[]).includes(pathname) ||
-    pathname.startsWith("/setup/")
-  );
-}
 
 export const AUTH_PUBLIC_PATHS = [
   AUTH_ROUTES.hub,
@@ -49,10 +35,7 @@ export const LIGHTWEIGHT_SHELL_EXACT_PATHS = [
 ] as const;
 
 export function isLightweightShellPath(pathname: string): boolean {
-  return (
-    isSetupPublicPath(pathname) ||
-    (LIGHTWEIGHT_SHELL_EXACT_PATHS as readonly string[]).includes(pathname)
-  );
+  return (LIGHTWEIGHT_SHELL_EXACT_PATHS as readonly string[]).includes(pathname);
 }
 
 export function resolvePostLoginPath(payload: {

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { hasSupabaseClientEnv } from "@/lib/setup/db-url";
+import { hasSupabaseClientEnv } from "@/lib/supabase/env";
 import { coerceToDate, normalizeGeoPoint, normalizeGeoPolygon } from "@/lib/utils";
 import { normalizeMapZones } from "@/lib/map-zones";
 import { stripUndefined } from "@/lib/strip-undefined";

@@ -1,6 +1,8 @@
-import { tryDecryptSecret } from "@/lib/setup/credentials-crypto";
-import { getAiCredentialsData } from "@/lib/setup/wizard-db";
-import type { AiCredentialsData } from "@/lib/setup/schemas/setup-status";
+import { tryDecryptSecret } from "@/lib/ai/credentials-crypto";
+import {
+  getAiCredentialsData,
+  type AiCredentialsData,
+} from "@/lib/system-config/ai-credentials";
 
 export type ResolvedAiCredentials = {
   geminiApiKey?: string;

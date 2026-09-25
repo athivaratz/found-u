@@ -1,5 +1,5 @@
 import { isKnownRoute } from "@/lib/known-routes";
-import { AUTH_ROUTES, isAuthPublicPath, isSetupPublicPath } from "@/lib/auth-routes";
+import { AUTH_ROUTES, isAuthPublicPath } from "@/lib/auth-routes";
 
 const PUBLIC_PATHS = ["/", "/banned"] as const;
 
@@ -17,7 +17,6 @@ export function isPublicRoute(pathname: string): boolean {
     (PUBLIC_PATHS as readonly string[]).includes(pathname) ||
     isPublicPrefix(pathname) ||
     isAuthPublicPath(pathname) ||
-    isSetupPublicPath(pathname) ||
     !isKnownRoute(pathname)
   );
 }

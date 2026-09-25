@@ -106,10 +106,6 @@ export const AUTH_COPY = {
   loadingAccount: "กำลังตรวจสอบบัญชี…",
   loading: "กำลังโหลด…",
 
-  /** Banners */
-  setupCompleteBanner:
-    "ตั้งค่าระบบเสร็จแล้ว — เข้าสู่ระบบด้วยบัญชีแอดมินที่สร้างไว้",
-
   /** Form-level errors (fallback when API message is unavailable) */
   signInFailed:
     "เข้าสู่ระบบไม่ได้ ตรวจสอบเลขประจำตัวและรหัสผ่านแล้วลองอีกครั้ง",

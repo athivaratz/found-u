@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { isPlaceholderEnvValue } from "@/lib/setup/db-url";
+import { isPlaceholderEnvValue } from "@/lib/supabase/env";
 
 /** โดเมนหลักที่ให้บริการแอป (ทุกโดเมนใช้งานได้โดยไม่ redirect ข้ามโดเมน) */
 export const PRIMARY_APP_DOMAINS = [

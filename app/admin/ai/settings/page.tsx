@@ -25,7 +25,7 @@ import {
 } from "@/lib/admin/ai-settings-keys";
 import { AiSettingField } from "@/components/admin/ai-setting-field";
 import { ApiKeyLabelLink } from "@/components/admin/api-key-label-link";
-import { WIZARD_FREE_OPENROUTER_MODELS } from "@/lib/setup/validations/wizard-ai";
+import { WIZARD_FREE_OPENROUTER_MODELS } from "@/lib/ai/provider-schema";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 
 type AiCredentialsMeta = {

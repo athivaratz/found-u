@@ -1,6 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.types";
-import { hasSupabaseClientEnv } from "@/lib/setup/db-url";
+import { hasSupabaseClientEnv } from "@/lib/supabase/env";
 
 export function isSupabaseBrowserConfigured(): boolean {
   return hasSupabaseClientEnv();

@@ -1,15 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { enforceSetupGuard } from "@/lib/setup/middleware-guard";
-import { hasSupabaseClientEnv } from "@/lib/setup/db-url";
+import { hasSupabaseClientEnv } from "@/lib/supabase/env";
 
 export async function middleware(request: NextRequest) {
-  const guardResult = await enforceSetupGuard(request);
-  if (guardResult !== "continue") {
-    return guardResult;
-  }
-
-  // /setup?reason=missing_env must not call Supabase when integration env is absent
   if (!hasSupabaseClientEnv()) {
     return NextResponse.next();
   }

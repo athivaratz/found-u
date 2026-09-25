@@ -16,7 +16,6 @@ const ALLOWED_PREFIXES = [
 export function isAllowedReturnPath(path: string): boolean {
   if (!path.startsWith("/") || path.startsWith("//")) return false;
   if (path === AUTH_ROUTES.hub || path.startsWith("/auth")) return false;
-  if (path === "/setup" || path.startsWith("/setup/")) return false;
   if (path === "/banned") return false;
   // /list collapsed → treat as /home
   const normalized = path === "/list" || path.startsWith("/list/") ? "/home" : path;

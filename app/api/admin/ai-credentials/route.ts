@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clearAiCredentialsCache } from "@/lib/ai/credentials-resolver";
-import { encryptSecret } from "@/lib/setup/credentials-crypto";
-import { getAiCredentialsData, saveAiCredentialsData } from "@/lib/setup/wizard-db";
-import { wizardAiProviderSchema } from "@/lib/setup/validations/wizard-ai";
+import { encryptSecret } from "@/lib/ai/credentials-crypto";
+import { getAiCredentialsData, saveAiCredentialsData } from "@/lib/system-config/ai-credentials";
+import { wizardAiProviderSchema } from "@/lib/ai/provider-schema";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 

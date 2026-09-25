@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hasSupabaseAdminEnv } from "@/lib/setup/db-url";
+import { hasSupabaseAdminEnv } from "@/lib/supabase/env";
 import { getDefaultAppUrl } from "@/lib/app-domains";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 

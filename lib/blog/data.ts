@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hasSupabaseAdminEnv } from "@/lib/setup/db-url";
+import { hasSupabaseAdminEnv } from "@/lib/supabase/env";
 import { mapArticle } from "@/lib/blog/map";
 import { isMissingRelationError } from "@/lib/supabase/missing-relation";
 import type { Article, ArticleSection } from "@/lib/blog/types";

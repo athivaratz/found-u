@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthRequest, isAdminUser } from "@/lib/nfc-server";
-import { HELP_ASSETS_BUCKET } from "@/lib/setup/constants";
-import { uploadToSupabaseBucket } from "@/lib/setup/wizard-db";
+import { HELP_ASSETS_BUCKET } from "@/lib/storage/buckets";
+import { uploadToSupabaseBucket } from "@/lib/storage/supabase-bucket";
 
 export const runtime = "nodejs";
 

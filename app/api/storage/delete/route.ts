@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { z } from "zod";
 import { parseJsonBody } from "@/lib/parse-request";
-import { ITEM_UPLOADS_BUCKET } from "@/lib/setup/constants";
-import { deleteFromSupabaseBucket } from "@/lib/setup/wizard-db";
+import { ITEM_UPLOADS_BUCKET } from "@/lib/storage/buckets";
+import { deleteFromSupabaseBucket } from "@/lib/storage/supabase-bucket";
 import { isR2Configured, resolveUploadBackend } from "@/lib/storage/upload-backend";
 import { createClient } from "@/lib/supabase/server";
 

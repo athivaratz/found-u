@@ -3,8 +3,8 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { z } from "zod";
 import { parseJsonBody } from "@/lib/parse-request";
-import { ITEM_UPLOADS_BUCKET } from "@/lib/setup/constants";
-import { uploadToSupabaseBucket } from "@/lib/setup/wizard-db";
+import { ITEM_UPLOADS_BUCKET } from "@/lib/storage/buckets";
+import { uploadToSupabaseBucket } from "@/lib/storage/supabase-bucket";
 import { isR2Configured, resolveUploadBackend } from "@/lib/storage/upload-backend";
 import { createClient } from "@/lib/supabase/server";
 

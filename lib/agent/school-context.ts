@@ -1,5 +1,5 @@
 import { getAppSettingsAdmin } from "@/lib/ai-rate-limit";
-import { getSchoolBrandingData } from "@/lib/setup/wizard-db";
+import { getSchoolBrandingData } from "@/lib/system-config/branding";
 
 const DEFAULT_SCHOOL_NAME = "โรงเรียนนี้";
 
