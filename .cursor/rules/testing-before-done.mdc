@@ -1,0 +1,39 @@
+---
+description: Require unit, integration, and regression tests after every change, plus E2E, security, and performance tests when the change is risky
+alwaysApply: true
+---
+
+# Finish work with tests
+
+A fix, feature, or behavior change is not done until the tests below exist and `bun test` passes. Write them with `bun:test` in `tests/`. Do not add another test runner.
+
+## Always
+
+1. **Unit** — the changed logic alone (validation, ranking, parsers, guards).
+2. **Integration / API** — the real boundary: route handler, server action, Supabase query, or migration SQL. Mock only paid external APIs (AI, email).
+3. **Regression** — one test that fails on the old bug or old contract and passes on the new behavior. Name it after the failure it prevents.
+
+## Add by risk
+
+Also add E2E, security, and performance tests when the change can leak student data, grant privilege, or exhaust the free-tier deployment. Skip a layer only when the row says no, and say why.
+
+| Change touches | E2E | Security | Performance |
+| --- | --- | --- | --- |
+| Auth, session, passkey, PIN, setup wizard, admin role | yes | yes | yes if login or session is on a hot path |
+| RLS, grants, `accounts`, student PII, storage uploads | yes if a user can reach it | yes | no |
+| Match, item status, search, agent, vision, NER | yes for the user flow | yes if unauthenticated or cross-user | yes if it writes rows, opens realtime, or calls AI |
+| Copy, layout, or styling with no data or auth change | no | no | no |
+
+- **E2E** — one user path through the changed screen or API, including the empty and error state.
+- **Security** — anonymous, cross-student, and non-admin callers are denied. Secret columns (`password_hash`, `pin_hash`, `passkey_credentials`) stay unreadable.
+- **Performance** — cap rows written, channels opened, and AI calls. Fail if the change can grow without a limit.
+
+## Example
+
+An accounts RLS fix needs:
+
+- Unit: the trigger SQL rejects a student update to `pin_hash`.
+- Integration: authenticated `select` on `accounts` returns profile columns and not secret hashes.
+- Regression: the granted column list no longer includes `pin_hash`.
+- Security: a second student cannot read or update the first student's row.
+- E2E: student settings still loads that student's own profile.

@@ -1,0 +1,43 @@
+---
+description: After implementation is done and tests pass, propose an English Conventional Commits message. Do not create the commit unless asked.
+alwaysApply: true
+---
+
+# Propose a commit message when the work is done
+
+After a fix, feature, or other change is finished and the required tests pass, include a ready-to-use commit message in the completion reply. Write it in English using [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
+
+Propose the message only. Create the git commit when the user asks.
+
+## Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer]
+```
+
+- **type**: `feat` for a new feature, `fix` for a bug. Also use `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, or `chore` when that is the real change.
+- **scope**: optional area in parentheses, such as `auth` or `match`.
+- **description**: imperative, lowercase, no trailing period. Say why the change exists.
+- **body**: what changed and why, when the subject is not enough. Wrap near 72 characters.
+- **breaking change**: add `!` after the type or scope, and a `BREAKING CHANGE:` footer when the API or contract changes.
+
+## Examples
+
+```
+fix(match): stop anonymous callers from executing match RPCs
+
+Revoke EXECUTE on the match functions from public roles so only
+the app's server path can rank items.
+```
+
+```
+feat(auth): require a passkey before the setup wizard finishes
+```
+
+```
+test(accounts): reject student updates to pin_hash
+```

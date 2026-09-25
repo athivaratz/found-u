@@ -52,7 +52,6 @@ next-env.d.ts
 # development
 docs/
 .vscode/
-.cursor/
 supabase/.temp/
 ืtools/
 *.csv
@@ -67,4 +66,3 @@ tests/
 AGENTS.md
 DESIGN.md
 PRODUCT.md
-reports/
