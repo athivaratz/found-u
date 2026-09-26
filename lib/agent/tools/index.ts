@@ -7,6 +7,8 @@ import {
   getLostItemByTrackingCodeServer,
   getUserFoundItemsServer,
   getUserLostItemsServer,
+  listFoundItemsPrivateServer,
+  listLostItemsPrivateServer,
   searchItemsServer,
 } from "@/lib/agent/item-queries-server";
 import {
@@ -88,9 +90,24 @@ export function createAgentTools(options: {
             mode: "agent",
           });
 
+          const privateLostById = new Map<string, (typeof lost)[number]>();
+          const privateFoundById = new Map<string, (typeof found)[number]>();
+          if (!isAdmin && userId) {
+            const [privateLost, privateFound] = await Promise.all([
+              listLostItemsPrivateServer(),
+              listFoundItemsPrivateServer(),
+            ]);
+            for (const item of privateLost) privateLostById.set(item.id, item);
+            for (const item of privateFound) privateFoundById.set(item.id, item);
+          }
+
+          const visibleLost = lost.map((item) => privateLostById.get(item.id) ?? item);
           const visibleFound = isAdmin
             ? found
-            : found.filter((item) => isItemOwner(item.userId, userId));
+            : found.flatMap((item) => {
+                const owned = privateFoundById.get(item.id);
+                return owned ? [owned] : [];
+              });
 
           if (!isAdmin && found.length > visibleFound.length) {
             logPrivacyAction("searchItems_redact_found", userId, "non_admin");
@@ -101,7 +118,7 @@ export function createAgentTools(options: {
             });
           }
 
-          const serializedLost = lost.map((item) =>
+          const serializedLost = visibleLost.map((item) =>
             serializeLostForViewer(item, viewer)
           );
           const serializedFound = visibleFound.map((item) =>

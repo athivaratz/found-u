@@ -278,6 +278,14 @@ export interface Database {
         Args: { p_lost_id: string; p_found_id: string };
         Returns: Json;
       };
+      read_lost_items_private: {
+        Args: Record<PropertyKey, never>;
+        Returns: Database["public"]["Tables"]["lost_items"]["Row"][];
+      };
+      read_found_items_private: {
+        Args: Record<PropertyKey, never>;
+        Returns: Database["public"]["Tables"]["found_items"]["Row"][];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

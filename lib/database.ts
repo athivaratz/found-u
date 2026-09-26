@@ -698,6 +698,45 @@ export async function getLostItemByTrackingCode(trackingCode: string) {
   return mapLostItemRow(data as DbRow);
 }
 
+async function readLostItemsPrivate(): Promise<LostItem[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("read_lost_items_private");
+  if (error) throw error;
+  return (data ?? []).map((row) => mapLostItemRow(row as DbRow));
+}
+
+async function readFoundItemsPrivate(): Promise<FoundItem[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("read_found_items_private");
+  if (error) throw error;
+  return (data ?? []).map((row) => mapFoundItemRow(row as DbRow));
+}
+
+/** Full rows for the signed-in owner, or every row when the caller is admin. */
+export async function getLostItemsPrivate() {
+  return readLostItemsPrivate();
+}
+
+/** Full rows for the signed-in owner, or every row when the caller is admin. */
+export async function getFoundItemsPrivate() {
+  return readFoundItemsPrivate();
+}
+
+/**
+ * Public tracking lookup, then the private row when the caller owns it or is admin.
+ * Anon callers keep the public row (no contacts, no owner id).
+ */
+export async function getLostItemByTrackingCodeForViewer(trackingCode: string) {
+  const publicItem = await getLostItemByTrackingCode(trackingCode);
+  if (!publicItem) return null;
+  try {
+    const privateItems = await readLostItemsPrivate();
+    return privateItems.find((item) => item.id === publicItem.id) ?? publicItem;
+  } catch {
+    return publicItem;
+  }
+}
+
 export async function getLostItems(
   constraints: SupabaseConstraint<unknown>[] = []
 ) {
@@ -710,31 +749,23 @@ export async function getLostItems(
 }
 
 export async function getLostItemsByStudentId(studentId: string) {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from(COLLECTIONS.LOST_ITEMS)
-    .select("*")
-    .eq("student_id", studentId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((row) => mapLostItemRow(row as DbRow));
+  const items = await readLostItemsPrivate();
+  return items.filter((item) => item.studentId === studentId);
 }
 
 export async function getLostItemsByUserId(userId: string) {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from(COLLECTIONS.LOST_ITEMS)
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((row) => mapLostItemRow(row as DbRow));
+  const items = await readLostItemsPrivate();
+  return items.filter((item) => item.userId === userId);
+}
+
+export async function getFoundItemsByUserId(userId: string) {
+  const items = await readFoundItemsPrivate();
+  return items.filter((item) => item.userId === userId);
 }
 
 export function subscribeToLostItemsByUserId(userId: string, callback: (items: LostItem[]) => void) {
   return createRealtimeSubscription({
     table: COLLECTIONS.LOST_ITEMS,
-    filter: `user_id=eq.${userId}`,
     onFetch: async () => {
       callback(await getLostItemsByUserId(userId));
     },
@@ -744,16 +775,8 @@ export function subscribeToLostItemsByUserId(userId: string, callback: (items: L
 export function subscribeToFoundItemsByUserId(userId: string, callback: (items: FoundItem[]) => void) {
   return createRealtimeSubscription({
     table: COLLECTIONS.FOUND_ITEMS,
-    filter: `user_id=eq.${userId}`,
     onFetch: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from(COLLECTIONS.FOUND_ITEMS)
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      callback((data ?? []).map((row) => mapFoundItemRow(row as DbRow)));
+      callback(await getFoundItemsByUserId(userId));
     },
   });
 }
@@ -990,6 +1013,24 @@ export function subscribeToLostItems(callback: (items: LostItem[]) => void) {
     table: COLLECTIONS.LOST_ITEMS,
     onFetch: async () => {
       callback(await getLostItems());
+    },
+  });
+}
+
+export function subscribeToPrivateLostItems(callback: (items: LostItem[]) => void) {
+  return createRealtimeSubscription({
+    table: COLLECTIONS.LOST_ITEMS,
+    onFetch: async () => {
+      callback(await getLostItemsPrivate());
+    },
+  });
+}
+
+export function subscribeToPrivateFoundItems(callback: (items: FoundItem[]) => void) {
+  return createRealtimeSubscription({
+    table: COLLECTIONS.FOUND_ITEMS,
+    onFetch: async () => {
+      callback(await getFoundItemsPrivate());
     },
   });
 }

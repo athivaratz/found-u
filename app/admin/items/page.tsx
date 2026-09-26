@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import {
-  subscribeToLostItems,
-  subscribeToFoundItems,
+  subscribeToPrivateLostItems,
+  subscribeToPrivateFoundItems,
   updateLostItem,
   updateFoundItem,
   confirmFoundItemRoomHandover,
@@ -29,8 +29,8 @@ import {
   timestampToDate,
   getCategories,
   getLocations,
-  getLostItems,
-  getFoundItems,
+  getLostItemsPrivate,
+  getFoundItemsPrivate,
 } from "@/lib/database";
 import {
   STATUS_CONFIG,
@@ -397,7 +397,7 @@ export default function AdminItemsPage() {
       }
 
       try {
-        const [lost, found] = await Promise.all([getLostItems(), getFoundItems()]);
+        const [lost, found] = await Promise.all([getLostItemsPrivate(), getFoundItemsPrivate()]);
         if (cancelled) return;
         setLostItems(lost);
         setFoundItems(found);
@@ -414,14 +414,14 @@ export default function AdminItemsPage() {
 
     void bootstrap();
 
-    const unsubLost = subscribeToLostItems((items) => {
+    const unsubLost = subscribeToPrivateLostItems((items) => {
       if (cancelled) return;
       setLostItems(items);
       setLoadError(null);
       finishLoading();
     });
 
-    const unsubFound = subscribeToFoundItems((items) => {
+    const unsubFound = subscribeToPrivateFoundItems((items) => {
       if (cancelled) return;
       setFoundItems(items);
     });

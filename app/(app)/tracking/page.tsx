@@ -24,7 +24,7 @@ import {
   type LostItem,
 } from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
-import { getLostItemByTrackingCode, subscribeToLostItemsByUserId, timestampToDate } from "@/lib/database";
+import { getLostItemByTrackingCodeForViewer, subscribeToLostItemsByUserId, timestampToDate } from "@/lib/database";
 import { useAuth } from "@/contexts/auth-context";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import LoginPrompt from "@/components/auth/login-prompt";
@@ -100,7 +100,7 @@ export default function TrackingPage() {
     setSearchError(null);
 
     try {
-      const result = await getLostItemByTrackingCode(normalized);
+      const result = await getLostItemByTrackingCodeForViewer(normalized);
 
       if (result) {
         setSearchResult(enrichLostItem(result));
@@ -285,9 +285,8 @@ export default function TrackingPage() {
                           ทำหายที่: {searchResult.locationLost}
                         </span>
                       </div>
-                      {searchResult.contacts &&
-                        searchResult.contacts.length > 0 &&
-                        (isAdmin || searchResult.userId === user?.uid) && (
+                      {(isAdmin || searchResult.userId === user?.uid) &&
+                        searchResult.contacts.length > 0 && (
                           <div className="flex items-start gap-2 text-text-secondary">
                             <User className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
                             <span className="min-w-0 break-words">
@@ -296,17 +295,14 @@ export default function TrackingPage() {
                                 return (
                                   <span key={`${c.type}-${c.value}-${i}`}>
                                     {contactType?.icon} {c.value}
-                                    {i < searchResult.contacts!.length - 1 ? " • " : ""}
+                                    {i < searchResult.contacts.length - 1 ? " • " : ""}
                                   </span>
                                 );
                               })}
                             </span>
                           </div>
                         )}
-                      {searchResult.contacts &&
-                        searchResult.contacts.length > 0 &&
-                        !isAdmin &&
-                        searchResult.userId !== user?.uid && (
+                      {!(isAdmin || searchResult.userId === user?.uid) && (
                           <div className="flex items-start gap-2 text-text-secondary text-sm bg-bg-tertiary rounded-lg p-3">
                             <User className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
                             <span className="min-w-0 break-words">

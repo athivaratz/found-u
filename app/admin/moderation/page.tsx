@@ -18,8 +18,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import {
-  subscribeToLostItems,
-  subscribeToFoundItems,
+  subscribeToPrivateLostItems,
+  subscribeToPrivateFoundItems,
   updateLostItem,
   updateFoundItem,
   deleteLostItem,
@@ -75,12 +75,12 @@ export default function AdminModerationPage() {
     };
     loadConfig();
 
-    const unsubLost = subscribeToLostItems((items) => {
+    const unsubLost = subscribeToPrivateLostItems((items) => {
       setLostItems(items);
       setLoading(false);
     });
 
-    const unsubFound = subscribeToFoundItems((items) => {
+    const unsubFound = subscribeToPrivateFoundItems((items) => {
       setFoundItems(items);
     });
 

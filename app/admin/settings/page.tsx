@@ -146,8 +146,8 @@ export default function AdminSettingsPage() {
     try {
       // 1. Fetch all data
       const [{ data: lostRows, error: lostError }, { data: foundRows, error: foundError }] = await Promise.all([
-        supabase.from("lost_items").select("*"),
-        supabase.from("found_items").select("*"),
+        supabase.rpc("read_lost_items_private"),
+        supabase.rpc("read_found_items_private"),
       ]);
 
       if (lostError) throw lostError;

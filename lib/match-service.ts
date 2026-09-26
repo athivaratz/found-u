@@ -15,6 +15,7 @@ import {
 import type { AppSettings, FoundItem, LostItem } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 import { coerceAppSettings } from "@/lib/database";
+import { redactPublicItemFields } from "@/lib/item-public-shape";
 import { normalizeMapZones } from "@/lib/map-zones";
 
 export type MatchAiConfig = {
@@ -340,7 +341,7 @@ export function serializeMatchForJson(match: FormattedMatch) {
     scorePercentage: match.scorePercentage,
     confidence: match.confidence,
     reasons: match.reasons,
-    lostItem: match.lostItem,
-    foundItem: match.foundItem,
+    lostItem: redactPublicItemFields(match.lostItem),
+    foundItem: redactPublicItemFields(match.foundItem),
   };
 }

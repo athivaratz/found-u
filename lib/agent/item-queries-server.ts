@@ -23,6 +23,20 @@ export async function searchItemsServer(
   return searchItemsFuzzy(supabase, params);
 }
 
+export async function listLostItemsPrivateServer(): Promise<LostItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("read_lost_items_private");
+  if (error) throw error;
+  return (data ?? []).map((row) => mapLostItemRow(row as Record<string, unknown>));
+}
+
+export async function listFoundItemsPrivateServer(): Promise<FoundItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("read_found_items_private");
+  if (error) throw error;
+  return (data ?? []).map((row) => mapFoundItemRow(row as Record<string, unknown>));
+}
+
 export async function getLostItemByTrackingCodeServer(
   trackingCode: string
 ): Promise<LostItem | null> {
@@ -36,42 +50,40 @@ export async function getLostItemByTrackingCodeServer(
 
   if (error) throw error;
   if (!data) return null;
-  return mapLostItemRow(data as Record<string, unknown>);
+  const publicItem = mapLostItemRow(data as Record<string, unknown>);
+  try {
+    const privateItems = await listLostItemsPrivateServer();
+    return privateItems.find((item) => item.id === publicItem.id) ?? publicItem;
+  } catch {
+    return publicItem;
+  }
 }
 
 export async function getUserLostItemsServer(
   userId: string,
   limit = 10
 ): Promise<LostItem[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("lost_items")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(clampLimit(limit));
-
-  if (error) throw error;
-  return (data || []).map((row) => mapLostItemRow(row as Record<string, unknown>));
+  const items = await listLostItemsPrivateServer();
+  return items.filter((item) => item.userId === userId).slice(0, clampLimit(limit));
 }
 
 export async function getUserFoundItemsServer(
   userId: string,
   limit = 10
 ): Promise<FoundItem[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("found_items")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(clampLimit(limit));
-
-  if (error) throw error;
-  return (data || []).map((row) => mapFoundItemRow(row as Record<string, unknown>));
+  const items = await listFoundItemsPrivateServer();
+  return items.filter((item) => item.userId === userId).slice(0, clampLimit(limit));
 }
 
 export async function getLostItemByIdServer(id: string): Promise<LostItem | null> {
+  try {
+    const privateItems = await listLostItemsPrivateServer();
+    const owned = privateItems.find((item) => item.id === id);
+    if (owned) return owned;
+  } catch {
+    // Public row still answers "does this item exist?" without owner fields.
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("lost_items")
@@ -85,6 +97,14 @@ export async function getLostItemByIdServer(id: string): Promise<LostItem | null
 }
 
 export async function getFoundItemByIdServer(id: string): Promise<FoundItem | null> {
+  try {
+    const privateItems = await listFoundItemsPrivateServer();
+    const owned = privateItems.find((item) => item.id === id);
+    if (owned) return owned;
+  } catch {
+    // Public row still answers "does this item exist?" without owner fields.
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("found_items")

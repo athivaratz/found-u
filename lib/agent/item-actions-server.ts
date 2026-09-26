@@ -142,12 +142,18 @@ export async function reportLostItemServer(params: {
         updated_at: now,
       })
     )
-    .select("*")
+    .select(
+      "id, tracking_code, item_name, category, description, location_lost, location_place_name, location_coords, date_lost, status, matched_found_id, created_at, updated_at"
+    )
     .single();
 
   if (error) throw error;
 
-  const item = mapLostItemRow(inserted as Record<string, unknown>);
+  const item = {
+    ...mapLostItemRow(inserted as Record<string, unknown>),
+    contacts: validated.data.contacts,
+    userId: validated.data.userId,
+  };
   const matches = await suggestForItem({
     type: "lost",
     itemId: item.id,
@@ -283,12 +289,18 @@ export async function reportFoundItemServer(
         updated_at: now,
       })
     )
-    .select("*")
+    .select(
+      "id, tracking_code, photo_url, item_name, category, color, brand, description, location_found, location_place_name, location_coords, date_found, drop_off_location, status, room_handover_confirmed, room_handover_confirmed_at, room_handover_confirmed_by, room_handover_confirmed_by_name, handover_deadline_at, expired_at, matched_lost_id, created_at, updated_at"
+    )
     .single();
 
   if (error) throw error;
 
-  const item = mapFoundItemRow(inserted as Record<string, unknown>);
+  const item = {
+    ...mapFoundItemRow(inserted as Record<string, unknown>),
+    finderContacts: validated.data.finderContacts,
+    userId: validated.data.userId,
+  };
   const matches = await suggestForItem({
     type: "found",
     itemId: item.id,
