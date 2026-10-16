@@ -63,7 +63,6 @@ screencapture/
 Mermaid_Flowchart/
 .audit/
 .VSCodeCounter/
-tests/
 AGENTS.md
 DESIGN.md
 PRODUCT.md

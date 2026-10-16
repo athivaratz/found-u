@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useId } from "react";
+import { Suspense, useState, useEffect, useCallback, useId, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   Clock,
@@ -19,72 +20,127 @@ import { StatusAlert } from "@/components/ui/status-alert";
 import {
   CATEGORIES,
   CONTACT_TYPES,
+  getDropOffLocationLabel,
+  getItemDisplayName,
   getItemStatusConfig,
+  type FoundItem,
   type ItemStatus,
   type LostItem,
 } from "@/lib/types";
 import { cn, formatThaiDate } from "@/lib/utils";
-import { getLostItemByTrackingCode, subscribeToLostItemsByUserId, timestampToDate } from "@/lib/database";
+import {
+  getFoundItemByTrackingCode,
+  getLostItemByTrackingCode,
+  subscribeToFoundItemsByUserId,
+  subscribeToLostItemsByUserId,
+  timestampToDate,
+} from "@/lib/database";
 import { useAuth } from "@/contexts/auth-context";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import LoginPrompt from "@/components/auth/login-prompt";
+import {
+  formatHandoverDeadlineThai,
+  resolveHandoverDeadlineAt,
+} from "@/lib/found-handover";
+import {
+  TRACKING_CODE_INPUT_MAX_LENGTH,
+  canViewReporterContacts,
+  normalizeTrackingCode,
+  trackingStatusHint,
+} from "@/lib/tracking-code";
 
-type SearchResult = (LostItem & { matchLocation?: string; icon?: string }) | null;
+type TrackingHit =
+  | { kind: "lost"; item: LostItem }
+  | { kind: "found"; item: FoundItem };
 
-const TRACKING_CODE_MAX_LENGTH = 16;
+type MyReport = TrackingHit & { sortAt: number };
 
-function enrichLostItem(item: LostItem): NonNullable<SearchResult> {
-  const category = CATEGORIES.find((c) => c.value === item.category);
-  return {
-    ...item,
-    icon: category?.icon || "📦",
-  };
+function categoryIcon(category?: string): string {
+  return CATEGORIES.find((c) => c.value === category)?.icon || "📦";
+}
+
+function reportSortTime(item: { createdAt?: Date }): number {
+  return item.createdAt ? timestampToDate(item.createdAt).getTime() : 0;
 }
 
 export default function TrackingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-bg-secondary flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-line-green" aria-label="กำลังโหลด" />
+        </div>
+      }
+    >
+      <TrackingPageContent />
+    </Suspense>
+  );
+}
+
+function TrackingPageContent() {
   const { user, loading: authLoading, isAdmin } = useAuth();
   const reduced = useReducedMotion();
+  const searchParams = useSearchParams();
   const searchInputId = useId();
   const searchStatusId = useId();
+  const consumedUrlCode = useRef<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState<SearchResult>(null);
+  const [searchResult, setSearchResult] = useState<TrackingHit | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const [myItems, setMyItems] = useState<LostItem[]>([]);
-  const [loadingMyItems, setLoadingMyItems] = useState(true);
+  const [myLostItems, setMyLostItems] = useState<LostItem[]>([]);
+  const [myFoundItems, setMyFoundItems] = useState<FoundItem[]>([]);
+  const [lostReady, setLostReady] = useState(false);
+  const [foundReady, setFoundReady] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) {
-      setMyItems([]);
-      setLoadingMyItems(false);
+      setMyLostItems([]);
+      setMyFoundItems([]);
+      setLostReady(false);
+      setFoundReady(false);
       return;
     }
 
-    setLoadingMyItems(true);
-    const unsubscribe = subscribeToLostItemsByUserId(user.uid, (items) => {
-      setMyItems(items);
-      setLoadingMyItems(false);
+    setLostReady(false);
+    setFoundReady(false);
+    const unsubscribeLost = subscribeToLostItemsByUserId(user.uid, (items) => {
+      setMyLostItems(items);
+      setLostReady(true);
+    });
+    const unsubscribeFound = subscribeToFoundItemsByUserId(user.uid, (items) => {
+      setMyFoundItems(items);
+      setFoundReady(true);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeLost();
+      unsubscribeFound();
+    };
   }, [user?.uid]);
 
-  const getCategoryIcon = (category: string) => {
-    const cat = CATEGORIES.find((c) => c.value === category);
-    return cat?.icon || "📦";
-  };
+  const myReports = useMemo<MyReport[]>(() => {
+    const reports: MyReport[] = [
+      ...myLostItems.map((item) => ({ kind: "lost" as const, item, sortAt: reportSortTime(item) })),
+      ...myFoundItems.map((item) => ({ kind: "found" as const, item, sortAt: reportSortTime(item) })),
+    ];
+    reports.sort((a, b) => b.sortAt - a.sortAt);
+    return reports;
+  }, [myLostItems, myFoundItems]);
+
+  const loadingMyItems = Boolean(user?.uid) && (!lostReady || !foundReady);
 
   const scrollToSearch = useCallback(() => {
     window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
   }, [reduced]);
 
   const selectTrackingItem = useCallback(
-    (item: LostItem) => {
-      setSearchQuery(item.trackingCode);
+    (hit: TrackingHit) => {
+      setSearchQuery(hit.item.trackingCode);
       setSearchError(null);
-      setSearchResult(enrichLostItem(item));
+      setSearchResult(hit);
       setHasSearched(true);
       scrollToSearch();
     },
@@ -92,20 +148,27 @@ export default function TrackingPage() {
   );
 
   const runSearch = useCallback(async (query: string) => {
-    const normalized = query.trim().toUpperCase();
-    if (!normalized) return;
+    const parsed = normalizeTrackingCode(query);
+    if (!parsed.ok) {
+      if (!query.trim()) return;
+      setHasSearched(true);
+      setSearchResult(null);
+      setSearchError(parsed.message);
+      return;
+    }
 
+    setSearchQuery(parsed.code);
     setIsSearching(true);
     setHasSearched(true);
     setSearchError(null);
 
     try {
-      const result = await getLostItemByTrackingCode(normalized);
-
-      if (result) {
-        setSearchResult(enrichLostItem(result));
+      if (parsed.kind === "found") {
+        const result = await getFoundItemByTrackingCode(parsed.code);
+        setSearchResult(result ? { kind: "found", item: result } : null);
       } else {
-        setSearchResult(null);
+        const result = await getLostItemByTrackingCode(parsed.code);
+        setSearchResult(result ? { kind: "lost", item: result } : null);
       }
     } catch (error) {
       console.error("Error searching:", error);
@@ -115,6 +178,15 @@ export default function TrackingPage() {
       setIsSearching(false);
     }
   }, []);
+
+  useEffect(() => {
+    const raw = searchParams.get("code")?.trim() ?? "";
+    if (!raw || consumedUrlCode.current === raw) return;
+    consumedUrlCode.current = raw;
+    const parsed = normalizeTrackingCode(raw);
+    setSearchQuery(parsed.ok ? parsed.code : raw.toUpperCase());
+    void runSearch(raw);
+  }, [searchParams, runSearch]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,19 +222,37 @@ export default function TrackingPage() {
         <Header title="ติดตามสถานะ" showBack />
         <LoginPrompt
           title="เข้าสู่ระบบเพื่อติดตามสถานะ"
-          description="คุณต้องเข้าสู่ระบบเพื่อดูรายการของหายของคุณและติดตามสถานะแบบ Real-time"
-          feature="รายการของฉันจะอัปเดตอัตโนมัติเมื่อมีคนเจอของ!"
+          description="คุณต้องเข้าสู่ระบบเพื่อดูรายการของหายและของเจอของคุณ และติดตามสถานะแบบ Real-time"
+          feature="เปิดลิงก์รหัสติดตามแล้ว ระบบจะค้นให้ต่อหลังเข้าสู่ระบบ"
         />
         <BottomNav />
       </div>
     );
   }
 
+  const statusConfig = searchResult ? getItemStatusConfig(searchResult.item) : null;
+  const reporterContacts = searchResult
+    ? searchResult.kind === "lost"
+      ? searchResult.item.contacts
+      : searchResult.item.finderContacts ?? []
+    : [];
+  const showReporterContacts = searchResult
+    ? canViewReporterContacts({
+        isAdmin,
+        viewerId: user.uid,
+        ownerId: searchResult.item.userId,
+      })
+    : false;
+  const handoverDeadline =
+    searchResult?.kind === "found" && searchResult.item.status === "pending_room_confirm"
+      ? resolveHandoverDeadlineAt(searchResult.item)
+      : null;
+
   const searchStatusMessage = searchError
     ? searchError
     : hasSearched && !isSearching
       ? searchResult
-        ? `พบรายการ ${searchResult.itemName}`
+        ? `พบรายการ ${getItemDisplayName(searchResult.item)}`
         : "ไม่พบรายการจากรหัสที่ค้นหา"
       : "";
 
@@ -196,11 +286,11 @@ export default function TrackingPage() {
                   setSearchQuery(e.target.value.toUpperCase());
                   if (searchError) setSearchError(null);
                 }}
-                placeholder="เช่น LOST-ABC123"
+                placeholder="เช่น LOST-ABC234 หรือ FOUND-ABC234"
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
-                maxLength={TRACKING_CODE_MAX_LENGTH}
+                maxLength={TRACKING_CODE_INPUT_MAX_LENGTH}
                 enterKeyHint="search"
                 className="w-full h-12 px-4 pr-14 bg-bg-card rounded-xl text-text-primary placeholder-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-line-green uppercase border border-border-light"
               />
@@ -239,24 +329,27 @@ export default function TrackingPage() {
                     onClick: () => void runSearch(searchQuery),
                   }}
                 />
-              ) : searchResult ? (
+              ) : searchResult && statusConfig ? (
                 <div className="bg-bg-card rounded-xl overflow-hidden border border-border-light">
                   <div
                     className={cn(
                       "px-4 py-3 flex items-center gap-2",
-                      getItemStatusConfig(searchResult).bgColor || "bg-bg-tertiary"
+                      statusConfig.bgColor || "bg-bg-tertiary"
                     )}
                   >
-                    <span className={getItemStatusConfig(searchResult).color || "text-text-secondary"}>
-                      {getStatusIcon(searchResult.status)}
+                    <span className={statusConfig.color || "text-text-secondary"}>
+                      {getStatusIcon(searchResult.item.status)}
                     </span>
                     <span
                       className={cn(
                         "font-medium",
-                        getItemStatusConfig(searchResult).color || "text-text-secondary"
+                        statusConfig.color || "text-text-secondary"
                       )}
                     >
-                      {getItemStatusConfig(searchResult).label || "ไม่ทราบสถานะ"}
+                      {statusConfig.label || "ไม่ทราบสถานะ"}
+                    </span>
+                    <span className="ml-auto text-xs font-medium text-text-tertiary">
+                      {searchResult.kind === "found" ? "ของเจอ" : "ของหาย"}
                     </span>
                   </div>
 
@@ -266,14 +359,14 @@ export default function TrackingPage() {
                         className="w-12 h-12 rounded-xl bg-bg-secondary flex items-center justify-center text-2xl shrink-0"
                         aria-hidden
                       >
-                        {searchResult.icon}
+                        {categoryIcon(searchResult.item.category)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-text-primary truncate">
-                          {searchResult.itemName}
+                          {getItemDisplayName(searchResult.item)}
                         </h3>
                         <p className="text-sm text-text-secondary break-all">
-                          {searchResult.trackingCode}
+                          {searchResult.item.trackingCode}
                         </p>
                       </div>
                     </div>
@@ -282,74 +375,80 @@ export default function TrackingPage() {
                       <div className="flex items-start gap-2 text-text-secondary">
                         <MapPin className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
                         <span className="min-w-0 break-words">
-                          ทำหายที่: {searchResult.locationLost}
+                          {searchResult.kind === "found"
+                            ? `เจอที่: ${searchResult.item.locationFound}`
+                            : `ทำหายที่: ${searchResult.item.locationLost}`}
                         </span>
                       </div>
-                      {searchResult.contacts &&
-                        searchResult.contacts.length > 0 &&
-                        (isAdmin || searchResult.userId === user?.uid) && (
-                          <div className="flex items-start gap-2 text-text-secondary">
-                            <User className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
-                            <span className="min-w-0 break-words">
-                              {searchResult.contacts.map((c, i) => {
-                                const contactType = CONTACT_TYPES.find((t) => t.value === c.type);
-                                return (
-                                  <span key={`${c.type}-${c.value}-${i}`}>
-                                    {contactType?.icon} {c.value}
-                                    {i < searchResult.contacts!.length - 1 ? " • " : ""}
-                                  </span>
-                                );
-                              })}
-                            </span>
-                          </div>
-                        )}
-                      {searchResult.contacts &&
-                        searchResult.contacts.length > 0 &&
-                        !isAdmin &&
-                        searchResult.userId !== user?.uid && (
-                          <div className="flex items-start gap-2 text-text-secondary text-sm bg-bg-tertiary rounded-lg p-3">
-                            <User className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
-                            <span className="min-w-0 break-words">
-                              ติดต่อเจ้าของรายการได้ผ่านห้องบุคคลครับ
-                            </span>
-                          </div>
-                        )}
+                      {searchResult.kind === "found" ? (
+                        <div className="flex items-start gap-2 text-text-secondary">
+                          <Package className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
+                          <span className="min-w-0 break-words">
+                            จุดส่งมอบ: {getDropOffLocationLabel(searchResult.item.dropOffLocation)}
+                          </span>
+                        </div>
+                      ) : null}
+                      {reporterContacts.length > 0 && showReporterContacts ? (
+                        <div className="flex items-start gap-2 text-text-secondary">
+                          <User className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
+                          <span className="min-w-0 break-words">
+                            {reporterContacts.map((c, i) => {
+                              const contactType = CONTACT_TYPES.find((t) => t.value === c.type);
+                              return (
+                                <span key={`${c.type}-${c.value}-${i}`}>
+                                  {contactType?.icon} {c.value}
+                                  {i < reporterContacts.length - 1 ? " • " : ""}
+                                </span>
+                              );
+                            })}
+                          </span>
+                        </div>
+                      ) : null}
+                      {reporterContacts.length > 0 && !showReporterContacts ? (
+                        <div className="flex items-start gap-2 text-text-secondary text-sm bg-bg-tertiary rounded-lg p-3">
+                          <User className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
+                          <span className="min-w-0 break-words">
+                            ติดต่อเจ้าของรายการได้ผ่านห้องบุคคลครับ
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="flex items-start gap-2 text-text-secondary">
                         <Calendar className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
                         <span>
                           วันที่แจ้ง:{" "}
-                          {searchResult.createdAt
-                            ? formatThaiDate(timestampToDate(searchResult.createdAt))
+                          {searchResult.item.createdAt
+                            ? formatThaiDate(timestampToDate(searchResult.item.createdAt))
                             : "-"}
                         </span>
                       </div>
-
-                      {searchResult.status === "pending_room_confirm" && (
-                        <div className="flex items-start gap-2 text-status-warning bg-status-warning-light rounded-lg p-3 mt-3">
-                          <Clock className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-                          <span className="font-medium min-w-0 break-words">
-                            พบของแล้ว กำลังรอส่ง/ยืนยันที่ห้องบุคคล
+                      {handoverDeadline ? (
+                        <div className="flex items-start gap-2 text-text-secondary">
+                          <Clock className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />
+                          <span className="min-w-0 break-words">
+                            ส่งห้องบุคคลภายใน {formatHandoverDeadlineThai(handoverDeadline)}
                           </span>
                         </div>
-                      )}
+                      ) : null}
 
-                      {searchResult.status === "found" && (
-                        <div className="flex items-start gap-2 text-line-green bg-line-green-light dark:bg-line-green/20 rounded-lg p-3 mt-3">
-                          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-                          <span className="font-medium min-w-0 break-words">
-                            ของถึงห้องบุคคลแล้ว! กรุณาติดต่อรับคืนที่ห้องบุคคล
-                          </span>
-                        </div>
-                      )}
-
-                      {searchResult.status === "claimed" && (
-                        <div className="flex items-start gap-2 text-status-info bg-status-info-light rounded-lg p-3 mt-3">
-                          <Package className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-                          <span className="font-medium min-w-0 break-words">
-                            รับคืนเรียบร้อยแล้ว
-                          </span>
-                        </div>
-                      )}
+                      <div
+                        className={cn(
+                          "flex items-start gap-2 rounded-lg p-3 mt-3",
+                          searchResult.item.status === "found"
+                            ? "text-line-green bg-line-green-light dark:bg-line-green/20"
+                            : searchResult.item.status === "claimed"
+                              ? "text-status-info bg-status-info-light"
+                              : searchResult.item.status === "expired"
+                                ? "text-status-error bg-status-error-light"
+                                : "text-status-warning bg-status-warning-light"
+                        )}
+                      >
+                        <span className="shrink-0 mt-0.5" aria-hidden>
+                          {getStatusIcon(searchResult.item.status)}
+                        </span>
+                        <span className="font-medium min-w-0 break-words">
+                          {trackingStatusHint(searchResult.kind, searchResult.item.status)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -384,16 +483,17 @@ export default function TrackingPage() {
                 <Loader2 className="w-8 h-8 animate-spin text-line-green mx-auto mb-4" aria-hidden />
                 <p className="text-text-secondary">กำลังโหลดรายการของคุณ...</p>
               </div>
-            ) : myItems.length > 0 ? (
+            ) : myReports.length > 0 ? (
               <ul className="space-y-3" role="list">
-                {myItems.map((item) => {
-                  const statusConfig = getItemStatusConfig(item);
+                {myReports.map((report) => {
+                  const reportStatus = getItemStatusConfig(report.item);
+                  const reportName = getItemDisplayName(report.item);
                   return (
-                    <li key={item.id}>
+                    <li key={`${report.kind}-${report.item.id}`}>
                       <button
                         type="button"
-                        onClick={() => selectTrackingItem(item)}
-                        aria-label={`ดูรายละเอียด ${item.itemName} รหัส ${item.trackingCode}`}
+                        onClick={() => selectTrackingItem(report)}
+                        aria-label={`ดูรายละเอียด ${reportName} รหัส ${report.item.trackingCode}`}
                         className="w-full text-left bg-bg-card border border-border-light rounded-xl p-4 hover:border-line-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-green/35 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-secondary"
                       >
                         <div className="flex items-center gap-3">
@@ -401,17 +501,17 @@ export default function TrackingPage() {
                             className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center text-xl shrink-0"
                             aria-hidden
                           >
-                            {getCategoryIcon(item.category)}
+                            {categoryIcon(report.item.category)}
                           </div>
 
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-text-primary truncate">
-                              {item.itemName}
+                              {reportName}
                             </h4>
                             <p className="text-xs text-text-secondary mt-0.5 truncate">
-                              {item.trackingCode} •{" "}
-                              {item.createdAt
-                                ? formatThaiDate(timestampToDate(item.createdAt))
+                              {report.kind === "found" ? "ของเจอ" : "ของหาย"} • {report.item.trackingCode} •{" "}
+                              {report.item.createdAt
+                                ? formatThaiDate(timestampToDate(report.item.createdAt))
                                 : "-"}
                             </p>
                           </div>
@@ -419,12 +519,12 @@ export default function TrackingPage() {
                           <span
                             className={cn(
                               "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0",
-                              statusConfig.bgColor || "bg-bg-tertiary",
-                              statusConfig.color || "text-text-secondary"
+                              reportStatus.bgColor || "bg-bg-tertiary",
+                              reportStatus.color || "text-text-secondary"
                             )}
                           >
-                            {getStatusIcon(item.status)}
-                            {statusConfig.label || "ไม่ทราบ"}
+                            {getStatusIcon(report.item.status)}
+                            {reportStatus.label || "ไม่ทราบ"}
                           </span>
                         </div>
                       </button>
@@ -439,7 +539,7 @@ export default function TrackingPage() {
                 </div>
                 <p className="text-text-secondary font-medium">ยังไม่มีรายการ</p>
                 <p className="text-sm text-text-tertiary mt-1">
-                  เริ่มแจ้งของหายเพื่อติดตามสถานะ
+                  เริ่มแจ้งของหายหรือของเจอเพื่อติดตามสถานะ
                 </p>
               </div>
             )}
@@ -460,9 +560,15 @@ export default function TrackingPage() {
                 </span>
               </li>
               <li className="flex items-start gap-2 text-sm">
+                <Clock className="w-4 h-4 text-status-warning shrink-0 mt-0.5" aria-hidden />
+                <span className="text-text-secondary min-w-0 break-words">
+                  รอส่งห้องบุคคล — ของเจอยังไม่ถึงจุดส่งมอบ
+                </span>
+              </li>
+              <li className="flex items-start gap-2 text-sm">
                 <CheckCircle2 className="w-4 h-4 text-line-green shrink-0 mt-0.5" aria-hidden />
                 <span className="text-text-secondary min-w-0 break-words">
-                  เจอแล้ว — รอติดต่อรับคืน
+                  ถึงห้องบุคคลแล้ว — เจ้าของติดต่อรับคืนได้
                 </span>
               </li>
               <li className="flex items-start gap-2 text-sm">

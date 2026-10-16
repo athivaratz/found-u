@@ -694,6 +694,19 @@ export async function getLostItemByTrackingCode(trackingCode: string) {
   return mapLostItemRow(data as DbRow);
 }
 
+export async function getFoundItemByTrackingCode(trackingCode: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from(COLLECTIONS.FOUND_ITEMS)
+    .select("*")
+    .eq("tracking_code", trackingCode.toUpperCase())
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return mapFoundItemRow(data as DbRow);
+}
+
 export async function getLostItems(
   constraints: SupabaseConstraint<unknown>[] = []
 ) {
