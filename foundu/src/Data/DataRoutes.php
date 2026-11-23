@@ -17,6 +17,8 @@ final class DataRoutes
         Catalog::register($app, $pdo);
         People::register($app, $config, $pdo, $sessions);
         Logs::register($app, $pdo);
+        Usage::register($app, $pdo);
+        Cms::register($app, $pdo);
         Site::register($app, $pdo, $appRoot, $limiter);
     }
 }

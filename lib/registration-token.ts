@@ -10,9 +10,7 @@ function normalizeStudentId(raw: string): string {
 
 function getRegistrationSecret(): string {
   return (
-    process.env.REGISTRATION_TOKEN_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "foundu-registration-dev-secret"
+    process.env.REGISTRATION_TOKEN_SECRET || "foundu-registration-dev-secret"
   );
 }
 

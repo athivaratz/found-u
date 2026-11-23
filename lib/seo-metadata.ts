@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import { unstable_cache } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { hasSupabaseAdminEnv } from "@/lib/setup/db-url";
 import { getDefaultAppUrl } from "@/lib/app-domains";
+import { phpGet } from "@/lib/php-origin";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
 export const OG_METADATA_CACHE_TAG = "app-og-settings";
@@ -22,19 +20,9 @@ function defaultOgSettings(): OgSettings {
 }
 
 async function fetchOgSettings(): Promise<OgSettings> {
-  if (!hasSupabaseAdminEnv()) {
-    return defaultOgSettings();
-  }
-
   try {
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("app_settings")
-      .select("settings")
-      .eq("id", "default")
-      .maybeSingle();
-
-    const settings = (data?.settings ?? {}) as Record<string, unknown>;
+    const body = await phpGet<{ settings?: Record<string, unknown> }>("/api/settings");
+    const settings = body?.settings ?? {};
 
     return {
       title:
@@ -53,10 +41,9 @@ async function fetchOgSettings(): Promise<OgSettings> {
   }
 }
 
-const getCachedOgSettings = unstable_cache(fetchOgSettings, ["app-og-settings"], {
-  revalidate: 60,
-  tags: [OG_METADATA_CACHE_TAG],
-});
+async function getCachedOgSettings(): Promise<OgSettings> {
+  return fetchOgSettings();
+}
 
 function toAbsoluteImageUrl(image: string | undefined, metadataBase: URL): string | undefined {
   if (!image) return undefined;

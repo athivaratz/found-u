@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/php-moved";
 import type { AgentStreamCollector } from "@/lib/agent/agent-ui-stream";
 
 export async function persistAgentChatLog(

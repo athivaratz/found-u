@@ -1,7 +1,10 @@
 import { getAppSettingsAdmin } from "@/lib/ai-rate-limit";
-import { getSchoolBrandingData } from "@/lib/setup/wizard-db";
 
 const DEFAULT_SCHOOL_NAME = "โรงเรียนนี้";
+
+async function getSchoolBrandingData(): Promise<{ school_name?: string } | null> {
+  return null;
+}
 
 export async function getRuntimeSchoolName(): Promise<string> {
   const branding = await getSchoolBrandingData();

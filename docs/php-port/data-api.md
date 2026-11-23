@@ -44,7 +44,7 @@ Query `limit` and either `cursor` or `offset`, not both. Offset stops at 100. A 
 
 A guest is 401. A signed-in user who is short of the role is 403. A missing row on a route the caller is allowed to know about is 404. `GET /api/users/{id}` returns 404 for another student and for a missing id, so the caller cannot tell them apart. A guest on that route is 401 and the row is not loaded.
 
-Cookie mutations need `X-CSRF-Token` copied from `foundu_csrf` (or `__Host-foundu-csrf` on HTTPS). That includes `POST /api/revalidate-og` and `POST /api/found/expire-overdue` when a session cookie is present. A request with no cookie skips CSRF. A bearer token is accepted only when the cookie is absent, and that request skips CSRF. `x-requested-with` is a Cloudflare header. PHP does not look at it.
+Cookie mutations need `X-CSRF-Token` copied from `foundu_csrf` (or `__Host-foundu-csrf` on HTTPS). A request with no cookie skips CSRF. There is no bearer shortcut. `X-Requested-With: foundu` is what the Cloudflare rule looks for. PHP does not check it. The browser client sends it on every call.
 
 ## Items
 
@@ -101,3 +101,9 @@ Categories, locations, contact types, and drop-off locations are public reads an
 ## Errors
 
 The body is `{ error }` plus `field` when the input names one. 409 is a unique-key conflict. 429 includes `Retry-After`. Local `APP_ENV` adds `detail` for unexpected exceptions, not for `HttpError`. There is no stack in the JSON.
+
+## Usage and CMS reads
+
+`POST /api/ai-usage` with `{ endpoint, userId? }` inserts a row for the signed-in account. A `userId` that is not that account is 403. `GET /api/admin/ai-usage` is `{ records, nextCursor }` and is admin. Deletes stay on cron.
+
+`GET /api/articles` lists published rows. `GET /api/articles/{slug}` is one published row, or 404. `GET /api/admin/articles` and `GET /api/admin/articles/{id}` are the editor list. Writes on `/api/admin/articles` and the help-page write routes are 501 after authz, so a guest is 401 and a student is 403. `GET /api/help/{slug}` is the public page plus its sections. These CMS bodies still use the column names the current mappers expect (`cover_image_url`, `updated_at`). P10 can rename them when the editor is real.

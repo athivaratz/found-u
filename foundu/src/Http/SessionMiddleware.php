@@ -36,15 +36,6 @@ final class SessionMiddleware implements MiddlewareInterface
         $cookies = $request->getCookieParams();
         $raw = $skipSession ? '' : ($cookies[SetCookie::sessionName($https)] ?? '');
         $via = 'cookie';
-        if (!is_string($raw) || $raw === '') {
-            if (!$skipSession) {
-                $header = $request->getHeaderLine('Authorization');
-                if (str_starts_with($header, 'Bearer ')) {
-                    $raw = trim(substr($header, 7));
-                    $via = 'bearer';
-                }
-            }
-        }
         $actor = Actor::guest();
         $session = null;
         if (is_string($raw) && $raw !== '') {

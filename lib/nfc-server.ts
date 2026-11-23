@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/php-moved";
 import type { AppSettings, ContactInfo, ItemCategory, NfcTagStatus } from "@/lib/types";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 import { generateNfcTagId } from "@/lib/utils";
@@ -328,7 +328,7 @@ export async function getOwnerNfcDashboardAdmin(ownerId: string) {
     admin.from("nfc_found_reports").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }),
   ]);
 
-  const tags = (tagsData || []).map((data) => {
+  const tags = (tagsData || []).map((data: any) => {
     return {
       id: data.id,
       tagUid: data.tag_uid,
@@ -347,7 +347,7 @@ export async function getOwnerNfcDashboardAdmin(ownerId: string) {
     };
   });
 
-  const reports = (reportsData || []).map((data) => {
+  const reports = (reportsData || []).map((data: any) => {
     return {
       id: data.id,
       tagId: data.tag_id,

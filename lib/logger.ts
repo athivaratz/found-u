@@ -1,6 +1,5 @@
-import { createClient, isSupabaseBrowserConfigured } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api-client";
 import type { ErrorSeverity, ErrorSource } from "@/lib/types";
-import type { Json } from "@/lib/database.types";
 
 export type ActionType =
   | "create"
@@ -55,20 +54,31 @@ function asDatabaseSource(source?: ErrorSource): ErrorSource {
   return source || "unknown";
 }
 
+function pathOnly(url?: string): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith("/")) return url.slice(0, 500);
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}`.slice(0, 500);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function logActivity(params: LogActivityParams): Promise<void> {
   try {
-    const supabase = createClient();
-    await supabase.from("activity_logs").insert({
-      action: params.action,
-      action_type: params.actionType,
-      target_type: params.targetType,
-      target_id: params.targetId || null,
-      target_name: params.targetName || null,
-      user_id: params.userId || null,
-      user_email: params.userEmail || null,
-      user_name: params.userName || null,
-      details: params.details || null,
-      created_at: new Date().toISOString(),
+    await apiFetch("/api/activity-logs", {
+      method: "POST",
+      json: {
+        action: params.action,
+        actionType: params.actionType,
+        targetType: params.targetType,
+        targetId: params.targetId,
+        targetName: params.targetName,
+        userName: params.userName,
+        userEmail: params.userEmail,
+        details: params.details,
+      },
     });
   } catch (error) {
     console.error("Failed to log activity:", error);
@@ -188,30 +198,19 @@ export async function logConfigChanged(
 }
 
 export async function logError(params: LogErrorParams): Promise<string | null> {
-  if (!isSupabaseBrowserConfigured()) {
-    console.error("Failed to log error (Supabase not configured):", params.message);
-    return null;
-  }
   try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("error_logs")
-      .insert({
+    const data = await apiFetch<{ id?: string }>("/api/error-logs", {
+      method: "POST",
+      json: {
         message: params.message,
-        stack: params.stack || null,
+        stack: params.stack,
         severity: params.severity || "medium",
         source: asDatabaseSource(params.source),
-        url: params.url || null,
-        user_id: params.userId || null,
-        user_email: params.userEmail || null,
-        user_agent: params.userAgent || (typeof navigator !== "undefined" ? navigator.userAgent : null),
-        metadata: ((params.metadata as unknown as Json) || null),
-        resolved: false,
-        created_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-    if (error) throw error;
+        url: pathOnly(params.url),
+        userEmail: params.userEmail,
+        metadata: params.metadata,
+      },
+    });
     return typeof data?.id === "string" ? data.id : null;
   } catch (error) {
     console.error("Failed to log error:", error);
@@ -270,16 +269,12 @@ export async function logDatabaseError(operation: string, error: Error, userId?:
 export const logFirebaseError = logDatabaseError;
 
 export async function resolveError(errorId: string, resolvedBy: string): Promise<void> {
+  void resolvedBy;
   try {
-    const supabase = createClient();
-    await supabase
-      .from("error_logs")
-      .update({
-        resolved: true,
-        resolved_at: new Date().toISOString(),
-        resolved_by: resolvedBy,
-      })
-      .eq("id", errorId);
+    await apiFetch(`/api/admin/error-logs/${encodeURIComponent(errorId)}`, {
+      method: "PATCH",
+      json: { resolved: true },
+    });
   } catch (error) {
     console.error("Failed to resolve error:", error);
   }

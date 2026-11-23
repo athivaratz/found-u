@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/php-moved";
 import { mapFoundItemRow, mapLostItemRow } from "@/lib/agent/row-mappers";
 import {
   MATCHABLE_FOUND_STATUSES,
@@ -91,7 +91,7 @@ export async function loadMatchableLostItems(options?: {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map((row) => mapLostItemRow(row as Record<string, unknown>));
+  return (data ?? []).map((row: any) => mapLostItemRow(row as Record<string, unknown>));
 }
 
 export async function loadMatchableFoundItems(options?: {
@@ -112,7 +112,7 @@ export async function loadMatchableFoundItems(options?: {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map((row) => mapFoundItemRow(row as Record<string, unknown>));
+  return (data ?? []).map((row: any) => mapFoundItemRow(row as Record<string, unknown>));
 }
 
 export async function getLostItemByIdAdmin(id: string): Promise<LostItem | null> {
@@ -140,7 +140,7 @@ async function loadDismissalKeys(): Promise<Set<string>> {
     return new Set();
   }
   return new Set(
-    (data ?? []).map((row) => {
+    (data ?? []).map((row: any) => {
       const r = row as { lost_id: string; found_id: string };
       return `${r.lost_id}_${r.found_id}`;
     })

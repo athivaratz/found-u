@@ -452,6 +452,35 @@ final class DataHttpTest extends DbTestCase
         ];
     }
 
+    public function testAiUsageAndCmsAuthz(): void
+    {
+        $userId = $this->student('21001');
+        $adminId = $this->student('21002', 'admin');
+        $user = $this->login('21001');
+        $admin = $this->login('21002');
+
+        $this->assertSame(401, $this->get('/admin/ai-usage')['status']);
+        $this->assertSame(403, $this->get('/admin/ai-usage', $user)['status']);
+        $this->assertSame(401, $this->post('/ai-usage', ['endpoint' => 'ner'])['status']);
+        $this->assertSame(403, $this->post('/ai-usage', ['userId' => $adminId, 'endpoint' => 'ner'], $user)['status']);
+
+        $created = $this->post('/ai-usage', ['userId' => $userId, 'endpoint' => 'ner'], $user);
+        $this->assertSame(201, $created['status']);
+        $listed = $this->get('/admin/ai-usage', $admin);
+        $this->assertSame(200, $listed['status']);
+        $this->assertSame($userId, $listed['body']['records'][0]['userId']);
+
+        $this->assertSame(200, $this->get('/articles')['status']);
+        $this->assertSame(401, $this->post('/admin/articles', ['title' => 'x'])['status']);
+        $this->assertSame(403, $this->post('/admin/articles', ['title' => 'x'], $user)['status']);
+        $this->assertSame(501, $this->post('/admin/articles', ['title' => 'x'], $admin)['status']);
+        $this->assertSame(401, $this->get('/admin/articles')['status']);
+        $this->assertSame(200, $this->get('/admin/articles', $admin)['status']);
+        $this->assertSame(404, $this->get('/help/missing-page')['status']);
+        $this->assertSame(401, $this->post('/admin/help-pages', ['slug' => 'start'])['status']);
+        $this->assertSame(501, $this->post('/admin/help-pages', ['slug' => 'start'], $admin)['status']);
+    }
+
     private function stamp(string $table): string
     {
         $value = Database::run(

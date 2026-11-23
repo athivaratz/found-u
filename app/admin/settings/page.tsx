@@ -25,8 +25,18 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
-import { getAllUsers, getAppSettings, updateAppSettings, timestampToDate } from "@/lib/database";
-import { createClient } from "@/lib/supabase/client";
+import {
+  addFoundItem,
+  addLostItem,
+  deleteFoundItem,
+  deleteLostItem,
+  getAppSettings,
+  getAllUsers,
+  getFoundItems,
+  getLostItems,
+  timestampToDate,
+  updateAppSettings,
+} from "@/lib/database";
 import { uploadImage, compressImage } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import type { AppUser, AppSettings } from "@/lib/types";
@@ -45,7 +55,6 @@ const SETTINGS_TABS = [
 type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
 
 export default function AdminSettingsPage() {
-  const supabase = createClient();
   const { user } = useAuth();
   const { showAlert, showConfirm, dialog } = useAppDialog();
   const [saving, setSaving] = useState(false);
@@ -129,7 +138,7 @@ export default function AdminSettingsPage() {
       console.error('Error saving settings:', error);
       void showAlert({
         title: "บันทึกไม่สำเร็จ",
-        message: "กรุณาตรวจสอบสิทธิ์ Admin และการเชื่อมต่อ Supabase",
+        message: "กรุณาตรวจสอบสิทธิ์ Admin และการเชื่อมต่อ",
         variant: "error",
       });
     } finally {
@@ -145,23 +154,17 @@ export default function AdminSettingsPage() {
     setProcessingData(true);
     try {
       // 1. Fetch all data
-      const [{ data: lostRows, error: lostError }, { data: foundRows, error: foundError }] = await Promise.all([
-        supabase.from("lost_items").select("*"),
-        supabase.from("found_items").select("*"),
-      ]);
+      const [lostRows, foundRows] = await Promise.all([getLostItems(), getFoundItems()]);
 
-      if (lostError) throw lostError;
-      if (foundError) throw foundError;
-
-      const lostItems = (lostRows ?? []).map((row) => ({
-        id: String(row.id),
+      const lostItems = lostRows.map((row) => ({
+        id: row.id,
         type: "lost" as const,
-        ...row as Record<string, unknown>,
+        ...(row as unknown as Record<string, unknown>),
       }));
-      const foundItems = (foundRows ?? []).map((row) => ({
-        id: String(row.id),
+      const foundItems = foundRows.map((row) => ({
+        id: row.id,
         type: "found" as const,
-        ...row as Record<string, unknown>,
+        ...(row as unknown as Record<string, unknown>),
       }));
 
       const allItems = [...lostItems, ...foundItems];
@@ -181,17 +184,16 @@ export default function AdminSettingsPage() {
         ...allItems.map(item => {
           // Normalize fields - use type assertion for accessing properties
           const itemData = item as Record<string, unknown>;
-          const name = item.type === "lost" ? (itemData.item_name as string) : (itemData.description as string);
-          const location = item.type === "lost" ? (itemData.location_lost as string) : (itemData.location_found as string);
-          const date = item.type === "lost" ? itemData.date_lost : itemData.date_found;
+          const name = item.type === "lost" ? (itemData.itemName as string) : (itemData.description as string);
+          const location = item.type === "lost" ? (itemData.locationLost as string) : (itemData.locationFound as string);
+          const date = item.type === "lost" ? itemData.dateLost : itemData.dateFound;
           const dateStr = date ? timestampToDate(date).toISOString() : "";
-          const createdStr = itemData.created_at ? timestampToDate(itemData.created_at).toISOString() : "";
+          const createdStr = itemData.createdAt ? timestampToDate(itemData.createdAt).toISOString() : "";
 
-          // Flatten first contact if exists
           let contactName = "";
           let contactDetail = "";
           const contacts = itemData.contacts as Array<{ type: string; value: string }> | undefined;
-          const finderContacts = itemData.finder_contacts as Array<{ type: string; value: string }> | undefined;
+          const finderContacts = itemData.finderContacts as Array<{ type: string; value: string }> | undefined;
           if (item.type === "lost" && contacts?.[0]) {
             contactName = contacts[0].type;
             contactDetail = contacts[0].value;
@@ -203,7 +205,7 @@ export default function AdminSettingsPage() {
           return [
             item.type,
             item.id,
-            (itemData.tracking_code as string) || "",
+            (itemData.trackingCode as string) || "",
             (itemData.status as string),
             (itemData.category as string) || "",
             `"${(name || "").replace(/"/g, '""')}"`, // Escape quotes
@@ -264,7 +266,6 @@ export default function AdminSettingsPage() {
 
         const lostInserts: Record<string, unknown>[] = [];
         const foundInserts: Record<string, unknown>[] = [];
-        const BATCH_LIMIT = 500;
         const nowIso = new Date().toISOString();
 
         for (const row of rows) {
@@ -310,20 +311,32 @@ export default function AdminSettingsPage() {
           }
         }
 
-        for (let i = 0; i < lostInserts.length; i += BATCH_LIMIT) {
-          const chunk = lostInserts.slice(i, i + BATCH_LIMIT);
-          if (chunk.length > 0) {
-            const { error } = await supabase.from("lost_items").insert(chunk);
-            if (error) throw error;
-          }
+        for (const row of lostInserts) {
+          const data = row as Record<string, string>;
+          await addLostItem({
+            trackingCode: data.tracking_code || `IMP-${Date.now()}`,
+            itemName: data.item_name || "imported",
+            category: (data.category || "other") as "other",
+            description: data.description || undefined,
+            locationLost: data.location_lost || "other",
+            dateLost: new Date(),
+            contacts: [],
+            status: (data.status as "searching") || "searching",
+          });
         }
 
-        for (let i = 0; i < foundInserts.length; i += BATCH_LIMIT) {
-          const chunk = foundInserts.slice(i, i + BATCH_LIMIT);
-          if (chunk.length > 0) {
-            const { error } = await supabase.from("found_items").insert(chunk);
-            if (error) throw error;
-          }
+        for (const row of foundInserts) {
+          const data = row as Record<string, string>;
+          await addFoundItem({
+            trackingCode: data.tracking_code || `IMP-${Date.now()}`,
+            description: data.description || data.item_name || "imported",
+            itemName: data.item_name || undefined,
+            category: (data.category || "other") as "other",
+            locationFound: data.location_found || "other",
+            dateFound: new Date(),
+            dropOffLocation: "personnel_office",
+            status: (data.status as "found") || "found",
+          });
         }
 
         await showAlert({
@@ -371,32 +384,12 @@ export default function AdminSettingsPage() {
     setProcessingData(true);
 
     try {
-      const [{ data: lostRows, error: lostFetchError }, { data: foundRows, error: foundFetchError }] = await Promise.all([
-        supabase.from("lost_items").select("id"),
-        supabase.from("found_items").select("id"),
-      ]);
-
-      if (lostFetchError) throw lostFetchError;
-      if (foundFetchError) throw foundFetchError;
-
-      const BATCH_LIMIT = 500;
-      const lostIds = (lostRows ?? []).map((row) => String(row.id));
-      const foundIds = (foundRows ?? []).map((row) => String(row.id));
-
-      for (let i = 0; i < lostIds.length; i += BATCH_LIMIT) {
-        const chunk = lostIds.slice(i, i + BATCH_LIMIT);
-        if (chunk.length > 0) {
-          const { error } = await supabase.from("lost_items").delete().in("id", chunk);
-          if (error) throw error;
-        }
+      const [lostRows, foundRows] = await Promise.all([getLostItems(), getFoundItems()]);
+      for (const row of lostRows) {
+        await deleteLostItem(row.id);
       }
-
-      for (let i = 0; i < foundIds.length; i += BATCH_LIMIT) {
-        const chunk = foundIds.slice(i, i + BATCH_LIMIT);
-        if (chunk.length > 0) {
-          const { error } = await supabase.from("found_items").delete().in("id", chunk);
-          if (error) throw error;
-        }
+      for (const row of foundRows) {
+        await deleteFoundItem(row.id);
       }
 
       await showAlert({

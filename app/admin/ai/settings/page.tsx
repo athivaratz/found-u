@@ -25,7 +25,11 @@ import {
 } from "@/lib/admin/ai-settings-keys";
 import { AiSettingField } from "@/components/admin/ai-setting-field";
 import { ApiKeyLabelLink } from "@/components/admin/api-key-label-link";
-import { WIZARD_FREE_OPENROUTER_MODELS } from "@/lib/setup/validations/wizard-ai";
+const WIZARD_FREE_OPENROUTER_MODELS = [
+  "google/gemini-2.0-flash-exp:free",
+  "google/gemma-3-27b-it:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+] as const;
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 
 type AiCredentialsMeta = {

@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FoundItem, LostItem } from "@/lib/types";
 import { mapFoundItemRow, mapLostItemRow } from "@/lib/agent/row-mappers";
 import { searchItemsIlike } from "./ilike-search";
@@ -11,6 +10,8 @@ import {
   shouldUseTrgmForQuery,
 } from "./trgm-config";
 import type { SearchItemsParams } from "./types";
+
+type SupabaseClient = any;
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 10;

@@ -10,15 +10,8 @@
     "typecheck": "tsc --noEmit",
     "gen:students": "bun run scripts/generate-students-csv.ts",
     "gen:roster": "bun run scripts/generate-roster-csv.ts",
-    "import:students": "bun run scripts/import-students-csv.ts",
-    "create:admin": "bun run scripts/create-admin.ts",
-    "test:login": "bun run scripts/test-student-login.ts",
     "test": "bun test tests",
-    "test:contract": "node --test tests/contract/*.test.mjs",
-    "db:push": "supabase db push",
-    "dev:setup": "bun run scripts/dev-setup-sandbox.ts",
-    "setup:reset": "bun run scripts/reset-setup-sandbox.ts",
-    "discord:bot": "node discord-bot/index.mjs"
+    "test:contract": "node --test tests/contract/*.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.6",
@@ -28,8 +21,6 @@
     "@aws-sdk/s3-request-presigner": "^3.879.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.0",
-    "@supabase/ssr": "^0.12.0",
-    "@supabase/supabase-js": "^2.108.0",
     "@tiptap/core": "^3.28.0",
     "@tiptap/extension-code-block": "^3.28.0",
     "@tiptap/extension-image": "^3.28.0",
@@ -45,7 +36,6 @@
     "caniuse-lite": "^1.0.30001803",
     "clsx": "^2.1.1",
     "dexie": "^4.4.4",
-    "discord.js": "^14.22.1",
     "embla-carousel": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.40.0",
@@ -53,17 +43,15 @@
     "image-size": "^2.0.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
-    "next": "^16.1.6",
+    "next": "16.4.6",
     "next-themes": "^0.4.6",
-    "postgres": "^3.4.9",
     "qrcode": "^1.5.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "shiki": "^4.3.1",
-    "supabase": "^2.116.0",
     "tailwind-merge": "^3.4.0",
     "video.js": "^8.23.9",
-    "zod": "^4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -75,7 +63,7 @@
     "@types/video.js": "^7.3.58",
     "@typescript/native": "npm:typescript@^7.0.2",
     "eslint": "^9.39.2",
-    "eslint-config-next": "16.1.1",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4.1.18",
     "typescript": "^6.0.2"
   }

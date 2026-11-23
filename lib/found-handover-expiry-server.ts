@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/php-moved";
 import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 
 /**

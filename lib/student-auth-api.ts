@@ -1,12 +1,11 @@
-import { getSessionToken, signInWithStudentSession } from "@/lib/auth";
+import { ApiError, apiFetch } from "@/lib/api-client";
+import { noteSignedIn } from "@/lib/auth";
 import type { AppUser } from "@/lib/types";
 import { resolvePostLoginPath } from "@/lib/auth-routes";
 
 export { resolvePostLoginPath };
 
 type SessionPayload = {
-  access_token: string;
-  refresh_token: string;
   mustChangePassword: boolean;
   mustSetupPin?: boolean;
   studentId?: string;
@@ -14,126 +13,60 @@ type SessionPayload = {
   uid?: string;
 };
 
-async function handleSessionResponse(res: Response, fallbackMessage: string): Promise<SessionPayload> {
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || fallbackMessage);
-
-  const accessToken = data.access_token as string | undefined;
-  const refreshToken = data.refresh_token as string | undefined;
-  if (!accessToken || !refreshToken) {
-    throw new Error("เซิร์ฟเวอร์ไม่ได้ส่งข้อมูล session");
-  }
-
-  const { error } = await signInWithStudentSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-  if (error) throw error;
-
-  if (data.studentId) {
-    const { setRememberedDevice } = await import("@/lib/auth-device-memory");
-    setRememberedDevice({
-      studentId: data.studentId as string,
-      nickname: data.nickname as string | undefined,
-    });
-  }
-
+function flags(data: Record<string, unknown>): SessionPayload {
   return {
-    access_token: accessToken,
-    refresh_token: refreshToken,
     mustChangePassword: Boolean(data.mustChangePassword),
     mustSetupPin: Boolean(data.mustSetupPin),
-    studentId: data.studentId as string | undefined,
-    nickname: data.nickname as string | undefined,
-    uid: data.uid as string | undefined,
+    studentId: typeof data.studentId === "string" ? data.studentId : undefined,
+    nickname: typeof data.nickname === "string" ? data.nickname : undefined,
+    uid: typeof data.uid === "string" ? data.uid : undefined,
   };
+}
+
+async function openSession(path: string, json: unknown, fallback: string): Promise<SessionPayload> {
+  let data: Record<string, unknown>;
+  try {
+    data = await apiFetch<Record<string, unknown>>(path, { method: "POST", json });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      const wrapped = new Error(error.code || fallback) as Error & { needsRegistration?: boolean };
+      wrapped.needsRegistration = Boolean(error.payload.needsRegistration);
+      throw wrapped;
+    }
+    throw error;
+  }
+  if (typeof data.studentId === "string") {
+    const { setRememberedDevice } = await import("@/lib/auth-device-memory");
+    setRememberedDevice({
+      studentId: data.studentId,
+      nickname: typeof data.nickname === "string" ? data.nickname : undefined,
+    });
+  }
+  const session = await noteSignedIn();
+  if (session.error) throw session.error;
+  return flags(data);
 }
 
 export async function postStudentLogin(studentId: string, password: string) {
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ studentId, password }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    const message = data.error || "เข้าสู่ระบบไม่สำเร็จ";
-    const err = new Error(message) as Error & { needsRegistration?: boolean };
-    err.needsRegistration = Boolean(data.needsRegistration);
-    throw err;
-  }
-
-  const accessToken = data.access_token as string | undefined;
-  const refreshToken = data.refresh_token as string | undefined;
-  if (!accessToken || !refreshToken) {
-    throw new Error("เซิร์ฟเวอร์ไม่ได้ส่งข้อมูล session");
-  }
-
-  const { error } = await signInWithStudentSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-  if (error) throw error;
-
-  if (data.studentId) {
-    const { setRememberedDevice } = await import("@/lib/auth-device-memory");
-    setRememberedDevice({
-      studentId: data.studentId as string,
-      nickname: data.nickname as string | undefined,
-    });
-  }
-
-  return {
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    mustChangePassword: Boolean(data.mustChangePassword),
-    mustSetupPin: Boolean(data.mustSetupPin),
-    studentId: data.studentId as string | undefined,
-    nickname: data.nickname as string | undefined,
-    uid: data.uid as string | undefined,
-  };
+  return openSession("/api/auth/login", { studentId, password }, "เข้าสู่ระบบไม่สำเร็จ");
 }
 
 export async function postPinLogin(studentId: string, pin: string) {
-  const res = await fetch("/api/auth/pin/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ studentId, pin }),
-  });
-  return handleSessionResponse(res, "เข้าสู่ระบบไม่สำเร็จ");
+  return openSession("/api/auth/pin/login", { studentId, pin }, "เข้าสู่ระบบไม่สำเร็จ");
 }
 
 export async function postResetPasswordWithPin(studentId: string, pin: string, newPassword: string) {
-  const res = await fetch("/api/auth/reset-password-with-pin", {
+  const data = await apiFetch<Record<string, unknown>>("/api/auth/reset-password-with-pin", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ studentId, pin, newPassword }),
+    json: { studentId, pin, newPassword },
   });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "รีเซ็ตรหัสผ่านไม่สำเร็จ");
-
-  if (data.access_token && data.refresh_token) {
-    const { error } = await signInWithStudentSession({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-    });
-    if (error) throw error;
-  }
-
-  return data as {
-    success: boolean;
-    access_token?: string;
-    refresh_token?: string;
-    mustChangePassword?: boolean;
-  };
+  const session = await noteSignedIn();
+  if (session.error) throw session.error;
+  return { success: true, mustChangePassword: Boolean(data.mustChangePassword) };
 }
 
 export async function lookupRegistration(studentId: string) {
-  const res = await fetch(`/api/auth/register/lookup?studentId=${encodeURIComponent(studentId)}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "ค้นหาข้อมูลไม่สำเร็จ");
-  return data as {
+  return apiFetch<{
     found: boolean;
     canRegister?: boolean;
     alreadyRegistered?: boolean;
@@ -144,7 +77,7 @@ export async function lookupRegistration(studentId: string) {
     gradeLevel?: string | null;
     roomNumber?: string | null;
     registrationToken?: string;
-  };
+  }>(`/api/auth/register/lookup?studentId=${encodeURIComponent(studentId)}`);
 }
 
 export async function completeRegistration(input: {
@@ -153,99 +86,42 @@ export async function completeRegistration(input: {
   password: string;
   pin: string;
 }) {
-  const res = await fetch("/api/auth/register/complete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return handleSessionResponse(res, "สมัครสมาชิกไม่สำเร็จ");
+  return openSession("/api/auth/register/complete", input, "สมัครสมาชิกไม่สำเร็จ");
 }
 
 export async function postResetPassword(studentId: string, schoolPassword: string, newPassword: string) {
-  const res = await fetch("/api/auth/reset-password", {
+  const data = await apiFetch<Record<string, unknown>>("/api/auth/reset-password", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ studentId, schoolPassword, newPassword }),
+    json: { studentId, schoolPassword, newPassword },
   });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "รีเซ็ตรหัสผ่านไม่สำเร็จ");
-
-  if (data.access_token && data.refresh_token) {
-    const { error } = await signInWithStudentSession({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-    });
-    if (error) throw error;
-  }
-
-  return data as {
-    success: boolean;
-    access_token?: string;
-    refresh_token?: string;
-    mustChangePassword?: boolean;
-  };
+  const session = await noteSignedIn();
+  if (session.error) throw session.error;
+  return { success: true, mustChangePassword: Boolean(data.mustChangePassword) };
 }
 
 export async function postChangePassword(currentPassword: string, newPassword: string) {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-
-  const res = await fetch("/api/auth/change-password", {
+  return apiFetch("/api/auth/change-password", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ currentPassword, newPassword }),
+    json: { currentPassword, newPassword },
   });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "เปลี่ยนรหัสผ่านไม่สำเร็จ");
-  return data;
 }
 
 export async function postVerifyPassword(password: string) {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/verify-password", {
+  return apiFetch<{ success: boolean }>("/api/auth/verify-password", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ password }),
+    json: { password },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "ยืนยันรหัสผ่านไม่สำเร็จ");
-  return data as { success: boolean };
 }
 
 export async function postVerifyPin(pin: string) {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/verify-pin", {
+  return apiFetch<{ success: boolean }>("/api/auth/verify-pin", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ pin }),
+    json: { pin },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "ยืนยัน PIN ไม่สำเร็จ");
-  return data as { success: boolean };
 }
 
 export async function getAuthSessionStatus() {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/session-status", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "ตรวจสอบสถานะไม่สำเร็จ");
-  return data as {
+  return apiFetch<{
     isAdmin: boolean;
     isStudentVerified: boolean;
     whitelisted?: boolean;
@@ -255,14 +131,11 @@ export async function getAuthSessionStatus() {
     studentId?: string | null;
     role?: string | null;
     profile?: AppUser | null;
-  };
+  }>("/api/auth/session-status");
 }
 
 export async function getDeviceProfile(studentId: string) {
-  const res = await fetch(`/api/auth/device-profile?studentId=${encodeURIComponent(studentId)}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "โหลดข้อมูลไม่สำเร็จ");
-  return data as {
+  return apiFetch<{
     exists: boolean;
     studentId?: string;
     nickname?: string;
@@ -270,48 +143,32 @@ export async function getDeviceProfile(studentId: string) {
     hasLoggedInOnce?: boolean;
     hasPin?: boolean;
     quickUnlockAvailable?: boolean;
-  };
+  }>(`/api/auth/device-profile?studentId=${encodeURIComponent(studentId)}`);
 }
 
 export async function postSetupPin(pin: string) {
-  const token = await getSessionToken();
-  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-  const res = await fetch("/api/auth/pin/setup", {
+  return apiFetch<{ success: boolean }>("/api/auth/pin/setup", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ pin }),
+    json: { pin },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "ตั้ง PIN ไม่สำเร็จ");
-  return data as { success: boolean };
 }
 
 export async function getPasskeyStatus() {
-  const { listSupabasePasskeys } = await import("@/lib/supabase/passkey-auth");
-  const passkeys = await listSupabasePasskeys();
-  const latest = passkeys[passkeys.length - 1];
-  return {
-    hasPasskey: passkeys.length > 0,
-    count: passkeys.length,
-    latestDeviceLabel: latest?.friendly_name?.trim() || (latest ? "อุปกรณ์นี้" : undefined),
-  };
+  const { getPasskeyStatus: load } = await import("@/lib/passkey-client");
+  return load();
 }
 
 export async function deletePasskey() {
-  const { deleteAllSupabasePasskeys } = await import("@/lib/supabase/passkey-auth");
-  await deleteAllSupabasePasskeys();
-  return { success: true };
+  const { deletePasskey: remove } = await import("@/lib/passkey-client");
+  return remove();
 }
 
 export async function postPasskeyLogin() {
-  const { signInWithSupabasePasskey } = await import("@/lib/supabase/passkey-auth");
-  return signInWithSupabasePasskey();
+  const { signInWithPasskey } = await import("@/lib/passkey-client");
+  return signInWithPasskey();
 }
 
 export async function registerPasskey() {
-  const { registerSupabasePasskey } = await import("@/lib/supabase/passkey-auth");
-  await registerSupabasePasskey();
+  const { registerPasskey: enroll } = await import("@/lib/passkey-client");
+  await enroll();
 }

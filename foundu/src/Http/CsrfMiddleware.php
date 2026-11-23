@@ -33,12 +33,6 @@ final class CsrfMiddleware implements MiddlewareInterface
         if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true) || !$session instanceof SessionRecord) {
             return $handler->handle($request);
         }
-        // A bearer token is not sent by the browser on its own. CSRF is for
-        // the cookie. If the cookie was absent and the caller presented the
-        // session secret, the secret is the proof.
-        if ($request->getAttribute(Attrs::SESSION_VIA) === 'bearer') {
-            return $handler->handle($request);
-        }
 
         $https = Https::requested($this->config, $request->getServerParams());
         $header = $request->getHeaderLine('X-CSRF-Token');

@@ -4,9 +4,9 @@ P4 mounts the auth routes on the kernel from `core.md`. The shapes are the ones 
 
 ## Cookie and bearer
 
-The session cookie is `foundu` on HTTP and `__Host-foundu` on HTTPS. Login, PIN login, passkey login, register complete, and a successful password reset set that cookie and also return `access_token` and `refresh_token`. Both tokens are the same rotated session secret. The current Next client in `lib/student-auth-api.ts` refuses a body that is missing either key. P6 should stop echoing the secret and keep the cookie.
+The session cookie is `foundu` on HTTP and `__Host-foundu` on HTTPS. Login, PIN login, passkey login, register complete, and a successful password reset set that cookie. The JSON body has the flags the page needs (`mustChangePassword`, `mustSetupPin`, `studentId`, `nickname`, `uid`) and does not include the session secret.
 
-`Authorization: Bearer <token>` is accepted only when the cookie is absent. A bearer request skips CSRF, because the caller already has the secret. If the cookie is present, CSRF still applies, even when a bearer header is also sent.
+Nothing in the browser reads `Authorization`. The bearer path was removed with the JSON secret. A cookie session is the only session. CSRF still applies to unsafe methods once that cookie is present.
 
 `SessionService::rotate` runs on login and on a privilege change (password, PIN setup, whitelist promotion). Other browser sessions of that account are revoked. A password reset and an admin account reset revoke every session of the target, including passkey challenges, and the reset response then issues a fresh one.
 

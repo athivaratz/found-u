@@ -16,7 +16,8 @@ import {
   Eye,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api-client";
+import { subscribeChanges } from "@/lib/change-poller";
 import { cn, formatThaiDate } from "@/lib/utils";
 
 // Types
@@ -65,7 +66,6 @@ const TARGET_LABELS: Record<string, string> = {
 };
 
 export default function AdminLogsPage() {
-  const supabase = createClient();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -95,32 +95,22 @@ export default function AdminLogsPage() {
         }
       }
 
-      let queryBuilder = supabase
-        .from("activity_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-
-      if (startDate) {
-        queryBuilder = queryBuilder.gte("created_at", startDate.toISOString());
-      }
-
-      const { data, error } = await queryBuilder;
-      if (error) throw error;
-
-      const mappedLogs: ActivityLog[] = (data ?? []).map((row) => ({
-        id: String(row.id),
-        action: String(row.action ?? ""),
-        actionType: (String(row.action_type ?? "view") as ActivityLog["actionType"]),
-        targetType: (String(row.target_type ?? "system") as ActivityLog["targetType"]),
-        targetId: typeof row.target_id === "string" ? row.target_id : undefined,
-        targetName: typeof row.target_name === "string" ? row.target_name : undefined,
-        userId: typeof row.user_id === "string" ? row.user_id : undefined,
-        userEmail: typeof row.user_email === "string" ? row.user_email : undefined,
-        userName: typeof row.user_name === "string" ? row.user_name : undefined,
-        details: typeof row.details === "string" ? row.details : undefined,
-        createdAt: row.created_at ? new Date(String(row.created_at)) : new Date(),
-      }));
+      const body = await apiFetch<{ logs: Array<Record<string, unknown>> }>("/api/admin/activity-logs?limit=200");
+      const mappedLogs: ActivityLog[] = body.logs
+        .map((row) => ({
+          id: String(row.id),
+          action: String(row.action ?? ""),
+          actionType: (String(row.actionType ?? "view") as ActivityLog["actionType"]),
+          targetType: (String(row.targetType ?? "system") as ActivityLog["targetType"]),
+          targetId: typeof row.targetId === "string" ? row.targetId : undefined,
+          targetName: typeof row.targetName === "string" ? row.targetName : undefined,
+          userId: typeof row.userId === "string" ? row.userId : undefined,
+          userEmail: typeof row.userEmail === "string" ? row.userEmail : undefined,
+          userName: typeof row.userName === "string" ? row.userName : undefined,
+          details: typeof row.details === "string" ? row.details : undefined,
+          createdAt: row.createdAt ? new Date(String(row.createdAt)) : new Date(),
+        }))
+        .filter((row) => !startDate || row.createdAt >= startDate);
 
       setLogs(mappedLogs);
       setLoading(false);
@@ -132,19 +122,10 @@ export default function AdminLogsPage() {
       setLoading(false);
     });
 
-    const channel = supabase
-      .channel("admin-activity-logs")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "activity_logs" },
-        () => void loadLogs()
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [dateRange, supabase]);
+    return subscribeChanges(["activity_logs"], () => {
+      void loadLogs();
+    }, 10_000);
+  }, [dateRange]);
 
   // Filter logs
   const filteredLogs = logs.filter((log) => {
@@ -189,15 +170,18 @@ export default function AdminLogsPage() {
       },
     ];
 
-    const { error } = await supabase.from("activity_logs").insert(
-      sampleLogs.map((log) => ({
-        ...log,
-        created_at: new Date().toISOString(),
-      }))
-    );
-
-    if (error) {
-      console.error("Error adding sample logs:", error);
+    for (const log of sampleLogs) {
+      await apiFetch("/api/activity-logs", {
+        method: "POST",
+        json: {
+          action: log.action,
+          actionType: log.action_type,
+          targetType: log.target_type,
+          targetId: log.target_id,
+          targetName: log.target_name,
+          userName: log.user_name,
+        },
+      });
     }
   };
 

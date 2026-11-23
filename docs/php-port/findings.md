@@ -149,9 +149,21 @@ Creating an item is limited to 30 an hour for a student and 200 an hour for an a
 | Sev | What | Why it is still like this |
 |---|---|---|
 | medium | `POST /auth/login` still returns `needsRegistration` when the roster row has no password and is not registered | The login page branches on that flag. A missing id and a wrong password share one sentence. An unregistered roster id does not. P6 can drop the flag once the page stops needing it |
-| medium | The login JSON still has `access_token` and `refresh_token`, and both are the session secret | `lib/student-auth-api.ts` requires both keys. The cookie is set as well. P6 should stop putting the secret in JSON and use the cookie |
-| low | `Authorization: Bearer` is accepted when the cookie is absent, and that request skips CSRF | The current client sends a bearer token. If a cookie is present, CSRF still applies. P6 can drop the bearer path with the JSON secret |
+| medium | The login JSON used to include `access_token` and `refresh_token` | Closed in P6. The cookie is the session. The JSON no longer carries the secret |
+| low | `Authorization: Bearer` used to skip CSRF when the cookie was absent | Closed in P6. The middleware only reads the session cookie |
 | low | `GET /auth/device-profile` and a successful register lookup still return a name | The device and register screens need it. Each student id is limited to 5 lookups a minute, on top of the auth IP bucket. Disabled and banned rows look like "not found" |
 | low | `web-auth/webauthn-lib` 5.3.15 pulls in about 1,100 files (CBOR, COSE, Symfony polyfills) | The plan said to switch to `lbuchs/webauthn` if the inode count was too high. Production `vendor/` is about 1,800 files, and roughly 1,100 of those are this library. That is acceptable next to the AWS SDK we are not shipping, and this library matches `@simplewebauthn/browser` plus the origin check. Do not add another WebAuthn package |
 | low | A changed password is not limited to the old 7–8 character school alphabet | Login accepts 8–128 characters with a letter and a digit (72 when the box only has bcrypt). The school password on reset, and the optional password on admin create, stay 7–8 alphanumeric. Student ids stay 5 digits. Student id `11111` is not special; `create-admin.php` is the bootstrap |
 | low | Reset of a missing account is 401 with the same sentence as a wrong PIN or school password | The old contract said 404. That told a caller which ids exist. An admin reset of a missing student is still 404, because that caller is already an admin |
+
+## P6
+
+| Sev | What | Why it is still like this |
+|---|---|---|
+| low | `needsRegistration` is still on a failed login for an unregistered roster id | The login page still branches on it. Dropping it would make that id look like a wrong password |
+| low | `getLostItems` and `getFoundItems` ignore the old constraint argument | Nothing in the app passed one. The HTTP list has its own filters |
+| low | `cleanupOldAIUsage` returns 0 | Students cannot delete `ai_usage`. Cron does |
+| note | Article and help writes answer 501 after the authz check | The editor pages call those routes. Reading works. P10 fills in the writes |
+| note | NFC, match, vision, and the agent still have server modules that throw if called | Their Next routes are gone so the proxy can reach PHP. P7–P10 replace the modules |
+| note | Several pages are still server components (`generateMetadata`, `revalidate`, blog and help reads) | P11 turns the app into a static export. `FOUNDU_API_ORIGIN` is only the dev proxy and should go away then |
+| note | `npm audit` before this phase was 26 (1 critical, 13 high). After next 16.4.6, removing discord.js, and `npm audit fix`, it is 0 | `zod` is pinned at 4.6.7. Next vendors the patched server-dom packages |

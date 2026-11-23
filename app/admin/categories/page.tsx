@@ -16,7 +16,8 @@ import {
   Phone,
   GripVertical,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api-client";
+import { subscribeChanges } from "@/lib/change-poller";
 import { cn } from "@/lib/utils";
 import { logConfigChanged } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
@@ -87,8 +88,13 @@ const DEFAULT_CONTACT_TYPES = [
 const EMOJI_OPTIONS = ["💰", "📱", "🔑", "👜", "💻", "📄", "👕", "💍", "📦", "🎒", "⌚", "💳", "🎧", "📷", "🔋", "📚", "🎮", "⚽", "🎸", "💊"];
 const CONTACT_EMOJI_OPTIONS = ["📞", "💬", "📷", "📘", "📧", "💌", "📲", "🔔", "✉️", "📨"];
 
+function catalogPath(tab: "categories" | "locations" | "contacts") {
+  if (tab === "locations") return "/api/locations";
+  if (tab === "contacts") return "/api/contact-types";
+  return "/api/categories";
+}
+
 export default function AdminCategoriesPage() {
-  const supabase = createClient();
   const { user } = useAuth();
   const { showAlert, showConfirm, dialog } = useAppDialog();
   const [activeTab, setActiveTab] = useState<"categories" | "locations" | "contacts">("categories");
@@ -112,62 +118,26 @@ export default function AdminCategoriesPage() {
 
   const loadConfigData = useCallback(async () => {
     const [categoriesResult, locationsResult, contactTypesResult] = await Promise.all([
-      supabase.from("categories").select("*").order("sort_order", { ascending: true }),
-      supabase.from("locations").select("*").order("sort_order", { ascending: true }),
-      supabase.from("contact_types").select("*").order("sort_order", { ascending: true }),
+      apiFetch<{ categories: Category[] }>("/api/categories"),
+      apiFetch<{ locations: Location[] }>("/api/locations"),
+      apiFetch<{ contactTypes: ContactType[] }>("/api/contact-types"),
     ]);
-
-    if (!categoriesResult.error) {
-      if (!categoriesResult.data || categoriesResult.data.length === 0) {
-        setCategories(DEFAULT_CATEGORIES.map((c, i) => ({ ...c, id: `default-${i}` })));
-      } else {
-        setCategories(
-          categoriesResult.data.map((row) => ({
-            id: String(row.id),
-            value: String(row.value ?? ""),
-            label: String(row.label ?? ""),
-            icon: String(row.icon ?? "📦"),
-            order: Number(row.sort_order ?? 0),
-            createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
-          }))
-        );
-      }
-    }
-
-    if (!locationsResult.error) {
-      if (!locationsResult.data || locationsResult.data.length === 0) {
-        setLocations(DEFAULT_LOCATIONS.map((l, i) => ({ ...l, id: `default-${i}` })));
-      } else {
-        setLocations(
-          locationsResult.data.map((row) => ({
-            id: String(row.id),
-            value: String(row.value ?? ""),
-            label: String(row.label ?? ""),
-            order: Number(row.sort_order ?? 0),
-            createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
-          }))
-        );
-      }
-    }
-
-    if (!contactTypesResult.error) {
-      if (!contactTypesResult.data || contactTypesResult.data.length === 0) {
-        setContactTypes(DEFAULT_CONTACT_TYPES.map((c, i) => ({ ...c, id: `default-${i}` })));
-      } else {
-        setContactTypes(
-          contactTypesResult.data.map((row) => ({
-            id: String(row.id),
-            value: String(row.value ?? ""),
-            label: String(row.label ?? ""),
-            icon: String(row.icon ?? "📞"),
-            placeholder: String(row.placeholder ?? ""),
-            order: Number(row.sort_order ?? 0),
-            createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
-          }))
-        );
-      }
-    }
-  }, [supabase]);
+    setCategories(
+      categoriesResult.categories.length > 0
+        ? categoriesResult.categories
+        : DEFAULT_CATEGORIES.map((c, i) => ({ ...c, id: `default-${i}` }))
+    );
+    setLocations(
+      locationsResult.locations.length > 0
+        ? locationsResult.locations
+        : DEFAULT_LOCATIONS.map((l, i) => ({ ...l, id: `default-${i}` }))
+    );
+    setContactTypes(
+      contactTypesResult.contactTypes.length > 0
+        ? contactTypesResult.contactTypes
+        : DEFAULT_CONTACT_TYPES.map((c, i) => ({ ...c, id: `default-${i}` }))
+    );
+  }, []);
 
   // Load data
   useEffect(() => {
@@ -178,75 +148,57 @@ export default function AdminCategoriesPage() {
         if (isMounted) setLoading(false);
       });
 
-    const channel = supabase
-      .channel("admin-config-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "categories" },
-        () => void loadConfigData()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "locations" },
-        () => void loadConfigData()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "contact_types" },
-        () => void loadConfigData()
-      )
-      .subscribe();
+    const stop = subscribeChanges(["categories", "locations", "contact_types"], () => {
+      void loadConfigData();
+    });
 
     return () => {
       isMounted = false;
-      void supabase.removeChannel(channel);
+      stop();
     };
-  }, [loadConfigData, supabase]);
+  }, [loadConfigData]);
 
   // Initialize defaults in Firestore
   const initializeDefaults = async () => {
     setSaving(true);
     try {
       const [catCount, locCount, contactCount] = await Promise.all([
-        supabase.from("categories").select("id", { count: "exact", head: true }),
-        supabase.from("locations").select("id", { count: "exact", head: true }),
-        supabase.from("contact_types").select("id", { count: "exact", head: true }),
+        apiFetch<{ categories: Category[] }>("/api/categories"),
+        apiFetch<{ locations: Location[] }>("/api/locations"),
+        apiFetch<{ contactTypes: ContactType[] }>("/api/contact-types"),
       ]);
 
-      if (!catCount.error && (catCount.count ?? 0) === 0) {
-        await supabase.from("categories").insert(
-          DEFAULT_CATEGORIES.map((cat) => ({
-            value: cat.value,
-            label: cat.label,
-            icon: cat.icon,
-            sort_order: cat.order,
-            created_at: new Date().toISOString(),
-          }))
-        );
+      if (catCount.categories.length === 0) {
+        for (const cat of DEFAULT_CATEGORIES) {
+          await apiFetch("/api/categories", {
+            method: "POST",
+            json: { value: cat.value, label: cat.label, icon: cat.icon, order: cat.order },
+          });
+        }
       }
 
-      if (!locCount.error && (locCount.count ?? 0) === 0) {
-        await supabase.from("locations").insert(
-          DEFAULT_LOCATIONS.map((loc) => ({
-            value: loc.value,
-            label: loc.label,
-            sort_order: loc.order,
-            created_at: new Date().toISOString(),
-          }))
-        );
+      if (locCount.locations.length === 0) {
+        for (const loc of DEFAULT_LOCATIONS) {
+          await apiFetch("/api/locations", {
+            method: "POST",
+            json: { value: loc.value, label: loc.label, order: loc.order },
+          });
+        }
       }
 
-      if (!contactCount.error && (contactCount.count ?? 0) === 0) {
-        await supabase.from("contact_types").insert(
-          DEFAULT_CONTACT_TYPES.map((ct) => ({
-            value: ct.value,
-            label: ct.label,
-            icon: ct.icon,
-            placeholder: ct.placeholder,
-            sort_order: ct.order,
-            created_at: new Date().toISOString(),
-          }))
-        );
+      if (contactCount.contactTypes.length === 0) {
+        for (const ct of DEFAULT_CONTACT_TYPES) {
+          await apiFetch("/api/contact-types", {
+            method: "POST",
+            json: {
+              value: ct.value,
+              label: ct.label,
+              icon: ct.icon,
+              placeholder: ct.placeholder,
+              order: ct.order,
+            },
+          });
+        }
       }
 
       void showAlert({
@@ -278,12 +230,10 @@ export default function AdminCategoriesPage() {
 
     setSaving(true);
     try {
-      const tableName = activeTab === "categories" ? "categories" : activeTab === "locations" ? "locations" : "contact_types";
       const data: Record<string, unknown> = {
         value: newForm.value.toLowerCase().replace(/\s+/g, "_"),
         label: newForm.label,
-        sort_order: (activeTab === "categories" ? categories : activeTab === "locations" ? locations : contactTypes).length + 1,
-        created_at: new Date().toISOString(),
+        order: (activeTab === "categories" ? categories : activeTab === "locations" ? locations : contactTypes).length + 1,
       };
 
       if (activeTab === "categories" || activeTab === "contacts") {
@@ -293,8 +243,7 @@ export default function AdminCategoriesPage() {
         data.placeholder = newForm.placeholder || "";
       }
 
-      const { error } = await supabase.from(tableName).insert(data);
-      if (error) throw error;
+      await apiFetch(catalogPath(activeTab), { method: "POST", json: data });
       await logConfigChanged("create", activeTab === "categories" ? "category" : activeTab === "locations" ? "location" : "contactType", newForm.label, user?.email || undefined);
 
       setNewForm({ value: "", label: "", icon: "📦", placeholder: "" });
@@ -323,7 +272,6 @@ export default function AdminCategoriesPage() {
 
     setSaving(true);
     try {
-      const tableName = activeTab === "categories" ? "categories" : activeTab === "locations" ? "locations" : "contact_types";
       const data: Record<string, unknown> = {
         value: editForm.value,
         label: editForm.label,
@@ -336,8 +284,7 @@ export default function AdminCategoriesPage() {
         data.placeholder = editForm.placeholder;
       }
 
-      const { error } = await supabase.from(tableName).update(data).eq("id", id);
-      if (error) throw error;
+      await apiFetch(`${catalogPath(activeTab)}/${encodeURIComponent(id)}`, { method: "PATCH", json: data });
       await logConfigChanged("update", activeTab === "categories" ? "category" : activeTab === "locations" ? "location" : "contactType", editForm.label, user?.email || undefined);
 
       setEditingId(null);
@@ -372,9 +319,7 @@ export default function AdminCategoriesPage() {
     if (!confirmed) return;
 
     try {
-      const tableName = activeTab === "categories" ? "categories" : activeTab === "locations" ? "locations" : "contact_types";
-      const { error } = await supabase.from(tableName).delete().eq("id", id);
-      if (error) throw error;
+      await apiFetch(`${catalogPath(activeTab)}/${encodeURIComponent(id)}`, { method: "DELETE" });
       await logConfigChanged("delete", activeTab === "categories" ? "category" : activeTab === "locations" ? "location" : "contactType", name, user?.email || undefined);
     } catch (error) {
       console.error("Error deleting:", error);

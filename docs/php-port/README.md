@@ -10,7 +10,7 @@ Branch for the port is `php-dev`. Do not merge this into `main` from these notes
 |---|---|
 | [contract.md](contract.md) | Every `app/api` handler (71) and all 65 `lib/database.ts` exports. Includes the host limits and what replaces them |
 | [authz-matrix.md](authz-matrix.md) | RLS policies translated into table × role × operation. 70 policies, 25 tables |
-| [scope-cut.md](scope-cut.md) | Files, tables, and env to remove (Discord, setup wizard, Supabase scripts). Not deleted yet |
+| [scope-cut.md](scope-cut.md) | Files, tables, and env that left with Discord, the setup wizard, and the Supabase client |
 | [findings.md](findings.md) | Security holes, authz gaps, host incompatibilities, and a few obvious cleanups |
 | [core.md](core.md) | P3 shared layer: request order, cookies, CSRF, limits, cron |
 | [auth.md](auth.md) | P4 auth routes: login, register, passkeys, ban, sessions |
@@ -19,14 +19,14 @@ Branch for the port is `php-dev`. Do not merge this into `main` from these notes
 
 ## Status
 
-P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema: `foundu/migrations/`, `make migrate`, `make seed`, `foundu/bin/create-admin.php`. P3 is the shared PHP core: sessions, CSRF, rate limits, Turnstile, the authz helper, and `bin/cron.php`. P4 is auth. P5 is the data API in [data-api.md](data-api.md): items, catalogs, settings, users, logs, and `GET /api/changes`. How a later route plugs in is [core.md](core.md). The Next app is unchanged.
+P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema. P3 is the shared PHP core. P4 is auth. P5 is the data API. P6 is the browser adapter: `lib/database.ts` and `lib/api-client.ts` talk to `/api`, the session is only a cookie, and the setup wizard, Discord, and the Supabase client are gone. `next dev` proxies `/api` when `FOUNDU_API_ORIGIN` is set. P11 still owns the static export.
 
 | Piece | State |
 |---|---|
 | Contract, matrix, cut list, findings | Written from the tree at `0bfec91` |
 | Contract tests | `npm run test:contract` (`node --test tests/contract`). The HTTP cases call `BASE_URL` and skip when it is unset |
-| Live HTTP against this app | Not run. No Supabase project in this environment. Middleware also redirects every non-setup URL to `/setup` when Supabase env is missing, so a bare `next dev` does not expose the API |
-| Playwright screenshots | Not captured. Same reason. P11 should not treat a `/setup` redirect as the UI |
+| Live HTTP against this app | PHPUnit covers the API. The Next app calls it through the dev proxy |
+| Screenshots | `docs/php-port/screenshots/p6/`. The P0 folder still has no pictures, because the old middleware only showed `/setup` |
 
 Counts, for the plan's round numbers: 56 files under `app/api` plus `app/auth/callback` (the plan's 57), 71 handlers, 65 database exports, 25 tables, 70 RLS policies (the plan said 65).
 

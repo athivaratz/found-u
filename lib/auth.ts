@@ -1,117 +1,120 @@
-import type {
-  AuthChangeEvent,
-  Session,
-  SupabaseClient,
-  User as SupabaseUser,
-} from "@supabase/supabase-js";
-import { createClient, isSupabaseBrowserConfigured } from "@/lib/supabase/client";
-import { setClientSession } from "@/lib/supabase/auth-session";
+import { ApiError, apiFetch } from "@/lib/api-client";
+import { readAuthBootstrapCache } from "@/lib/auth-bootstrap-cache";
+import type { AppUser } from "@/lib/types";
 
-export type User = SupabaseUser & {
+export type AuthChangeEvent =
+  | "INITIAL_SESSION"
+  | "SIGNED_IN"
+  | "SIGNED_OUT"
+  | "TOKEN_REFRESHED"
+  | "USER_UPDATED"
+  | "PASSWORD_RECOVERY";
+
+export type User = {
+  id: string;
   uid: string;
+  aud: "authenticated";
+  role: "authenticated";
   email?: string;
+  email_confirmed_at?: string;
+  phone?: string;
+  confirmed_at?: string;
+  last_sign_in_at?: string;
+  app_metadata: Record<string, unknown>;
+  user_metadata: Record<string, unknown>;
+  identities?: unknown[];
+  created_at: string;
+  updated_at?: string;
+  is_anonymous?: boolean;
   displayName?: string;
   photoURL?: string;
   getIdToken: (forceRefresh?: boolean) => Promise<string>;
 };
 
-export type { AuthChangeEvent };
-
 type AuthChangeCallback = (user: User | null, event: AuthChangeEvent) => void;
 
-let supabaseClient: SupabaseClient | null = null;
+type SessionStatus = {
+  isAdmin?: boolean;
+  profile?: AppUser | null;
+};
 
-function getClient() {
-  if (!isSupabaseBrowserConfigured()) {
-    throw new Error("SUPABASE_NOT_CONFIGURED");
-  }
-  if (!supabaseClient) {
-    supabaseClient = createClient();
-  }
-  return supabaseClient;
+const listeners = new Set<AuthChangeCallback>();
+
+function emit(event: AuthChangeEvent) {
+  for (const listener of listeners) listener(auth.currentUser, event);
 }
 
-function toCompatUser(user: SupabaseUser | null, session: Session | null): User | null {
-  if (!user) return null;
-  const avatar =
-    (user.user_metadata?.avatar_url as string | undefined) || "";
-  const blockedGoogleAvatar =
-    avatar.includes("lh3.googleusercontent.com") || avatar.includes(".googleusercontent.com");
-  return Object.assign(user, {
-    uid: user.id,
-    displayName:
-      (user.user_metadata?.display_name as string | undefined) ||
-      (user.user_metadata?.full_name as string | undefined) ||
-      "",
-    photoURL: blockedGoogleAvatar ? "" : avatar,
-    async getIdToken(forceRefresh = false) {
-      const supabase = getClient();
-      if (forceRefresh) {
-        await supabase.auth.refreshSession();
-      }
-      const { data } = await supabase.auth.getSession();
-      return data.session?.access_token || session?.access_token || "";
+function userFromProfile(profile: Partial<AppUser> & { uid: string }): User {
+  return {
+    id: profile.uid,
+    uid: profile.uid,
+    aud: "authenticated",
+    role: "authenticated",
+    email: profile.email,
+    app_metadata: {},
+    user_metadata: { display_name: profile.displayName },
+    created_at: profile.createdAt ? new Date(profile.createdAt).toISOString() : new Date(0).toISOString(),
+    displayName: profile.displayName,
+    photoURL: profile.photoURL,
+    async getIdToken() {
+      return "";
     },
-  });
+  };
 }
 
 class AuthCompat {
-  private _currentUser: User | null = null;
-  private _currentSession: Session | null = null;
-
-  get currentUser() {
-    return this._currentUser;
-  }
-
-  get currentSession() {
-    return this._currentSession;
-  }
+  currentUser: User | null = null;
+  private inflight: Promise<void> | null = null;
 
   async refreshLocal() {
-    if (!isSupabaseBrowserConfigured()) {
-      this._currentSession = null;
-      this._currentUser = null;
+    const cached = readAuthBootstrapCache();
+    if (!cached) {
+      this.currentUser = null;
       return;
     }
-    const supabase = getClient();
-    const { data: sessionData } = await supabase.auth.getSession();
-    this._currentSession = sessionData.session;
-    this._currentUser = toCompatUser(sessionData.session?.user ?? null, sessionData.session);
+    this.currentUser = userFromProfile({ uid: cached.uid, email: "", displayName: "" });
   }
 
   async refreshNetwork() {
-    if (!isSupabaseBrowserConfigured()) {
-      this._currentSession = null;
-      this._currentUser = null;
-      return;
+    try {
+      const status = await apiFetch<SessionStatus>("/api/auth/session-status");
+      const profile = status.profile;
+      if (profile?.uid) {
+        this.currentUser = userFromProfile(profile);
+        return;
+      }
+      this.currentUser = null;
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        this.currentUser = null;
+        return;
+      }
+      throw error;
     }
-    const supabase = getClient();
-    const { data: userData } = await supabase.auth.getUser();
-    const { data: sessionData } = await supabase.auth.getSession();
-    this._currentSession = sessionData.session;
-    this._currentUser = toCompatUser(userData.user, sessionData.session);
   }
 
   async refresh() {
-    await this.refreshLocal();
-    await this.refreshNetwork();
-  }
-
-  setSession(session: Session | null) {
-    this._currentSession = session;
-    this._currentUser = toCompatUser(session?.user || null, session);
+    if (!this.inflight) {
+      this.inflight = this.refreshNetwork().finally(() => {
+        this.inflight = null;
+      });
+    }
+    await this.inflight;
   }
 }
 
 export const auth = new AuthCompat();
 
-export async function signInWithStudentSession(tokens: { access_token: string; refresh_token: string }) {
+export async function noteSignedIn(): Promise<{ user: User | null; error: Error | null }> {
   try {
-    const session = await setClientSession(tokens);
-    auth.setSession(session);
-    return { user: auth.currentUser, error: null as Error | null };
+    await auth.refreshNetwork();
+    if (!auth.currentUser) {
+      return { user: null, error: new Error("เซิร์ฟเวอร์ไม่ได้เปิดเซสชัน") };
+    }
+    emit("SIGNED_IN");
+    return { user: auth.currentUser, error: null };
   } catch (error) {
-    return { user: null, error: error as Error };
+    return { user: null, error: error instanceof Error ? error : new Error("เข้าสู่ระบบไม่สำเร็จ") };
   }
 }
 
@@ -121,23 +124,25 @@ export async function signInWithStudentCustomToken(customToken: string) {
 }
 
 export async function signOut() {
-  if (!isSupabaseBrowserConfigured()) {
-    auth.setSession(null);
-    return { error: null };
+  try {
+    await apiFetch("/api/auth/logout", { method: "POST", json: {} });
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 401)) {
+      auth.currentUser = null;
+      emit("SIGNED_OUT");
+      return { error: error instanceof Error ? error : new Error("ออกจากระบบไม่สำเร็จ") };
+    }
   }
-  const supabase = getClient();
-  const { error } = await supabase.auth.signOut();
-  auth.setSession(null);
-  return { error: error ?? null };
+  auth.currentUser = null;
+  emit("SIGNED_OUT");
+  return { error: null };
 }
 
 export function getCurrentUser(): User | null {
   return auth.currentUser;
 }
 
-export async function reloadCurrentUser(options?: {
-  network?: boolean;
-}): Promise<User | null> {
+export async function reloadCurrentUser(options?: { network?: boolean }): Promise<User | null> {
   if (options?.network === false) {
     await auth.refreshLocal();
   } else {
@@ -147,23 +152,15 @@ export async function reloadCurrentUser(options?: {
 }
 
 export function onAuthChange(callback: AuthChangeCallback) {
-  if (!isSupabaseBrowserConfigured()) {
-    callback(null, "INITIAL_SESSION");
-    return () => {};
-  }
-  const supabase = getClient();
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((event, session) => {
-    auth.setSession(session);
-    callback(auth.currentUser, event);
+  listeners.add(callback);
+  void auth.refresh().then(() => {
+    callback(auth.currentUser, "INITIAL_SESSION");
   });
-  return () => subscription.unsubscribe();
+  return () => {
+    listeners.delete(callback);
+  };
 }
 
 export async function getSessionToken(): Promise<string | null> {
-  if (!isSupabaseBrowserConfigured()) return null;
-  const supabase = getClient();
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token || null;
+  return null;
 }

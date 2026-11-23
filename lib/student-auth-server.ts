@@ -1,7 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import type { NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { mintSessionForStudentId, signInStudentSession } from "@/lib/supabase/auth-session";
+import { createAdminClient } from "@/lib/php-moved";
 import { checkStudentIdEligibleForSecondaryAuth } from "@/lib/auth-eligibility";
 import type {
   AppUser,
@@ -12,6 +11,11 @@ import type {
 } from "@/lib/types";
 import type { Database } from "@/lib/database.types";
 import { getAppOrigin, getAppRpId, normalizeHost } from "@/lib/app-domains";
+
+async function mintSessionForStudentId(..._args: unknown[]): Promise<any> {
+  throw new Error("session minting moved to PHP");
+}
+const signInStudentSession = mintSessionForStudentId;
 
 export const STUDENT_ACCOUNTS_COLLECTION = "accounts";
 export const ADMIN_WHITELIST_COLLECTION = "admin_whitelist";
@@ -426,7 +430,7 @@ async function findAuthUserByEmail(email: string) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
     if (error) throw error;
 
-    const user = data.users.find((entry) => normalizeEmail(entry.email || "") === email);
+    const user = data.users.find((entry: { email?: string }) => normalizeEmail(entry.email || "") === email);
     if (user) return user;
 
     if (!data.nextPage) break;
@@ -474,7 +478,7 @@ export async function ensureAuthUserForStudent(
     userRecord = data.user;
   }
 
-  const updatePayload: Parameters<typeof admin.auth.admin.updateUserById>[1] = {
+  const updatePayload: any = {
     user_metadata: {
       ...(userRecord.user_metadata || {}),
       display_name: displayName,

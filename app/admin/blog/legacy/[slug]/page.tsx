@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -14,7 +14,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { ApiError, apiFetch, apiRequest } from "@/lib/api-client";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import {
@@ -53,8 +53,6 @@ export default function AdminHelpEditorPage() {
   const slug = String(params.slug ?? "").trim() || null;
   const { user } = useAuth();
   const { showAlert, showConfirm, dialog } = useAppDialog();
-  const supabase = useMemo(() => createClient(), []);
-
   const [loading, setLoading] = useState(true);
   const [notFoundPage, setNotFoundPage] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,24 +75,11 @@ export default function AdminHelpEditorPage() {
     setLoading(true);
     setNotFoundPage(false);
     try {
-      const [{ data: page, error: pageError }, { data: sectionRows, error: sectionError }] =
-        await Promise.all([
-          supabase.from("help_pages").select("*").eq("slug", slug).maybeSingle(),
-          supabase
-            .from("help_sections")
-            .select("*")
-            .eq("page_slug", slug)
-            .order("sort_order", { ascending: true }),
-        ]);
-
-      if (pageError) throw pageError;
-      if (sectionError) throw sectionError;
-
-      if (!page) {
-        setNotFoundPage(true);
-        setSections([]);
-        return;
-      }
+      const body = await apiFetch<{ page: Record<string, unknown>; sections: SectionRow[] }>(
+        `/api/help/${encodeURIComponent(slug)}`
+      );
+      const page = body.page;
+      const sectionRows = body.sections;
 
       setPageForm({
         title: String(page.title ?? ""),
@@ -115,6 +100,11 @@ export default function AdminHelpEditorPage() {
         }))
       );
     } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        setNotFoundPage(true);
+        setSections([]);
+        return;
+      }
       console.error(error);
       await showAlert({
         title: "โหลดไม่สำเร็จ",
@@ -124,7 +114,7 @@ export default function AdminHelpEditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [showAlert, slug, supabase]);
+  }, [showAlert, slug]);
 
   useEffect(() => {
     if (!slug) {
@@ -135,22 +125,15 @@ export default function AdminHelpEditorPage() {
     void load();
   }, [load, slug]);
 
-  const getToken = useCallback(async () => {
-    if (!user) throw new Error("Not authenticated");
-    return user.getIdToken();
-  }, [user]);
-
   const uploadImage = async (file: File): Promise<string | null> => {
-    if (!slug) return null;
+    if (!slug || !user) return null;
     setUploading(true);
     try {
-      const token = await getToken();
       const formData = new FormData();
       formData.set("file", file);
       formData.set("slug", slug);
-      const res = await fetch("/api/admin/help/upload", {
+      const res = await apiRequest("/api/admin/help/upload", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       const data = await res.json();
@@ -172,16 +155,14 @@ export default function AdminHelpEditorPage() {
     if (!slug) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("help_pages")
-        .update({
+      await apiFetch(`/api/admin/help-pages/${encodeURIComponent(slug)}`, {
+        method: "PATCH",
+        json: {
           title: pageForm.title.trim(),
           description: pageForm.description.trim() || null,
           intro: pageForm.intro.trim() || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("slug", slug);
-      if (error) throw error;
+        },
+      });
       await showAlert({
         title: "บันทึกแล้ว",
         message: "อัปเดตหัวข้อและคำแนะนำหน้าแล้ว",
@@ -214,17 +195,16 @@ export default function AdminHelpEditorPage() {
     if (!editingId) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("help_sections")
-        .update({
+      await apiFetch(`/api/admin/help-sections/${encodeURIComponent(editingId)}`, {
+        method: "PATCH",
+        json: {
           section_type: editForm.section_type,
           audience: editForm.audience,
           title: editForm.title.trim(),
           body: editForm.body.trim(),
           image_url: editForm.image_url,
-        })
-        .eq("id", editingId);
-      if (error) throw error;
+        },
+      });
       setEditingId(null);
       await load();
     } catch (error) {
@@ -251,16 +231,18 @@ export default function AdminHelpEditorPage() {
     try {
       const nextOrder =
         sections.reduce((max, s) => Math.max(max, s.sort_order), 0) + 10;
-      const { error } = await supabase.from("help_sections").insert({
-        page_slug: slug,
-        section_type: newForm.section_type,
-        audience: newForm.audience,
-        title: newForm.title.trim(),
-        body: newForm.body.trim(),
-        image_url: newForm.image_url,
-        sort_order: nextOrder,
+      await apiFetch("/api/admin/help-sections", {
+        method: "POST",
+        json: {
+          page_slug: slug,
+          section_type: newForm.section_type,
+          audience: newForm.audience,
+          title: newForm.title.trim(),
+          body: newForm.body.trim(),
+          image_url: newForm.image_url,
+          sort_order: nextOrder,
+        },
       });
-      if (error) throw error;
       setShowAdd(false);
       setNewForm(emptySection());
       await load();
@@ -284,9 +266,14 @@ export default function AdminHelpEditorPage() {
       variant: "warning",
     });
     if (!ok) return;
-    const { error } = await supabase.from("help_sections").delete().eq("id", id);
-    if (error) {
-      await showAlert({ title: "ลบไม่สำเร็จ", message: error.message, variant: "error" });
+    try {
+      await apiFetch(`/api/admin/help-sections/${encodeURIComponent(id)}`, { method: "DELETE" });
+    } catch (error) {
+      await showAlert({
+        title: "ลบไม่สำเร็จ",
+        message: error instanceof Error ? error.message : "เกิดข้อผิดพลาด",
+        variant: "error",
+      });
       return;
     }
     await load();
@@ -300,18 +287,19 @@ export default function AdminHelpEditorPage() {
 
     const a = sections[index];
     const b = sections[swapIndex];
-    const { error: e1 } = await supabase
-      .from("help_sections")
-      .update({ sort_order: b.sort_order })
-      .eq("id", a.id);
-    const { error: e2 } = await supabase
-      .from("help_sections")
-      .update({ sort_order: a.sort_order })
-      .eq("id", b.id);
-    if (e1 || e2) {
+    try {
+      await apiFetch(`/api/admin/help-sections/${encodeURIComponent(a.id)}`, {
+        method: "PATCH",
+        json: { sort_order: b.sort_order },
+      });
+      await apiFetch(`/api/admin/help-sections/${encodeURIComponent(b.id)}`, {
+        method: "PATCH",
+        json: { sort_order: a.sort_order },
+      });
+    } catch (error) {
       await showAlert({
         title: "เรียงลำดับไม่สำเร็จ",
-        message: e1?.message || e2?.message || "เกิดข้อผิดพลาด",
+        message: error instanceof Error ? error.message : "เกิดข้อผิดพลาด",
         variant: "error",
       });
       return;

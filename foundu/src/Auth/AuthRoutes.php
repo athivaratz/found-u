@@ -363,8 +363,6 @@ final class AuthRoutes
         $payload = self::sessionPayload($request, $config, $pdo, $sessions, $fresh, false);
         return Json::write($response, 200, [
             'success' => true,
-            'access_token' => $payload['access_token'],
-            'refresh_token' => $payload['refresh_token'],
             'mustChangePassword' => false,
         ]);
     }
@@ -1002,8 +1000,6 @@ final class AuthRoutes
         }
         $pin = self::nullableString($account['pin_hash'] ?? null);
         return [
-            'access_token' => $issued->token,
-            'refresh_token' => $issued->token,
             'mustChangePassword' => Accounts::flag($account['must_change_password'] ?? 0),
             'mustSetupPin' => $forcePin || $pin === null,
             'studentId' => $account['student_id'],

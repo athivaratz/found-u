@@ -46,8 +46,8 @@ final class AuthHttpTest extends DbTestCase
 
         $ok = $this->post('/auth/login', ['studentId' => '10001', 'password' => 'Password1']);
         $this->assertSame(200, $ok['status']);
-        $this->assertNotSame('', $ok['body']['access_token']);
-        $this->assertSame($ok['body']['access_token'], $ok['body']['refresh_token']);
+        $this->assertArrayNotHasKey('access_token', $ok['body']);
+        $this->assertArrayNotHasKey('refresh_token', $ok['body']);
         $this->assertFalse($ok['body']['mustSetupPin']);
         $this->assertSame('10001', $ok['body']['studentId']);
         $this->assertArrayHasKey('foundu', $ok['cookies']);

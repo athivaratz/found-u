@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/php-moved";
 import type { FoundItem, LostItem } from "@/lib/types";
 import { mapFoundItemRow, mapLostItemRow } from "@/lib/agent/row-mappers";
 import {
@@ -52,7 +52,7 @@ export async function getUserLostItemsServer(
     .limit(clampLimit(limit));
 
   if (error) throw error;
-  return (data || []).map((row) => mapLostItemRow(row as Record<string, unknown>));
+  return (data || []).map((row: any) => mapLostItemRow(row as Record<string, unknown>));
 }
 
 export async function getUserFoundItemsServer(
@@ -68,7 +68,7 @@ export async function getUserFoundItemsServer(
     .limit(clampLimit(limit));
 
   if (error) throw error;
-  return (data || []).map((row) => mapFoundItemRow(row as Record<string, unknown>));
+  return (data || []).map((row: any) => mapFoundItemRow(row as Record<string, unknown>));
 }
 
 export async function getLostItemByIdServer(id: string): Promise<LostItem | null> {

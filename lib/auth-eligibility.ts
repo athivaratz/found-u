@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/php-moved";
 import { normalizeEmail, studentIdToAuthEmail } from "@/lib/student-auth-server";
 
 export type AuthEligibilityMode = "secondary";

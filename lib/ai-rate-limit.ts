@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/php-moved";
 import { coerceAppSettings } from "@/lib/database";
 import type { AppSettings } from "@/lib/types";
 

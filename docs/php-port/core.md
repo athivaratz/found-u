@@ -8,7 +8,7 @@ P3 is the shared layer behind `public_html/api/index.php`. Auth routes live in `
 2. Real client IP.
 3. A size and path check, then the IP rate limit (one MariaDB upsert). A missing route is counted here too. Routing sits further in, so a scan of random paths cannot skip the counter.
 4. JSON body, only when a mutation actually sent bytes.
-5. Session cookie, or `Authorization: Bearer` when the cookie is absent. See `auth.md`.
+5. Session cookie. See `auth.md`. There is no bearer fallback.
 6. Ban check. A blocked account loses every session row, including passkey challenges. This one request can still read the account, so `GET /auth/banned` can describe the block. The next request is a guest.
 7. CSRF, only for a mutation that has a live cookie session. A bearer request already proved it holds the secret, so it skips the double-submit check.
 8. The route.

@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { imageSize } from "image-size";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { phpGet } from "@/lib/php-origin";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
@@ -67,14 +67,10 @@ export async function getPublicHeroImages(
 
 export async function getPublicLandingSettings(): Promise<PublicLandingSettings> {
   try {
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("app_settings")
-      .select("settings")
-      .eq("id", "default")
-      .maybeSingle();
-
-    const settings = (data?.settings ?? {}) as AppSettings;
+    const body = await phpGet<{ comingSoonEnabled?: boolean; comingSoonMessage?: string }>(
+      "/api/public-settings"
+    );
+    const settings = (body ?? {}) as AppSettings;
     const fallbackMessage =
       DEFAULT_APP_SETTINGS.comingSoonMessage ?? "พบกันเร็วๆนี้";
 

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/php-moved";
 import { suggestForItem } from "@/lib/match-service";
 import {
   mapFoundItemRow,

@@ -42,7 +42,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { cn } from "@/lib/utils";
 import { slideUp } from "@/lib/motion";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
-import { getSessionToken } from "@/lib/auth";
+import { apiFetch } from "@/lib/api-client";
 import { AUTH_ROUTES } from "@/lib/auth-routes";
 import { getUser } from "@/lib/database";
 import {
@@ -184,18 +184,10 @@ export default function SettingsPage() {
     setProfileError(null);
     setProfileMessage(null);
     try {
-      const token = await getSessionToken();
-      if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-      const res = await fetch("/api/user/profile", {
+      await apiFetch("/api/user/profile", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ shownName: trimmed }),
+        json: { shownName: trimmed },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
       setProfileMessage("บันทึกชื่อที่แสดงแล้ว");
       await refreshUserProfile();
     } catch (err) {
@@ -214,18 +206,10 @@ export default function SettingsPage() {
     setSecurityMessage(null);
     setPinErrors({});
     try {
-      const token = await getSessionToken();
-      if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-      const res = await fetch("/api/auth/pin/setup", {
+      await apiFetch("/api/auth/pin/setup", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ pin }),
+        json: { pin },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "ตั้ง PIN ไม่สำเร็จ");
       setSecurityMessage("ตั้ง PIN สำเร็จ");
       setPin("");
       setConfirmPin("");

@@ -3,7 +3,7 @@ import { Kanit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { SetupAwareProviders } from "@/components/providers/setup-aware-providers";
+import { AppShell } from "@/components/providers/app-shell";
 import { AndroidViewportGuard } from "@/components/layout/android-viewport-guard";
 import { buildSiteMetadata } from "@/lib/seo-metadata";
 
@@ -39,12 +39,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" suppressHydrationWarning data-scroll-behavior="smooth">
-      <head>
-        {process.env.NEXT_PUBLIC_SUPABASE_URL ? (
-          <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
-        ) : null}
-        <link rel="dns-prefetch" href="https://api.supabase.com" />
-      </head>
       <body className={`${kanit.variable} antialiased font-sans`} suppressHydrationWarning>
         <ErrorBoundary>
           <ThemeProvider
@@ -53,10 +47,10 @@ export default function RootLayout({
             enableSystem
             storageKey="theme"
           >
-            <SetupAwareProviders>
+            <AppShell>
               <AndroidViewportGuard />
               {children}
-            </SetupAwareProviders>
+            </AppShell>
           </ThemeProvider>
         </ErrorBoundary>
       </body>

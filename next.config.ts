@@ -1,14 +1,11 @@
 import type { NextConfig } from "next";
 
+const apiOrigin = process.env.FOUNDU_API_ORIGIN?.replace(/\/$/, "");
+
 const nextConfig: NextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "qfqptklywqbvpjjbmswy.supabase.co",
-        pathname: "/storage/v1/object/public/**",
-      },
-    ],
+  async rewrites() {
+    if (!apiOrigin) return [];
+    return [{ source: "/api/:path*", destination: `${apiOrigin}/api/:path*` }];
   },
   async redirects() {
     return [

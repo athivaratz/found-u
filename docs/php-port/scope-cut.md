@@ -82,7 +82,7 @@ Those routes stay. The Supabase bucket fallback inside them does not. P7 writes 
 
 Remove:
 
-- `scripts/convert-help-to-articles.ts` (`@supabase/supabase-js`)
+- `scripts/convert-help-to-articles.ts` (the old supabase javascript client)
 - `scripts/reset-setup-sandbox.ts` (`postgres` and Supabase storage)
 - `scripts/dev-setup-sandbox.ts` (local Supabase sandbox)
 - `scripts/create-admin.ts` (creates a Supabase auth user through `createBootstrapAdminAccount`)
@@ -99,8 +99,7 @@ Package scripts to drop with the above: `db:push`, `dev:setup`, `setup:reset`, `
 
 Remove from the frontend once the adapter no longer imports them (P6):
 
-- `@supabase/supabase-js`
-- `@supabase/ssr`
+- the supabase javascript client and the supabase SSR helper
 - `postgres`
 - `discord.js`
 - `supabase` (the CLI package)
