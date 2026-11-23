@@ -238,6 +238,34 @@ This research and innovation activity is funded by National Research Council of 
 
 ---
 
+## ก้อน PHP ในเครื่อง
+
+เว็บเดิมยังรันด้วย `bun dev` ตามด้านบน ก้อนนี้เป็นคนละทาง ใช้ตอนพอร์ตไปโฮสต์ VisperHost: Apache, PHP, MariaDB อย่างละตัว ไม่มี Redis ไม่มีโปรเซสค้าง และไม่มี Node ตอนให้บริการ
+
+```bash
+make up       # build แล้วเปิดที่ http://localhost:8080
+make test     # หน้าแรก, /api/health, .htaccess
+make logs
+make composer # ติดตั้งหรืออัปเดต vendor
+make audit    # composer audit และ npm audit
+make down
+```
+
+หน้าแรกเป็นหน้าชั่วคราว `/api/health` ต้องตอบ JSON ที่ `db` เป็น `ok`
+
+ของที่ต้องรู้ก่อนเอาขึ้นโฮสต์:
+
+- PHP ใน image คือ 8.2.36 ถ้าต่ำกว่านี้ `api/index.php` ตอบ 503 โค้ดชุดนี้รันบน 8.3 และ 8.4 ได้ด้วย เพราะซัพพอร์ตความปลอดภัยของ 8.2 จบวันที่ 31 ธ.ค. 2026 โฮสต์อาจย้ายไป 8.3.37 หรือ 8.4.28
+- MariaDB ในเครื่องคือ 10.11.20 ไม่ใช้ 10.6 เพราะสาขานั้นหมดแพตช์แล้ว แท็ก `mariadb:10.11.20` บน Docker Hub ยังไม่มีตอนที่ล็อกไว้ จึงอัปแพ็กเกจจาก archive ของ MariaDB เอง SQL ที่เขียนไว้ใช้ได้ทั้ง 10.11 และ 11 ถ้ารุ่นบนโฮสต์ต่ำกว่า 10.11.20 หรือเป็นสาย 11 ที่ต่ำกว่า 11.4.14 ให้บอกก่อนทำ schema
+- `session.upload_progress.enabled` ถูกปิดใน `docker/php/php.ini`, `public_html/.user.ini`, `php_flag` ใน `.htaccess` (เฉพาะเมื่อ Apache โหลดโมดูล PHP) และมี `ini_set` ใน `api/index.php` ค่านี้เป็น `PHP_INI_PERDIR` บาง SAPI จะไม่ยอมให้ `ini_set` เปลี่ยน ไฟล์ ini คือตัวที่ใช้งานจริง
+- โครงสร้างที่จะอัปคือ `public_html/` กับ `foundu/` นอก web root เทียบกับ `~/public_html` และ `~/foundu` รัน `make composer` ที่เครื่องตัวเองแล้วอัปโฟลเดอร์ `foundu/vendor` ไปด้วย โฮสต์ไม่มี composer และไม่มี SSH
+- บนโฮสต์ให้ก็อป `foundu/config/.env.php.example` เป็น `.env.php` แล้ว chmod 600 อย่าอัปไฟล์ที่ container สร้างให้ เพราะรหัสผ่านเป็นของ MariaDB ในเครื่อง และ `DB_HOST` เป็นชื่อ service โดเมนยังไม่ฝังในโค้ด ใส่ที่ `APP_URL` เมื่อมีโดเมนแล้ว
+- `.htaccess` เปิดเฉพาะ IP ของ Cloudflare Docker สร้าง `public_html/.cf-allowlist-off` เพื่อปิดด่านนี้ในเครื่อง อย่าอัปไฟล์นั้นขึ้นไป
+- จะลอง IP จริงของ Cloudflare ให้มี `foundu/config/mock-cf.on` และ `APP_ENV=local` แล้วส่ง `X-Mock-CF-Edge-IP`, `X-Mock-CF-Connecting-IP`, `X-Mock-CF-IPCountry` ระบบเชื่อ Connecting-IP เมื่อ edge อยู่ในช่วงของ Cloudflare เท่านั้น และไม่อ่าน `X-Forwarded-For`
+- สมมติว่าโฮสต์ยังไม่เขียน `REMOTE_ADDR` ทับด้วย IP ของผู้ใช้ ถ้า VisperHost ทำไว้แล้ว บล็อก `Require ip` จะกันทุกคน ต้องเอาออกแล้วให้ PHP ตรวจ header เอง สมมติด้วยว่า PHP อ่าน `~/foundu` ได้ และ `.htaccess` ใช้ rewrite, header, `Require ip` ได้
+- APCu มีใน image เพื่อลองทางเร็ว ถ้า `apcu_enabled()` เป็นเท็จ จะเขียนลง `foundu/storage/cache` ตัวนับที่ต้องตรงทุกโปรเซสจะไปอยู่ MariaDB ทีหลัง ไม่มี Redis cron ของโฮสต์จะเรียก `php ~/foundu/bin/cron.php` สคริปต์นั้นยังไม่มาในขั้นนี้
+- ค่าใน `.user.ini` เป็นตัวแทนของโฮสต์ที่ยังไม่รู้ลิมิตจริง: หน่วยความจำ 128M, 30 วินาที, body 256K
+
 ## อื่น ๆ
 
 - ความปลอดภัยและการรายงานช่องโหว่: [SECURITY.md](SECURITY.md)
@@ -251,6 +279,8 @@ This research and innovation activity is funded by National Research Council of 
 Found-U is a school lost-and-found web app. Reporters and finders coordinate through tracking codes and automatic matching instead of lost-and-found boxes and bulletin boards. It also ships an AI assistant (chat, powered by Gemini/OpenRouter through the Vercel AI SDK) that can search, file reports, run matching, and read photos in one conversation, plus NFC tags that let anyone who finds a tagged item message the owner instantly.
 
 Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, and Supabase (Postgres, Auth, Realtime, RLS). Deploy your own instance with the **Deploy with Vercel** button above — it provisions Supabase, runs migrations automatically, and walks you through a setup wizard at `/setup`. See the Thai sections above for the full deploy guide, environment variables, and local dev instructions (mostly self-explanatory from the commands and tables).
+
+The shared-host port has its own local stack: `make up` starts Apache, PHP 8.2.36, and MariaDB 10.11.20. `http://localhost:8080` is a placeholder page and `http://localhost:8080/api/health` pings the database. Assumptions about VisperHost (no SSH, no Node at runtime, no Redis, vendor uploaded from this machine, PHP reads `~/foundu`) are in the Thai section "ก้อน PHP ในเครื่อง".
 
 This research and innovation activity is funded by National Research Council of Thailand (NRCT) and National Science and Technology Development Agency (NSTDA).
 

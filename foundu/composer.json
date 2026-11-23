@@ -1,0 +1,35 @@
+{
+    "name": "foundu/api",
+    "description": "Found-U API for shared hosting (Slim 4, PHP 8.2+)",
+    "type": "project",
+    "license": "LGPL-3.0-or-later",
+    "require": {
+        "php": ">=8.2.36",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-sodium": "*",
+        "monolog/monolog": "^3.13.0",
+        "slim/psr7": "^1.8.1",
+        "slim/slim": "^4.15.3"
+    },
+    "suggest": {
+        "ext-apcu": "Used when apcu_enabled() is true. Otherwise storage/cache files, and MariaDB for counters that must be exact.",
+        "ext-gd": "OG images in a later phase.",
+        "ext-intl": "Formatting in a later phase."
+    },
+    "autoload": {
+        "psr-4": {
+            "Foundu\\": "src/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.2.36"
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable"
+}

@@ -1,0 +1,60 @@
+# Local mirror of VisperHost: Apache + PHP and MariaDB only.
+# No Redis, no Node, no worker. Vendor is installed by the entrypoint
+# the way a build machine would, then Apache just serves PHP.
+
+services:
+  web:
+    build:
+      context: ./docker/php
+    image: foundu-web:8.2.36
+    ports:
+      - "8080:80"
+    environment:
+      APP_ENV: local
+      APP_URL: http://localhost:8080
+      FOUNDU_CF_ALLOWLIST: "off"
+      FOUNDU_MOCK_CF: "0"
+      DB_HOST: mariadb
+      DB_PORT: "3306"
+      DB_NAME: foundu
+      DB_USER: foundu
+      DB_PASS: foundu_dev
+    volumes:
+      - ./public_html:/srv/site/public_html
+      - ./foundu:/srv/site/foundu
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  mariadb:
+    build:
+      context: ./docker/mariadb
+    image: foundu-mariadb:10.11.20
+    environment:
+      MARIADB_DATABASE: foundu
+      MARIADB_USER: foundu
+      MARIADB_PASSWORD: foundu_dev
+      MARIADB_ROOT_PASSWORD: root_dev
+      MARIADB_AUTO_UPGRADE: "1"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - foundu-mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
+    ports:
+      - "127.0.0.1:3306:3306"
+
+volumes:
+  foundu-mariadb:

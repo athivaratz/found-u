@@ -53,6 +53,14 @@ next-env.d.ts
 docs/*
 !docs/php-port/
 !docs/php-port/**
+
+# PHP port runtime files
+/foundu/vendor/
+/foundu/config/.env.php
+/foundu/config/mock-cf.on
+/foundu/storage/cache/*
+!/foundu/storage/cache/.gitkeep
+/public_html/.cf-allowlist-off
 .vscode/
 .cursor/
 supabase/.temp/

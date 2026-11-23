@@ -1,0 +1,11 @@
+body {
+    margin: 2rem auto;
+    max-width: 36rem;
+    font: 16px/1.5 sans-serif;
+    color: #1c1917;
+    background: #fafaf9;
+}
+
+a {
+    color: #9a3412;
+}
