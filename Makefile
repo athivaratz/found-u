@@ -1,6 +1,6 @@
 COMPOSE ?= docker compose
 
-.PHONY: up down logs composer test audit migrate seed
+.PHONY: up down logs composer test audit migrate seed test-minio
 
 up:
 	$(COMPOSE) up -d --build
@@ -29,3 +29,7 @@ seed:
 audit:
 	$(COMPOSE) run --rm --no-deps --entrypoint composer -w /srv/site/foundu web audit --no-interaction
 	npm audit
+
+test-minio:
+	$(COMPOSE) --profile minio up -d minio
+	./foundu/bin/minio-test.sh

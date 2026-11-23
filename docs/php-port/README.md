@@ -15,11 +15,12 @@ Branch for the port is `php-dev`. Do not merge this into `main` from these notes
 | [core.md](core.md) | P3 shared layer: request order, cookies, CSRF, limits, cron |
 | [auth.md](auth.md) | P4 auth routes: login, register, passkeys, ban, sessions |
 | [data-api.md](data-api.md) | P5 data routes. P6 rewrites `lib/database.ts` against this |
+| [storage.md](storage.md) | P7 R2 presign, keys, limits, and the bucket CORS rule |
 | [baseline/](baseline/) | Visual baseline for P11. No screenshots yet. The reason is in that folder |
 
 ## Status
 
-P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema. P3 is the shared PHP core. P4 is auth. P5 is the data API. P6 is the browser adapter: `lib/database.ts` and `lib/api-client.ts` talk to `/api`, the session is only a cookie, and the setup wizard, Discord, and the Supabase client are gone. `next dev` proxies `/api` when `FOUNDU_API_ORIGIN` is set. P11 still owns the static export.
+P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema. P3 is the shared PHP core. P4 is auth. P5 is the data API. P6 is the browser adapter: `lib/database.ts` and `lib/api-client.ts` talk to `/api`, the session is only a cookie, and the setup wizard, Discord, and the Supabase client are gone. `next dev` proxies `/api` when `FOUNDU_API_ORIGIN` is set. P7 signs R2 uploads in PHP; the browser PUTs the file. P11 still owns the static export.
 
 | Piece | State |
 |---|---|

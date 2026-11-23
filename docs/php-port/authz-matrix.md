@@ -239,6 +239,8 @@ Eight policies. PHP does not implement Supabase Storage. The equivalent is R2: p
 
 Branding uploads move to the admin settings flow. Item uploads stay owner-or-admin. Help and blog uploads stay admin.
 
+P7 stores that in `storage_objects` (account id, key, purpose). The same account id is the second segment of the key. `Authz::permits` denies the table. The upload route checks the actor, then inserts. Delete allows that account or an admin. Guests do not upload.
+
 ## Service-role policies
 
 These are `FOR ALL TO service_role USING (true) WITH CHECK (true)`. On Supabase they are mostly redundant because that role bypasses RLS. They are listed so the count matches the SQL.

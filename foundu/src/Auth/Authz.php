@@ -9,7 +9,8 @@ use Foundu\Http\HttpError;
 // The cells from docs/php-port/authz-matrix.md, keyed the way routes ask.
 // Unknown tables are denied. Server-only tables are denied here too: a route
 // that is allowed to write them does that after its own check, it does not
-// get a bypass flag from this class.
+// get a bypass flag from this class. storage_objects is one of those:
+// the upload route checks the actor, then inserts the row itself.
 //
 // accounts update for the owner means the profile columns only. The trigger
 // rejects the locked ones unless the route used Database::privileged, and

@@ -217,6 +217,8 @@ Tables: `accounts.passkey_credentials`, `passkey_lookup`. Challenges are an in-m
 
 `POST /api/storage/delete` cookie-user. Body `{ path }` or `{ url }`. 200 `{ success: true }`. Owner or admin.
 
+PHP (P7) does not accept the multipart body on these routes or on the blog and help upload routes. The handler returns a presigned URL and the browser writes the bytes. Keys, limits, and the R2 CORS rule are in `storage.md`.
+
 `PATCH /api/user/profile` bearer-user. Body `{ shownName? }` max 40. 200 `{ ok: true, shownName }`. Column `accounts.shown_name`.
 
 `GET /api/public-settings` public. 200 `{ comingSoonEnabled, comingSoonMessage }`. On failure the fallback is `{ comingSoonEnabled: false, comingSoonMessage: "พบกันเร็วๆนี้" }`. `Cache-Control` today is Next `revalidate = 60`. **Host:** `Cache-Control: public, s-maxage=60` plus ETag (PLAN §6).

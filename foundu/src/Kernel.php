@@ -18,6 +18,7 @@ use Foundu\Http\RateLimitMiddleware;
 use Foundu\Http\SecurityHeaders;
 use Foundu\Http\SessionMiddleware;
 use Foundu\RateLimit\Limiter;
+use Foundu\Storage\Objects;
 use PDO;
 use Slim\Factory\AppFactory;
 use Slim\App;
@@ -71,6 +72,7 @@ final class Kernel
 
         AuthRoutes::register($app, $config, $pdo, $sessions);
         DataRoutes::register($app, $config, $pdo, $sessions, $appRoot);
+        Objects::register($app, $config, $pdo, Limiter::open());
 
         return $app;
     }

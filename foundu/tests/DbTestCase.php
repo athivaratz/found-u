@@ -22,6 +22,7 @@ abstract class DbTestCase extends TestCase
         $this->pdo = Database::connect($this->config());
         $this->pdo->exec('SET @foundu_allow_privileged = 0');
         foreach ([
+            'storage_objects',
             'ai_slots',
             'ai_usage',
             'sessions',

@@ -14,7 +14,8 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { ApiError, apiFetch, apiRequest } from "@/lib/api-client";
+import { ApiError, apiFetch } from "@/lib/api-client";
+import { uploadEditorImage } from "@/lib/storage";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import {
@@ -129,16 +130,7 @@ export default function AdminHelpEditorPage() {
     if (!slug || !user) return null;
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.set("file", file);
-      formData.set("slug", slug);
-      const res = await apiRequest("/api/admin/help/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "อัปโหลดไม่สำเร็จ");
-      return String(data.publicUrl);
+      return await uploadEditorImage(file, "help");
     } catch (error) {
       await showAlert({
         title: "อัปโหลดไม่สำเร็จ",

@@ -23,6 +23,8 @@ final class Config
         'R2_SECRET_ACCESS_KEY',
         'R2_BUCKET_NAME',
         'R2_PUBLIC_BASE_URL',
+        'R2_ENDPOINT',
+        'R2_REGION',
         'GEMINI_API_KEY',
         'GEMMA_API_KEY',
         'OPENROUTER_API_KEY',

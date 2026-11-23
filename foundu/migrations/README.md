@@ -32,6 +32,8 @@ Starter categories and locations for a local database (and for the host, if you 
 
 `cron_lock` is a single row the panel cron takes before it deletes expired sessions and counters. It is not part of the change feed.
 
+`storage_objects` records an upload PHP has agreed to sign. It is not in the change feed either. The account id in the key is the owner. See `docs/php-port/storage.md`.
+
 ## Local
 
 ```bash

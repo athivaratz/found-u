@@ -167,3 +167,15 @@ Creating an item is limited to 30 an hour for a student and 200 an hour for an a
 | note | NFC, match, vision, and the agent still have server modules that throw if called | Their Next routes are gone so the proxy can reach PHP. P7–P10 replace the modules |
 | note | Several pages are still server components (`generateMetadata`, `revalidate`, blog and help reads) | P11 turns the app into a static export. `FOUNDU_API_ORIGIN` is only the dev proxy and should go away then |
 | note | `npm audit` before this phase was 26 (1 critical, 13 high). After next 16.4.6, removing discord.js, and `npm audit fix`, it is 0 | `zod` is pinned at 4.6.7. Next vendors the patched server-dom packages |
+
+## P7
+
+| Sev | What | What changed |
+|---|---|---|
+| medium | Upload routes ran in Node with the AWS SDK, and the blog and help editors posted `FormData` to routes that no longer exist | `Foundu\Storage\SigV4` signs a PUT and a DELETE. `lib/storage.ts` and the two editors PUT the file to R2. PHP does not read the body. SVG is rejected. Blog and help stay at 5MB; other images stay at 10MB |
+| low | `lib/storage.ts` posted the file with `fetch` and no `X-CSRF-Token` or `X-Requested-With` | Deletes and presigns go through `apiRequest` / `apiFetch`, so the cookie session is accepted |
+| low | `lib/storage/upload-backend.ts` fell back to Supabase Storage when R2 env was empty | Nothing imported it. It now only lists the image types the browser may ask for. There is no second backend |
+| low | The found-item object key used a tracking code the browser chose, before the item row existed | The key is `{prefix}/{accountId}/{random}.{ext}`. A client `path` is ignored. Delete checks that id against `storage_objects` |
+| note | No anonymous upload exists, so Turnstile is not called here | A guest is 401 even if the body includes `turnstileToken`. A signed-in upload does not send a token. Login and register still verify Turnstile |
+| note | The delete response includes `deleteUrl` as well as `{ success: true }` | The browser has to perform the DELETE. The row stays so a failed attempt can ask again. The URL expires in 120 seconds |
+| note | Presign is 20/hour/account via `Buckets::presign($config)` | The account id is the limiter subject, not an argument of `presign()`. Deletes do not spend that bucket |

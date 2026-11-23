@@ -25,7 +25,7 @@ Request attributes later code can read:
 | `json` | The decoded object, or null when the body was empty |
 | `cookies` | `Foundu\Http\CookieQueue`. Push `Set-Cookie` lines here |
 
-`Foundu\Auth\Authz::permits($table, $op, $actor, $row)` is the matrix in `authz-matrix.md`. `guest` is that document's anon. Unknown tables and the server-only tables (`sessions`, `rate_limits`, `login_attempts`, `ai_slots`, `ai_credentials`, `change_feed`, `schema_migrations`, `cron_lock`, `passkey_lookup`) come back denied. A route that is allowed to write one of those does the check for its own role first, then writes. There is no bypass flag.
+`Foundu\Auth\Authz::permits($table, $op, $actor, $row)` is the matrix in `authz-matrix.md`. `guest` is that document's anon. Unknown tables and the server-only tables (`sessions`, `rate_limits`, `login_attempts`, `ai_slots`, `ai_credentials`, `change_feed`, `schema_migrations`, `cron_lock`, `passkey_lookup`, `storage_objects`) come back denied. A route that is allowed to write one of those does the check for its own role first, then writes. There is no bypass flag.
 
 `Authz::requireRole` throws 401 for a guest and 403 for a signed-in account that is short of the role, banned, or disabled. The account row is read on every request that sends a session cookie, so a demotion shows up on the next call. That is not a substitute for `SessionService::rotate`, which kills the old cookie. Call `rotate` after login and after a role, ban, password, or PIN change.
 
