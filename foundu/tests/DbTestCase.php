@@ -30,6 +30,8 @@ abstract class DbTestCase extends TestCase
             'activity_logs',
             'rate_limits',
             'cron_lock',
+            'passkey_lookup',
+            'admin_whitelist',
         ] as $table) {
             $this->pdo->exec('DELETE FROM ' . $table);
         }

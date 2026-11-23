@@ -12,4 +12,5 @@ final class Attrs
     public const SESSION = 'session';
     public const JSON = 'json';
     public const COOKIES = 'cookies';
+    public const SESSION_VIA = 'session_via';
 }

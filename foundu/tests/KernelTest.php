@@ -32,9 +32,9 @@ final class KernelTest extends DbTestCase
             $statuses = [];
             $retry = '';
             for ($i = 0; $i < 3; $i++) {
-                $auth = $factory->createServerRequest('GET', 'http://localhost/api/auth/login', [
+                $auth = $factory->createServerRequest('GET', 'http://localhost/api/auth/no-such', [
                     'REMOTE_ADDR' => '203.0.113.81',
-                    'REQUEST_URI' => '/api/auth/login',
+                    'REQUEST_URI' => '/api/auth/no-such',
                 ]);
                 $result = $limited->handle($auth);
                 $statuses[] = $result->getStatusCode();

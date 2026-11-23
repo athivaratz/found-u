@@ -112,3 +112,23 @@ Pinned while building the local stack. Versions checked against public releases 
 The error JSON from this layer does not include a stack trace, including when `APP_ENV=local`. Local adds `detail` with the exception message. The trace is in `foundu/storage/logs` and, for 5xx, in `error_logs`. That is deliberate: a local docker port is still an HTTP port.
 
 Slim's routing middleware throws 404 before it calls whatever is inside it. The first draft of the kernel added routing on the outside of the rate limit, so a request for a path that does not exist never touched `rate_limits`. Routing now sits inside the limiter. Unknown paths are counted and then answered 404.
+
+## Closed or narrowed in P4
+
+| Sev | What | What changed |
+|---|---|---|
+| high | Login, register, reset, and passkey challenges lived in process memory, and passkey login returned 501 | Challenges are `sessions` rows with `kind` `passkey_login` or `passkey_register` and a 5 minute expiry. A success consumes the row with `SELECT … FOR UPDATE`. Passkey login now issues a real session. `web-auth/webauthn-lib` 5.3.15 checks origin as scheme, host, and port |
+| medium | A banned account could keep using a cookie that was issued before the ban | `BanMiddleware` revokes every session of a blocked account, and `AccountWriter::setBan` does the same when the status is not `none`. P5 should call `setBan` rather than writing `ban_status` itself |
+| medium | `verify-password` and `verify-pin` would have shared one fake IP for the hourly bucket | The first draft passed `0.0.0.0`. Both routes now use the client IP from the middleware |
+
+## Left open on purpose in P4
+
+| Sev | What | Why it is still like this |
+|---|---|---|
+| medium | `POST /auth/login` still returns `needsRegistration` when the roster row has no password and is not registered | The login page branches on that flag. A missing id and a wrong password share one sentence. An unregistered roster id does not. P6 can drop the flag once the page stops needing it |
+| medium | The login JSON still has `access_token` and `refresh_token`, and both are the session secret | `lib/student-auth-api.ts` requires both keys. The cookie is set as well. P6 should stop putting the secret in JSON and use the cookie |
+| low | `Authorization: Bearer` is accepted when the cookie is absent, and that request skips CSRF | The current client sends a bearer token. If a cookie is present, CSRF still applies. P6 can drop the bearer path with the JSON secret |
+| low | `GET /auth/device-profile` and a successful register lookup still return a name | The device and register screens need it. Each student id is limited to 5 lookups a minute, on top of the auth IP bucket. Disabled and banned rows look like "not found" |
+| low | `web-auth/webauthn-lib` 5.3.15 pulls in about 1,100 files (CBOR, COSE, Symfony polyfills) | The plan said to switch to `lbuchs/webauthn` if the inode count was too high. Production `vendor/` is about 1,800 files, and roughly 1,100 of those are this library. That is acceptable next to the AWS SDK we are not shipping, and this library matches `@simplewebauthn/browser` plus the origin check. Do not add another WebAuthn package |
+| low | A changed password is not limited to the old 7–8 character school alphabet | Login accepts 8–128 characters with a letter and a digit (72 when the box only has bcrypt). The school password on reset, and the optional password on admin create, stay 7–8 alphanumeric. Student ids stay 5 digits. Student id `11111` is not special; `create-admin.php` is the bootstrap |
+| low | Reset of a missing account is 401 with the same sentence as a wrong PIN or school password | The old contract said 404. That told a caller which ids exist. An admin reset of a missing student is still 404, because that caller is already an admin |

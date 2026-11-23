@@ -95,7 +95,8 @@ final class SessionService
         $row = Database::run(
             $pdo,
             'SELECT s.id, s.account_id, s.csrf_token, s.created_at, s.expires_at, s.revoked_at,
-                    a.id AS account_row_id, a.role, a.student_id, a.status, a.ban_status, a.linked_uid, a.email
+                    a.id AS account_row_id, a.role, a.student_id, a.status, a.ban_status,
+                    a.ban_reason, a.banned_at, a.timeout_until, a.linked_uid, a.email
              FROM sessions s
              LEFT JOIN accounts a ON a.id = s.account_id
              WHERE s.token_hash = ? AND s.kind = \'browser\'
@@ -118,6 +119,9 @@ final class SessionService
                 'student_id' => $row['student_id'],
                 'status' => $row['status'],
                 'ban_status' => $row['ban_status'],
+                'ban_reason' => $row['ban_reason'],
+                'banned_at' => $row['banned_at'],
+                'timeout_until' => $row['timeout_until'],
                 'linked_uid' => $row['linked_uid'],
                 'email' => $row['email'],
             ];
@@ -189,6 +193,25 @@ final class SessionService
             $pdo,
             'UPDATE sessions SET ai_verified_until = ? WHERE id = ? AND revoked_at IS NULL',
             [Ids::utc($until), $sessionId]
+        );
+    }
+
+    public function revokeAccount(PDO $pdo, string $accountId, bool $https, int $now): void
+    {
+        Database::run(
+            $pdo,
+            'UPDATE sessions SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL',
+            [Ids::utc($now), $accountId]
+        );
+        $this->clearCookies($https);
+    }
+
+    public function revokeOthers(PDO $pdo, string $accountId, string $keepId, int $now): void
+    {
+        Database::run(
+            $pdo,
+            'UPDATE sessions SET revoked_at = ? WHERE account_id = ? AND id <> ? AND kind = \'browser\' AND revoked_at IS NULL',
+            [Ids::utc($now), $accountId, $keepId]
         );
     }
 

@@ -1,6 +1,6 @@
 # PHP core
 
-P3 is the shared layer behind `public_html/api/index.php`. Domain routes are not here yet. A later phase adds a route on the Slim app in `foundu/src/Kernel.php` and reads the attributes below. There is no service container. The kernel builds a few objects and closes over a PDO factory that connects on the first call.
+P3 is the shared layer behind `public_html/api/index.php`. Auth routes live in `foundu/src/Auth/AuthRoutes.php` and are described in `auth.md`. Later phases add their routes the same way, on the Slim app in `foundu/src/Kernel.php`, and read the attributes below. There is no service container. The kernel builds a few objects and closes over a PDO factory that connects on the first call.
 
 ## What a request walks through
 
@@ -8,9 +8,10 @@ P3 is the shared layer behind `public_html/api/index.php`. Domain routes are not
 2. Real client IP.
 3. A size and path check, then the IP rate limit (one MariaDB upsert). A missing route is counted here too. Routing sits further in, so a scan of random paths cannot skip the counter.
 4. JSON body, only when a mutation actually sent bytes.
-5. Session cookie, only when one was sent.
-6. CSRF, only for a mutation that has a live session.
-7. The route.
+5. Session cookie, or `Authorization: Bearer` when the cookie is absent. See `auth.md`.
+6. Ban check. A blocked account loses every session row, including passkey challenges. This one request can still read the account, so `GET /auth/banned` can describe the block. The next request is a guest.
+7. CSRF, only for a mutation that has a live cookie session. A bearer request already proved it holds the secret, so it skips the double-submit check.
+8. The route.
 
 `/api/health` stays open to guests and still spends one rate-limit upsert. It does not read a session unless the browser sent the cookie.
 
@@ -82,7 +83,7 @@ CSRF is double-submit, checked against the session row. The second cookie (`__Ho
 
 ## Turnstile, lockout, AI
 
-`Foundu\Auth\Turnstile` POSTs to Cloudflare's siteverify with cURL, a 5 second timeout, and no redirects. An empty `TURNSTILE_SECRET` skips the check (local docker). `TURNSTILE_ENABLED=0` skips it even when a secret is set. `TURNSTILE_ENABLED=1` with an empty secret fails closed. A timeout or a bad answer fails closed. Login and register call this in P4. Nothing in P3 demands a token on its own.
+`Foundu\Auth\Turnstile` POSTs to Cloudflare's siteverify with cURL, a 5 second timeout, and no redirects. An empty `TURNSTILE_SECRET` skips the check (local docker). `TURNSTILE_ENABLED=0` skips it even when a secret is set. `TURNSTILE_ENABLED=1` with an empty secret fails closed. A timeout or a bad answer fails closed. Login, PIN login, register lookup and complete, both password resets, and passkey login options call it. Nothing in P3 demands a token on its own.
 
 `LoginLockout` is the same idea for P4. Five failures on one account lock it for 15 minutes. Twenty failures from one IP lock that IP for an hour. A success resets the count that comes after it. The class returns a wait in seconds. The route still answers with a vague message.
 

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Foundu;
 
+use Foundu\Auth\AuthRoutes;
 use Foundu\Auth\SessionService;
+use Foundu\Http\BanMiddleware;
 use Foundu\Http\ClientAddress;
 use Foundu\Http\ClientIp;
 use Foundu\Http\CsrfMiddleware;
@@ -45,6 +47,7 @@ final class Kernel
         $sessions = SessionService::fromConfig($config);
         $app->addRoutingMiddleware();
         $app->add(new CsrfMiddleware($config));
+        $app->add(new BanMiddleware($config, $pdo, $sessions));
         $app->add(new SessionMiddleware($config, $pdo, $sessions));
         $app->add(new JsonBodyMiddleware($config));
         $app->add(new RateLimitMiddleware($config, $pdo, Limiter::open()));
@@ -64,6 +67,8 @@ final class Kernel
         $app->get('/health/', static function ($request, $response) use ($appRoot) {
             return Health::respond($appRoot, $request, $response);
         });
+
+        AuthRoutes::register($app, $config, $pdo, $sessions);
 
         return $app;
     }

@@ -30,6 +30,14 @@ final class SessionMiddleware implements MiddlewareInterface
 
         $cookies = $request->getCookieParams();
         $raw = $cookies[SetCookie::sessionName($https)] ?? '';
+        $via = 'cookie';
+        if (!is_string($raw) || $raw === '') {
+            $header = $request->getHeaderLine('Authorization');
+            if (str_starts_with($header, 'Bearer ')) {
+                $raw = trim(substr($header, 7));
+                $via = 'bearer';
+            }
+        }
         $actor = Actor::guest();
         $session = null;
         if (is_string($raw) && $raw !== '') {
@@ -47,7 +55,8 @@ final class SessionMiddleware implements MiddlewareInterface
 
         $request = $request
             ->withAttribute(Attrs::SESSION, $session)
-            ->withAttribute(Attrs::ACTOR, $actor);
+            ->withAttribute(Attrs::ACTOR, $actor)
+            ->withAttribute(Attrs::SESSION_VIA, $session === null ? null : $via);
         $response = $handler->handle($request);
         foreach ($queue->lines as $line) {
             $response = $response->withAddedHeader('Set-Cookie', $line);
