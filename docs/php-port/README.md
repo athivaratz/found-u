@@ -16,7 +16,7 @@ Branch for the port is `php-dev`. Do not merge this into `main` from these notes
 
 ## Status
 
-P0 is the inventory and the test scaffold. It does not change how the Next app behaves.
+P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema: `foundu/migrations/`, `make migrate`, `make seed`, `foundu/bin/create-admin.php`. The Next app is unchanged.
 
 | Piece | State |
 |---|---|
@@ -45,7 +45,10 @@ Realtime becomes polling. The agent stream becomes one JSON response. Middleware
 
 ```bash
 npm run test:contract
+make test
 ```
+
+`make test` applies `foundu/migrations` to an empty MariaDB, applies it again, imports `all.sql` twice, then runs the P1 smoke checks. `make migrate` and `make seed` are the local schema and the starter categories.
 
 With a running server that is past the setup guard:
 

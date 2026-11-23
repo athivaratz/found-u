@@ -53,7 +53,7 @@ Also:
 - `middleware.ts` setup guard (`lib/setup/middleware-guard.ts`). The whole `middleware.ts` goes away in P6, including the Supabase session refresh
 - `.env.setup.example`
 
-Table: `system_config`, at least the `setup_status` row and the wizard's use of it. AI credentials currently sit in `system_config` too (`lib/setup/wizard-db.ts`, `app/api/admin/ai-credentials/route.ts`). P3/P8 should keep an encrypted credentials store. That can be a column or a row. It should not be a public-readable wizard document. Do not drop the credential data just because the wizard table is cut.
+Table: `system_config`, at least the `setup_status` row and the wizard's use of it. AI credentials currently sit in `system_config` too (`lib/setup/wizard-db.ts`, `app/api/admin/ai-credentials/route.ts`). P2 does not create `system_config`. The encrypted keys go in `ai_credentials` (ciphertext and a 24-byte nonce per key). That table is not readable by students. `app_settings` is still the public settings document and must not hold the keys. There is no old ciphertext to copy, because this port does not migrate data.
 
 Env that exists only for the wizard:
 

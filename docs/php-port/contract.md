@@ -48,7 +48,7 @@ Anything below is a current feature that the host cannot run. The replacement is
 
 | Current feature | Where | Why the host cannot run it | Replacement |
 |---|---|---|---|
-| Supabase Realtime (`postgres_changes`) | `lib/database.ts` `createRealtimeSubscription`; also `app/admin/categories`, `logs`, `error-logs` | Needs a websocket to Supabase. No daemon, no websocket server | Poll `GET /api/changes?tables=` for `max(updated_at)`, ETag/304. 20–30s while the tab is visible, 10s on admin logs (PLAN §4) |
+| Supabase Realtime (`postgres_changes`) | `lib/database.ts` `createRealtimeSubscription`; also `app/admin/categories`, `logs`, `error-logs` | Needs a websocket to Supabase. No daemon, no websocket server | Poll `GET /api/changes?tables=` for the stamp in `change_feed`, ETag/304. 20–30s while the tab is visible, 10s on admin logs (PLAN §4). P2 bumps `change_feed.updated_at` on insert, update, and delete. `MAX(updated_at)` on the source table misses deletes |
 | Agent UI stream | `POST /api/agent/chat` → `createFoundUAgentUIStreamResponse` / AI SDK `streamText`. `maxDuration = 60` | SSE holds a PHP worker open and needs a streaming runtime. Shared-host `max_execution_time` is unknown and there is no Node | One JSON body. Client feeds it into `useChat` with a custom transport. UI stays; tokens do not trickle. Feature flag only if the host later allows SSE (PLAN §4.4) |
 | Next.js middleware | `middleware.ts`: setup guard + `updateSession` | Edge/Node middleware does not exist on Apache. Static export has no middleware | Delete it (P6). `.htaccess` rewrites `/api/*` to `api/index.php`, redirects, and security headers (PLAN §7.2). Session refresh is a PHP read of the `sessions` row |
 | Server Actions | `app/setup/actions.ts`, `lib/setup/create-wizard-admin.ts` (`"use server"`) | No Next server | **Cut** with the wizard. Config is env + seed + `bin/create-admin.php` SQL |
@@ -67,7 +67,7 @@ Anything below is a current feature that the host cannot run. The replacement is
 
 Client-only things that stay in the browser and do not need the host: Dexie (chat history in IndexedDB), Leaflet, framer-motion, GSAP, `setInterval` on the page, WebAuthn in the browser. Passkey verification itself moves to PHP (`web-auth/webauthn-lib` or `lbuchs/webauthn`).
 
-`GET /api/changes` does not exist yet. It is the polling endpoint P5 adds. It is not part of today's 71 handlers.
+`GET /api/changes` does not exist yet. It is the polling endpoint P5 adds. It is not part of today's 71 handlers. The table it reads, `change_feed`, is created in P2.
 
 ## Cut routes
 

@@ -20,6 +20,22 @@ Policy count: **70** surviving names. 62 on `public`, 8 on `storage.objects`. Th
 
 `is_admin()` is `SECURITY DEFINER` and reads `accounts`. On the broken `accounts` grants (see findings) that function is also the thing student updates can corrupt. PHP checks role in the session row it loaded at login, and re-reads it when the session is old.
 
+## P2 schema
+
+MariaDB has one app user. It can read every row, so these cells are PHP's job, not a policy on the table. The schema does not recreate `profiles`, `student_accounts`, `system_config`, `discord_links`, or `discord_verification_sessions`.
+
+`accounts` is the user table. A trigger rejects inserts, deletes, and changes to the locked columns below unless the same connection has run `SET @foundu_allow_privileged = 1`. The PDO connection is not persistent. A route sets the flag for a real password, PIN, ban, or role write, then clears it before the request ends. The trigger is the backstop. The route still must not copy a request body onto those columns.
+
+Locked columns: `role`, `pin_hash`, `current_password_hash`, `school_password_hash`, `student_id`, `is_student_verified`, `ban_status`, `ban_reason`, `banned_at`, `banned_by`, `timeout_until`, `status`, `passkey_credentials`, `email`, `linked_uid`, `grade_level`, `room_number`, `import_batch_id`, `is_registered`, `has_logged_in_once`, `must_change_password`, `auth_methods`, `first_name`, `last_name`, `created_at`.
+
+A student session may update `display_name`, `photo_url`, `nickname`, `shown_name`, and `has_seen_tutorial`.
+
+Select: anon never reads `accounts`. The owner reads the row where `id` is the session account or `linked_uid` is the session account. Another student does not. An admin reads any row. New accounts set `linked_uid` to their own `id` so both checks match.
+
+`sessions`, `rate_limits`, `login_attempts`, `ai_slots`, `ai_credentials`, `change_feed`, and `schema_migrations` are server-only. `ai_credentials` is the encrypted key store. It replaces the wizard rows that used to sit in `system_config`. `app_settings` stays readable by the public settings route and must not hold those keys.
+
+`GET /api/changes` reads `change_feed` (`table_name`, `updated_at`). Triggers bump that row on insert, update, and delete. `MAX(updated_at)` on the source table misses deletes.
+
 ## Identity tables
 
 ### `accounts` (the live user table)
@@ -33,7 +49,7 @@ Policies: `accounts_select_linked`, `accounts_select_admin`, `accounts_update_ow
 | update | N | Y, but only profile fields | N | Y |
 | delete | N | N | N | N |
 
-There is no policy for `id = me` when `linked_uid` is null. `getUser` asks for both. PHP select-for-self should allow `id = me OR linked_uid = me`, which is what the app already tries to do. Do not allow a student update of `role`, `pin_hash`, `current_password_hash`, `school_password_hash`, `ban_*`, `student_id`, or `is_student_verified`. Those are server or admin columns. The current `WITH CHECK (id = auth.uid())` would allow them. See findings.
+There is no policy for `id = me` when `linked_uid` is null. `getUser` asks for both. PHP select-for-self allows `id = me OR linked_uid = me`. The old `WITH CHECK (id = auth.uid())` would let that same user set `role`. P2 does not. The locked column list is in the P2 section above, and `accounts_bu_guard` enforces it in MariaDB. See findings.
 
 ### `profiles` (legacy, do not recreate)
 
@@ -231,6 +247,6 @@ These are `FOR ALL TO service_role USING (true) WITH CHECK (true)`. On Supabase 
 
 ## Tables
 
-25 public tables: `profiles`, `student_accounts`, `passkey_lookup`, `admin_whitelist`, `app_settings`, `lost_items`, `found_items`, `categories`, `locations`, `contact_types`, `drop_off_locations`, `activity_logs`, `error_logs`, `ai_usage`, `nfc_tags`, `nfc_found_reports`, `accounts`, `agent_chat_logs`, `system_config`, `help_pages`, `help_sections`, `articles`, `match_dismissals`, `discord_links`, `discord_verification_sessions`.
+25 public tables in the Supabase migrations: `profiles`, `student_accounts`, `passkey_lookup`, `admin_whitelist`, `app_settings`, `lost_items`, `found_items`, `categories`, `locations`, `contact_types`, `drop_off_locations`, `activity_logs`, `error_logs`, `ai_usage`, `nfc_tags`, `nfc_found_reports`, `accounts`, `agent_chat_logs`, `system_config`, `help_pages`, `help_sections`, `articles`, `match_dismissals`, `discord_links`, `discord_verification_sessions`.
 
-PHP also adds `sessions`, `rate_limits`, `login_attempts`, `ai_slots`, `schema_migrations` (PLAN §4.1). Those are server-only.
+P2 keeps 20 of those (`accounts` instead of `profiles` and `student_accounts`, and no `system_config` or `discord_*`) and adds `sessions`, `rate_limits`, `login_attempts`, `ai_slots`, `ai_credentials`, `change_feed`, `schema_migrations`. The added tables are server-only.

@@ -90,3 +90,13 @@ Pinned while building the local stack. Versions checked against public releases 
 - `/api/health` has no rate limit yet. P3 adds the APCu / file / MariaDB limiter. The health body does not include the visitor IP unless the local mock flag is on.
 - CSP in `.htaccess` allows `img-src https:` until the R2 host is fixed. Next's static export may also need a script hash. Revisit in P11.
 - `composer audit` on `foundu/composer.lock` reports no advisories. `npm audit` on the existing Next lockfile reports 26 (1 critical, 13 high, 8 moderate, 4 low), including `undici` via `discord.js` and `zod` below 4.6.6. That tree is outside this stack. `make audit` still runs it.
+
+## Closed or narrowed in P2
+
+| Sev | What | What changed |
+|---|---|---|
+| critical | `accounts` had policies and `GRANT UPDATE` to `authenticated`, and no `ENABLE ROW LEVEL SECURITY`. An owner update could also set `role` | The PHP database is one app user, so a grant to `authenticated` does not exist. `accounts_bi_guard`, `accounts_bu_guard`, and `accounts_bd_guard` reject inserts, deletes, and changes to the locked columns unless that connection has `@foundu_allow_privileged = 1`. The column list is in `authz-matrix.md`. A student update of `shown_name` still works. A route in P4 has to set the flag for a real password or role write, and it still must not copy request fields onto the locked columns. The Supabase project is untouched |
+| low | Postgres partial indexes (`WHERE linked_uid IS NOT NULL`, `WHERE tag_uid <> ''`) | MariaDB 10.11 has no partial indexes. `linked_uid` is a normal index. `tag_uid` is `UNIQUE` and the check constraint rejects `''`, so missing hardware ids are `NULL` (those do not collide) |
+| low | A token-protected web page that runs migrations | Not built. The token would live next to the site, and a bug in the check would be schema execution. Import `foundu/migrations/all.sql` in phpMyAdmin. `bin/migrate.php` is the CLI and the panel cron, and it records checksums so a file that changed after it was applied is refused |
+
+`password_hash` prefers Argon2id (`memory_cost` 65536, `time_cost` 4, `threads` 1) and falls back to bcrypt. bcrypt ignores bytes after 72, so `create-admin.php` refuses a longer password when the hash it actually produced is bcrypt. `password_verify` accepts either form. Do not copy the old scrypt `salt:hash` format.
