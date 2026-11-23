@@ -179,3 +179,23 @@ Creating an item is limited to 30 an hour for a student and 200 an hour for an a
 | note | No anonymous upload exists, so Turnstile is not called here | A guest is 401 even if the body includes `turnstileToken`. A signed-in upload does not send a token. Login and register still verify Turnstile |
 | note | The delete response includes `deleteUrl` as well as `{ success: true }` | The browser has to perform the DELETE. The row stays so a failed attempt can ask again. The URL expires in 120 seconds |
 | note | Presign is 20/hour/account via `Buckets::presign($config)` | The account id is the limiter subject, not an argument of `presign()`. Deletes do not spend that bucket |
+
+## Closed or narrowed in P8
+
+| Sev | What | What changed |
+|---|---|---|
+| critical | `POST /api/ner` and `POST /api/vision` were public, and a caller could omit `userId` to skip the limiter. `GET` returned another user's quota | Both require a session. `?userId=` is ignored. Quota is the session account. A full semaphore is 429 `queue_full` with `คิว AI เต็ม ลองใหม่อีกสักครู่` and does not write `ai_usage` |
+| high | `testMode: true` skipped the limiter for any `userId` that belonged to an admin | `testMode` is honored only when the session itself is an admin |
+| high | `search_*_fuzzy` was granted to `anon` and returned whole rows | `GET /api/search` is the replacement. It still returns the public item shape, contacts included, with `private, no-store`. There is no SQL function for a student to call |
+| critical | `confirm_item_match` / `unmatch_item_match` were `SECURITY DEFINER` and granted to `authenticated` | Confirm and unmatch are admin routes. The write is a PHP transaction with `SELECT … FOR UPDATE`. A student gets 403 |
+| medium | Fuzzy search needed `pg_trgm`, which MariaDB 10.11 does not have | Character trigrams and Jaccard run in PHP on at most 300 rows. Above that, character-bigram `LIKE` probes pick the 300. No n-gram table and no FULLTEXT. The method and the 20-query fixture are in `docs/php-port/ai.md` |
+| low | AI calls were specified at 45 seconds, which does not fit a 30 second `max_execution_time` | Primary timeout is 12 seconds (cap 20). Match compares are 8 seconds, three of them, with a 20 second deadline. Batch AI re-ranks 8 lost items, not the whole pool |
+
+## Left open on purpose in P8
+
+| Sev | What | Why it is still like this |
+|---|---|---|
+| high | Guest reads of lost and found items, including search, still include contacts | Same product choice as P5. Search uses the list mapper |
+| medium | The first AI call of a session does not check Turnstile | The plan puts that on the agent phase. P9 should add it in front of `Budget::charge`, not a second limiter |
+| note | `lib/match-service.ts`, `lib/vision.ts` `extractVisionData`, and the agent tools still throw or still call Gemini from Node | The pages that used to `fetch` those routes now send the CSRF header. The agent modules stay for P9. See `docs/php-port/ai.md` |
+| note | Gemini is called with the key in the query string | That is the Gemini URL. The client JSON, logs, and `debug` do not include the URL or the key. cURL errors are not returned |

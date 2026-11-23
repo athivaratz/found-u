@@ -44,6 +44,23 @@ export function csrfToken(): string | null {
   return readCookie("foundu_csrf") ?? readCookie("__Host-foundu-csrf");
 }
 
+// Pages that still call fetch() directly (vision, NER, match, AI keys)
+// need the same CSRF header and X-Requested-With as apiFetch. This does
+// not retry. A 429 from quota should show immediately.
+export function phpFetchHeaders(method = "GET"): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "X-Requested-With": "foundu",
+  };
+  const verb = method.toUpperCase();
+  if (verb !== "GET" && verb !== "HEAD" && verb !== "OPTIONS") {
+    headers["Content-Type"] = "application/json";
+    const token = csrfToken();
+    if (token) headers["X-CSRF-Token"] = token;
+  }
+  return headers;
+}
+
 export function retryDelayMs(attempt: number, retryAfter: string | null): number {
   if (retryAfter) {
     const seconds = Number(retryAfter);

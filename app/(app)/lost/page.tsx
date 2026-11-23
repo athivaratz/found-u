@@ -21,6 +21,7 @@ import { slideUp, scaleIn, staggerContainer, staggerItem, fade, motionSafe, dura
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { type ContactInfo, type ContactType, type ItemCategory, type LocationCoords } from "@/lib/types";
 import { cn, generateTrackingCode, isPointInPolygon, normalizeGeoPolygon } from "@/lib/utils";
+import { phpFetchHeaders } from "@/lib/api-client";
 import {
   addLostItem,
 } from "@/lib/database";
@@ -263,7 +264,8 @@ export default function ReportLostPage() {
       try {
         const matchResponse = await fetch("/api/match", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          headers: phpFetchHeaders("POST"),
           body: JSON.stringify({ type: "lost", itemId }),
         });
         const matchData = await matchResponse.json();

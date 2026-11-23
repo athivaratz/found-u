@@ -38,6 +38,7 @@ import {
   generateTrackingCode,
   isPointInPolygon,
 } from "@/lib/utils";
+import { phpFetchHeaders } from "@/lib/api-client";
 import {
   addFoundItem,
 } from "@/lib/database";
@@ -224,7 +225,10 @@ export default function ReportFoundPage() {
     const fetchQuota = async () => {
       if (!user?.uid || reportMode !== "vision") return;
       try {
-        const response = await fetch(`/api/vision?userId=${user.uid}`);
+        const response = await fetch("/api/vision", {
+          headers: phpFetchHeaders("GET"),
+          credentials: "include",
+        });
         if (response.ok) {
           const data = await response.json();
           setVisionQuota(data);
@@ -343,10 +347,10 @@ export default function ReportFoundPage() {
     try {
       const response = await fetch("/api/vision", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: phpFetchHeaders("POST"),
         body: JSON.stringify({
           imageDataUrl: dataUrl,
-          userId: user.uid,
         }),
       });
 
@@ -527,7 +531,8 @@ export default function ReportFoundPage() {
       try {
         const matchResponse = await fetch("/api/match", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          headers: phpFetchHeaders("POST"),
           body: JSON.stringify({ type: "found", itemId }),
         });
         const matchData = await matchResponse.json();

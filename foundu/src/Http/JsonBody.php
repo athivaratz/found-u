@@ -8,6 +8,7 @@ final class JsonBody
 {
     public const DEFAULT_MAX = 262144;
     public const AI_MAX = 65536;
+    public const VISION_MAX = 1572864;
     public const MAX_DEPTH = 16;
 
     public static function decode(string $raw, int $maxBytes, int $depth = self::MAX_DEPTH): array
@@ -39,7 +40,13 @@ final class JsonBody
 
     public static function maxFor(string $path, int $normal, int $ai): int
     {
-        foreach (['/agent', '/ai', '/ner', '/vision'] as $prefix) {
+        $path = strtolower($path);
+        // A compressed photo does not fit in the 64 KiB AI cap. Vision is
+        // the exception. Ner, the agent, and other AI posts stay small.
+        if ($path === '/vision' || str_starts_with($path, '/vision/')) {
+            return self::VISION_MAX;
+        }
+        foreach (['/agent', '/ai', '/ner'] as $prefix) {
             if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
                 return min($ai, $normal);
             }

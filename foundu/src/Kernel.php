@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Foundu;
 
+use Foundu\Ai\Routes as AiRoutes;
 use Foundu\Auth\AuthRoutes;
 use Foundu\Data\DataRoutes;
+use Foundu\Match\Routes as MatchRoutes;
+use Foundu\Search\Routes as SearchRoutes;
 use Foundu\Auth\SessionService;
 use Foundu\Http\BanMiddleware;
 use Foundu\Http\ClientAddress;
@@ -73,6 +76,9 @@ final class Kernel
         AuthRoutes::register($app, $config, $pdo, $sessions);
         DataRoutes::register($app, $config, $pdo, $sessions, $appRoot);
         Objects::register($app, $config, $pdo, Limiter::open());
+        SearchRoutes::register($app, $config, $pdo);
+        MatchRoutes::register($app, $config, $pdo);
+        AiRoutes::register($app, $config, $pdo);
 
         return $app;
     }

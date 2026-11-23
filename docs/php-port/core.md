@@ -93,7 +93,7 @@ CSRF is double-submit, checked against the session row. The second cookie (`__Ho
 
 ## Bodies
 
-Mutations with a non-empty body must be `application/json` or `application/json; charset=utf-8`. The cap is `BODY_MAX_BYTES` (256 KiB). `/agent`, `/ai`, `/ner`, and `/vision` use `BODY_MAX_AI_BYTES` (64 KiB). Nested JSON deeper than 16 levels is rejected. A list body is rejected. `Foundu\Validation\Input` checks strings, 5-digit student ids, UUIDs, enums, and ints, and answers 400 `invalid_input` with a `field`. P8 may raise the vision cap; a photo does not fit in 64 KiB.
+Mutations with a non-empty body must be `application/json` or `application/json; charset=utf-8`. The cap is `BODY_MAX_BYTES` (256 KiB). `/agent`, `/ai`, and `/ner` use `BODY_MAX_AI_BYTES` (64 KiB). `/vision` allows 1.5 MiB so a compressed photo fits, and still rejects anything larger. Nested JSON deeper than 16 levels is rejected. A list body is rejected. `Foundu\Validation\Input` checks strings, 5-digit student ids, UUIDs, enums, and ints, and answers 400 `invalid_input` with a `field`.
 
 ## Cron
 
