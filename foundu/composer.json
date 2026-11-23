@@ -19,7 +19,8 @@
     },
     "suggest": {
         "ext-apcu": "Used when apcu_enabled() is true. Otherwise storage/cache files, and MariaDB for counters that must be exact.",
-        "ext-gd": "OG images in a later phase.",
+        "ext-gd": "Draws the blog and help Open Graph card. Without it the card is a plain fallback PNG.",
+        "ext-zlib": "Gzip for the daily SQL dump. Without it that cron task reports an error.",
         "ext-intl": "Formatting in a later phase."
     },
     "autoload": {

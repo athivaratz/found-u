@@ -88,10 +88,18 @@ final class CronLockTest extends DbTestCase
         $ran = $this->cron();
         $this->assertSame(0, $ran['code'], $ran['err']);
         $this->assertStringContainsString('sessions ', $ran['out']);
+        $this->assertStringContainsString('expired ', $ran['out']);
+        $this->assertStringContainsString('cf-ips skipped', $ran['out']);
+        $this->assertStringContainsString('dump skipped', $ran['out']);
     }
 
     private function cron(): array
     {
+        $stamp = dirname(__DIR__) . '/storage/cache/cf-ips-refreshed';
+        if (!is_dir(dirname($stamp))) {
+            mkdir(dirname($stamp), 0775, true);
+        }
+        file_put_contents($stamp, (string) time());
         $pipes = [];
         $proc = proc_open(
             [PHP_BINARY, dirname(__DIR__) . '/bin/cron.php'],

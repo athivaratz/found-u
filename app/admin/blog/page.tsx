@@ -111,11 +111,12 @@ function AdminBlogListContent() {
       const title = section === "help" ? "คู่มือใหม่" : "บทความใหม่";
       const baseSlug = slugifyTitle(title);
       const slug = `${baseSlug}-${Date.now().toString(36)}`;
-      // P10 owns article writes. The route answers 501 after the admin check.
-      await apiFetch("/api/admin/articles", {
+      const created = await apiFetch<{ article: { id: string } }>("/api/admin/articles", {
         method: "POST",
         json: { title, slug, section, status: "draft", content_json: EMPTY_DOC },
       });
+      setCreating(false);
+      router.push(`/admin/blog/${created.article.id}`);
     } catch (error) {
       await showAlert({
         title: "สร้างไม่สำเร็จ",

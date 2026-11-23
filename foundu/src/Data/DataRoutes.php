@@ -19,6 +19,8 @@ final class DataRoutes
         Logs::register($app, $pdo);
         Usage::register($app, $pdo);
         Cms::register($app, $pdo);
+        Nfc::register($app, $config, $pdo, $limiter);
+        Geocode::register($app, $config, $pdo, $limiter);
         Site::register($app, $pdo, $appRoot, $limiter);
     }
 }

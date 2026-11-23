@@ -52,6 +52,9 @@ final class Config
         'LOGIN_LOCK_IP_SECONDS',
         'SEARCH_SIMILARITY_THRESHOLD',
         'AGENT_SEARCH_SIMILARITY_THRESHOLD',
+        'GEOCODE_USER_AGENT',
+        'GEOCODE_ENDPOINT',
+        'GEOCODE_API_KEY',
     ];
 
     public static function int(array $config, string $key, int $default, int $min, int $max): int

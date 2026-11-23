@@ -9,8 +9,7 @@ use Foundu\Ids;
 use PDO;
 
 // Rows the security layer creates. Item expiry, chat logs, the Cloudflare
-// IP list, and the database dump are later phases. They belong in bin/cron.php
-// next to these, not in a second entry point.
+// IP list, and the database dump run from bin/cron.php after this class.
 final class Cleanup
 {
     public static function run(PDO $pdo, int $now, int $sessionAbsoluteSeconds): array

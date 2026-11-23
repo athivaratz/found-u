@@ -2,8 +2,8 @@
 
 // Snapshot of https://www.cloudflare.com/ips-v4 and ips-v6 on 2026-11-23.
 // Keep this list equal to the Require ip lines in public_html/.htaccess.
-// A weekly refresh belongs in bin/cron.php (later). Do not trust these
-// ranges unless REMOTE_ADDR is inside them.
+// bin/cron.php replaces both files together when this snapshot is a week old.
+// Do not trust these ranges unless REMOTE_ADDR is inside them.
 
 return [
     'v4' => [

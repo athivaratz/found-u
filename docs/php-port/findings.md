@@ -199,3 +199,14 @@ Creating an item is limited to 30 an hour for a student and 200 an hour for an a
 | medium | The first AI call of a session does not check Turnstile | The plan puts that on the agent phase. P9 should add it in front of `Budget::charge`, not a second limiter |
 | note | `lib/match-service.ts`, `lib/vision.ts` `extractVisionData`, and the agent tools still throw or still call Gemini from Node | The pages that used to `fetch` those routes now send the CSRF header. The agent modules stay for P9. See `docs/php-port/ai.md` |
 | note | Gemini is called with the key in the query string | That is the Gemini URL. The client JSON, logs, and `debug` do not include the URL or the key. cURL errors are not returned |
+
+## P10
+
+| Sev | What | What changed |
+|---|---|---|
+| high | Blog and help HTML would have been stored raw, and the edge OG image cannot run here | Admin writes sanitize TipTap and help HTML with an allowlist. `meta.php` fills the tags. `og.php` draws the card with GD and Sarabun |
+| medium | NFC routes were missing, so the client treated every tag as empty, and a body could have set `ownerId` | The contract routes and the `lib/database.ts` helpers are implemented. `ownerId` on a found report is ignored. `finderUserId` must be the session. Another student's tag is 403 |
+| medium | Geocode rate limit was one timestamp in a Node process | It is a MariaDB window: 1 upstream call per 2 seconds, 30 per admin per minute, plus a 7 day cache |
+| low | `Values::contacts` with `$required = true` still accepts an empty list | Pre-existing. NFC register checks the list is non-empty before it calls that helper. Item create still allows an empty contact list, which matches the current forms |
+| note | The daily dump PUTs with `SigV4::authorization` | Same signer as the presigned upload. Region is `R2_REGION`, or `auto`. The dump is skipped when the R2 keys are empty |
+| note | Article and help writes are no longer 501 | Closed the P6 note above. The blog index navigates to the new draft |

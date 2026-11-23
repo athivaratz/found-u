@@ -473,12 +473,12 @@ final class DataHttpTest extends DbTestCase
         $this->assertSame(200, $this->get('/articles')['status']);
         $this->assertSame(401, $this->post('/admin/articles', ['title' => 'x'])['status']);
         $this->assertSame(403, $this->post('/admin/articles', ['title' => 'x'], $user)['status']);
-        $this->assertSame(501, $this->post('/admin/articles', ['title' => 'x'], $admin)['status']);
+        $this->assertSame(400, $this->post('/admin/articles', ['title' => 'x'], $admin)['status']);
         $this->assertSame(401, $this->get('/admin/articles')['status']);
         $this->assertSame(200, $this->get('/admin/articles', $admin)['status']);
         $this->assertSame(404, $this->get('/help/missing-page')['status']);
         $this->assertSame(401, $this->post('/admin/help-pages', ['slug' => 'start'])['status']);
-        $this->assertSame(501, $this->post('/admin/help-pages', ['slug' => 'start'], $admin)['status']);
+        $this->assertSame(400, $this->post('/admin/help-pages', ['slug' => 'start'], $admin)['status']);
     }
 
     private function stamp(string $table): string

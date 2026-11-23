@@ -103,7 +103,7 @@ DirectAdmin runs one command:
 */5 * * * * php ~/foundu/bin/cron.php
 ```
 
-The script takes the `cron_lock` row. If the row is still held, it prints `cron busy` and exits 0 so the panel does not mail a failure. The lock lasts 10 minutes, which is long enough that a crash does not block the rest of the day and short enough that two live runs do not delete the same rows. This entry point currently deletes expired sessions, old rate-limit windows, login attempts older than two days, expired AI leases, and `ai_usage` older than two hours (500 rows at a time). Item expiry, chat logs, the Cloudflare IP refresh, and the database dump should be added here in later phases, not as a second script.
+The script takes the `cron_lock` row. If the row is still held, it prints `cron busy` and exits 0 so the panel does not mail a failure. The lock lasts 10 minutes, which is long enough that a crash does not block the rest of the day and short enough that two live runs do not delete the same rows. One run deletes expired sessions, old rate-limit windows, login attempts older than two days, expired AI leases, and `ai_usage` older than two hours (500 rows at a time). It then expires overdue found items, deletes agent chat logs older than seven days (500 rows), drops old geocode and OG-image cache files, refreshes the Cloudflare IP list when the last refresh is a week old, and once a day writes a gzipped SQL dump to R2 when the R2 keys are set. Each of those later jobs has its own time budget. A failure in one is logged and the next job still runs. There is still one cron entry point.
 
 ## Tests
 

@@ -1,5 +1,7 @@
-# Origin lock and front controller. Cloudflare IP list fetched 2026-11-23
-# from https://www.cloudflare.com/ips-v4 and ips-v6.
+# Origin lock and front controller. Cloudflare IP list lives between the
+# foundu-cloudflare-ips markers. bin/cron.php refreshes that block and
+# foundu/config/cloudflare-ips.php together. Do not add another Require ip
+# outside the markers, or the check will refuse the new list.
 # Local docker turns the lock off by creating .cf-allowlist-off
 # (FOUNDU_CF_ALLOWLIST=off). Do not upload that file.
 # Assumes REMOTE_ADDR is still the TCP peer. If the host restores the
@@ -40,6 +42,7 @@ LimitRequestBody 262144
     Require all granted
 </ElseIf>
 <Else>
+    # BEGIN foundu-cloudflare-ips
     Require ip 173.245.48.0/20
     Require ip 103.21.244.0/22
     Require ip 103.22.200.0/22
@@ -62,6 +65,7 @@ LimitRequestBody 262144
     Require ip 2405:8100::/32
     Require ip 2a06:98c0::/29
     Require ip 2c0f:f248::/32
+    # END foundu-cloudflare-ips
 </Else>
 
 <FilesMatch "^\.">
@@ -96,7 +100,17 @@ LimitRequestBody 262144
     RewriteRule ^admin/blog/legacy/([^/]+)/?$ /admin/blog/legacy/_/index.html [END]
     RewriteRule ^admin/blog/([^/]+)/?$ /admin/blog/_/index.html [END]
     RewriteRule ^admin/help/([^/]+)/?$ /admin/help/_/index.html [END]
-    RewriteRule ^blog/([^/]+)/?$ /blog/_/index.html [END]
-    RewriteRule ^help/([^/]+)/?$ /help/_/index.html [END]
+
+    # Blog and help HTML go through meta.php so the exported shell gets a
+    # real title, description, canonical, and Open Graph tags. The shell
+    # files are public_html/blog/_/index.html and help/_/index.html.
+    # P11 must keep these rules, and must not let a later catch-all
+    # serve those paths as plain index.html. See docs/php-port/cms.md.
+    RewriteRule ^blog/([^/]+)/opengraph-image/?$ og.php?kind=blog&slug=$1 [END,QSA]
+    RewriteRule ^help/([^/]+)/opengraph-image/?$ og.php?kind=help&slug=$1 [END,QSA]
+    RewriteRule ^og/(blog|help)/([^/]+)\.png$ og.php?kind=$1&slug=$2 [END,QSA]
+    RewriteRule ^blog/([^/]+)/?$ meta.php?kind=blog&slug=$1 [END,QSA]
+    RewriteRule ^help/([^/]+)/?$ meta.php?kind=help&slug=$1 [END,QSA]
+
     RewriteRule ^nfc/t/([^/]+)/?$ /nfc/t/_/index.html [END]
 </IfModule>

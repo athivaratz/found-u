@@ -6,8 +6,8 @@ declare(strict_types=1);
 //   */5 * * * * php ~/foundu/bin/cron.php
 // Overlapping runs exit 0 immediately. A crash keeps the lock until it
 // expires (10 minutes), then the next run takes the row.
-// Later phases add item expiry, chat-log cleanup, the Cloudflare IP refresh,
-// and the database dump in this file. Do not add a second cron entry point.
+// Item expiry, chat-log purge, the Cloudflare IP refresh, and the database
+// dump run in this file after the short cleanup. Do not add a second entry.
 
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "cron.php is command-line only\n");
@@ -25,6 +25,7 @@ require $autoload;
 use Foundu\Config;
 use Foundu\Cron\Cleanup;
 use Foundu\Cron\Lock;
+use Foundu\Cron\Tasks;
 use Foundu\Database;
 use Foundu\Log;
 
@@ -53,7 +54,11 @@ try {
     foreach ($counts as $name => $count) {
         fwrite(STDOUT, $name . ' ' . $count . "\n");
     }
-    Log::get()->info('cron finished', $counts);
+    $lines = Tasks::run($pdo, $config, $appRoot, $now);
+    foreach ($lines as $line) {
+        fwrite(STDOUT, $line . "\n");
+    }
+    Log::get()->info('cron finished', $counts + ['tasks' => $lines]);
 } catch (Throwable $e) {
     Log::get()->error('cron failed', ['class' => $e::class]);
     fwrite(STDERR, "cron failed\n");

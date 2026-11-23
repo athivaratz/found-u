@@ -64,6 +64,9 @@ $values = [
     'LOGIN_LOCK_IP_SECONDS' => $envOr('LOGIN_LOCK_IP_SECONDS', '3600'),
     'SEARCH_SIMILARITY_THRESHOLD' => $envOr('SEARCH_SIMILARITY_THRESHOLD', '0.15'),
     'AGENT_SEARCH_SIMILARITY_THRESHOLD' => $envOr('AGENT_SEARCH_SIMILARITY_THRESHOLD', '0.30'),
+    'GEOCODE_USER_AGENT' => $envOr('GEOCODE_USER_AGENT', 'Found-U (school lost-and-found)'),
+    'GEOCODE_ENDPOINT' => $envOr('GEOCODE_ENDPOINT', ''),
+    'GEOCODE_API_KEY' => $envOr('GEOCODE_API_KEY', ''),
 ];
 
 $export = var_export($values, true);
