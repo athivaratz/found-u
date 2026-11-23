@@ -13,11 +13,13 @@ Branch for the port is `php-dev`. Do not merge this into `main` from these notes
 | [scope-cut.md](scope-cut.md) | Files, tables, and env to remove (Discord, setup wizard, Supabase scripts). Not deleted yet |
 | [findings.md](findings.md) | Security holes, authz gaps, host incompatibilities, and a few obvious cleanups |
 | [core.md](core.md) | P3 shared layer: request order, cookies, CSRF, limits, cron |
+| [auth.md](auth.md) | P4 auth routes: login, register, passkeys, ban, sessions |
+| [data-api.md](data-api.md) | P5 data routes. P6 rewrites `lib/database.ts` against this |
 | [baseline/](baseline/) | Visual baseline for P11. No screenshots yet. The reason is in that folder |
 
 ## Status
 
-P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema: `foundu/migrations/`, `make migrate`, `make seed`, `foundu/bin/create-admin.php`. P3 is the shared PHP core: sessions, CSRF, rate limits, Turnstile, the authz helper, and `bin/cron.php`. How a later route plugs in is [core.md](core.md). The Next app is unchanged.
+P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema: `foundu/migrations/`, `make migrate`, `make seed`, `foundu/bin/create-admin.php`. P3 is the shared PHP core: sessions, CSRF, rate limits, Turnstile, the authz helper, and `bin/cron.php`. P4 is auth. P5 is the data API in [data-api.md](data-api.md): items, catalogs, settings, users, logs, and `GET /api/changes`. How a later route plugs in is [core.md](core.md). The Next app is unchanged.
 
 | Piece | State |
 |---|---|

@@ -960,7 +960,12 @@ final class AuthRoutes
         $ids = array_map(static fn (array $item): string => $item['credentialId'], Passkeys::credentials($account));
         AccountWriter::resetLogin($pdo, (string) $account['id']);
         AccountWriter::deletePasskeyLookup($pdo, $ids);
-        $sessions->revokeAccount($pdo, (string) $account['id'], self::https($config, $request), time());
+        $session = $request->getAttribute(Attrs::SESSION);
+        $target = (string) $account['id'];
+        $self = $session instanceof SessionRecord
+            && is_string($session->accountId)
+            && hash_equals($session->accountId, $target);
+        $sessions->revokeAccount($pdo, $target, self::https($config, $request), time(), $self);
         return Json::write($response, 200, ['success' => true]);
     }
 

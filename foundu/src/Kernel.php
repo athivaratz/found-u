@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Foundu;
 
 use Foundu\Auth\AuthRoutes;
+use Foundu\Data\DataRoutes;
 use Foundu\Auth\SessionService;
 use Foundu\Http\BanMiddleware;
 use Foundu\Http\ClientAddress;
@@ -69,6 +70,7 @@ final class Kernel
         });
 
         AuthRoutes::register($app, $config, $pdo, $sessions);
+        DataRoutes::register($app, $config, $pdo, $sessions, $appRoot);
 
         return $app;
     }

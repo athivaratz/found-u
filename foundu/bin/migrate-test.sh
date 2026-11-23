@@ -51,11 +51,12 @@ $COMPOSE exec -T -e DB_NAME="$DB" web php /srv/site/foundu/bin/migrate.php > "$O
 grep -q 'applied 001_schema_migrations.sql' "$OUT" || fail "first run did not apply 001"
 grep -q 'applied 010_change_feed.sql' "$OUT" || fail "first run did not apply 010"
 grep -q 'applied 011_cron_lock.sql' "$OUT" || fail "first run did not apply 011"
-grep -q 'done applied=11 skipped=0' "$OUT" || fail "first run count: $(cat "$OUT")"
+grep -q 'applied 012_list_indexes.sql' "$OUT" || fail "first run did not apply 012"
+grep -q 'done applied=12 skipped=0' "$OUT" || fail "first run count: $(cat "$OUT")"
 
 echo "migrate, second time"
 $COMPOSE exec -T -e DB_NAME="$DB" web php /srv/site/foundu/bin/migrate.php > "$OUT"
-grep -q 'done applied=0 skipped=11' "$OUT" || fail "second run count: $(cat "$OUT")"
+grep -q 'done applied=0 skipped=12' "$OUT" || fail "second run count: $(cat "$OUT")"
 grep -q '^applied ' "$OUT" && fail "second run applied a file"
 
 echo "import all.sql twice"
@@ -64,7 +65,7 @@ $COMPOSE exec -T mariadb mariadb --default-character-set=utf8mb4 -ufoundu -pfoun
 
 echo "migrate still skips"
 $COMPOSE exec -T -e DB_NAME="$DB" web php /srv/site/foundu/bin/migrate.php > "$OUT"
-grep -q 'done applied=0 skipped=11' "$OUT" || fail "tracker changed after all.sql"
+grep -q 'done applied=0 skipped=12' "$OUT" || fail "tracker changed after all.sql"
 
 bad=$(sql_app "
 SELECT TABLE_NAME FROM information_schema.TABLES

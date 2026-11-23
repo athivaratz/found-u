@@ -121,6 +121,29 @@ Slim's routing middleware throws 404 before it calls whatever is inside it. The 
 | medium | A banned account could keep using a cookie that was issued before the ban | `BanMiddleware` revokes every session of a blocked account, and `AccountWriter::setBan` does the same when the status is not `none`. P5 should call `setBan` rather than writing `ban_status` itself |
 | medium | `verify-password` and `verify-pin` would have shared one fake IP for the hourly bucket | The first draft passed `0.0.0.0`. Both routes now use the client IP from the middleware |
 
+## Closed or narrowed in P5
+
+| Sev | What | What changed |
+|---|---|---|
+| high | Supabase Realtime cannot run on this host | `GET /api/changes` reads `change_feed` with one indexed query and an ETag. A matching `If-None-Match` is 304 with an empty body. The route does not open a session, so polling does not slide `expires_at` |
+| medium | `getStats` downloaded every row and counted in the browser | `GET /api/stats` is one `UNION ALL` of `GROUP BY status` |
+| medium | `POST /api/found/expire-overdue` loaded every pending row and updated them one by one | One `UPDATE` on `(status, handover_deadline_at)`. The route is still public, and it now also sits behind 10 requests a minute per IP |
+| medium | `SessionService::revokeAccount` always cleared the cookies on the response | An admin reset, and an admin ban of someone else, would have signed the admin out. The clear is now a flag, and it is set only when the target is the current session |
+| low | A Google profile photo host was copied into `photoURL` | `People::map` drops `googleusercontent` hosts, the same way `mapAccountRowToAppUser` does |
+
+Item lists stay `Cache-Control: private, no-store`. They are readable by a guest, and they still include contacts. Caching that at Cloudflare would pin contact details on a shared edge. The public cache (`public, s-maxage=60`) is for settings, the catalog, stats, and the hero image list.
+
+Creating an item is limited to 30 an hour for a student and 200 an hour for an admin. The admin settings page imports many rows. 30 would have failed that restore.
+
+## Left open on purpose in P5
+
+| Sev | What | Why it is still like this |
+|---|---|---|
+| high | Guest reads of lost and found items include contacts | The matrix and the current pages both do this. Hiding contacts is a product change, not a quiet port |
+| low | A student cannot update or delete their own item | That is how the RLS policies already fail. Confirm, unmatch, and `matched_*` are the later match phase |
+| low | `POST /found-items/{id}/handover` is admin only | The only caller is the admin items page |
+| low | A role change does not revoke sessions | The next request reads `accounts.role`. Demoting yourself is refused so an admin cannot lock the last session out of the admin routes by accident |
+
 ## Left open on purpose in P4
 
 | Sev | What | Why it is still like this |

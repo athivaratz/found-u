@@ -196,14 +196,18 @@ final class SessionService
         );
     }
 
-    public function revokeAccount(PDO $pdo, string $accountId, bool $https, int $now): void
+    public function revokeAccount(PDO $pdo, string $accountId, bool $https, int $now, bool $clearCookies = true): void
     {
         Database::run(
             $pdo,
             'UPDATE sessions SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL',
             [Ids::utc($now), $accountId]
         );
-        $this->clearCookies($https);
+        // Clearing is for the browser that is this account. An admin
+        // revoking someone else still holds a live cookie.
+        if ($clearCookies) {
+            $this->clearCookies($https);
+        }
     }
 
     public function revokeOthers(PDO $pdo, string $accountId, string $keepId, int $now): void

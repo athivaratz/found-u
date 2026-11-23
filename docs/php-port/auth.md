@@ -39,6 +39,8 @@ Stored credentials match the old app: `credentialId`, `publicKey` (base64url COS
 
 ## What P5 and P6 should call
 
-P5 bans through `AccountWriter::setBan`. That writes the ban columns and revokes every session unless the new status is `none`. Do not update `ban_status` with a normal query. An expired `timeout_until` is treated as active and is not cleared on the request path.
+P5 bans through `AccountWriter::setBan`. That writes the ban columns and revokes every session unless the new status is `none`. Do not update `ban_status` with a normal query. An expired `timeout_until` is treated as active and is not cleared on the request path. The last argument, `$clearCookies`, is true only when the account being banned is the browser that sent the request. An admin ban of someone else leaves the admin's cookies alone. `SessionService::revokeAccount` has the same flag, and the admin reset of another student uses it the same way.
+
+Role changes go through `AccountWriter::setRole`. That is a privileged update of `role` only (`user` or `admin`). It does not revoke sessions. The next request loads `accounts.role` again. `PATCH /admin/users/{id}/role` refuses to demote the caller.
 
 P6 owns the browser. Drop the JSON session secret, drop the bearer fallback, and decide whether `needsRegistration` and the public device-profile names are still worth the enumeration. The PHP routes already set the cookie those screens should use.

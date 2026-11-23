@@ -216,6 +216,7 @@ final class AccountWriter
         ?int $until,
         bool $https,
         int $now,
+        bool $clearCookies = true,
     ): void {
         if (!in_array($status, ['none', 'banned', 'timeout'], true)) {
             $status = 'banned';
@@ -243,8 +244,18 @@ final class AccountWriter
             );
         });
         if ($status !== 'none') {
-            $sessions->revokeAccount($pdo, $id, $https, $now);
+            $sessions->revokeAccount($pdo, $id, $https, $now, $clearCookies);
         }
+    }
+
+    public static function setRole(PDO $pdo, string $id, string $role): void
+    {
+        if ($role !== 'user' && $role !== 'admin') {
+            throw new \InvalidArgumentException('role');
+        }
+        Database::privileged($pdo, static function (PDO $pdo) use ($id, $role): void {
+            Database::run($pdo, 'UPDATE accounts SET role = ? WHERE id = ?', [$role, $id]);
+        });
     }
 
     public static function savePasskeyLookup(PDO $pdo, string $credentialId, string $studentId): void

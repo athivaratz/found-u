@@ -77,6 +77,8 @@ The cookie value is 32 random bytes, base64url. `sessions.token_hash` is SHA-256
 
 Idle default is 30 minutes (`SESSION_IDLE_SECONDS`). Absolute default is 12 hours (`SESSION_ABSOLUTE_SECONDS`). `expires_at` moves forward on activity, and it never passes `created_at` plus the absolute lifetime. A write happens at most about once a minute. `bin/cron.php` deletes expired rows, revoked rows older than a day, and rows past the absolute lifetime.
 
+`GET /api/changes` does not open a session. A tab polling that route would otherwise rewrite `expires_at` about once a minute. The handler stays a guest and does not read the cookie. The one write on that path is the shared IP rate-limit row, which every request already pays.
+
 CSRF is double-submit, checked against the session row. The second cookie (`__Host-foundu-csrf` or `foundu_csrf`) is not `HttpOnly`, so the browser script can copy it into `X-CSRF-Token`. A mutation with a live session must send a header that matches both that cookie and `sessions.csrf_token`. GET, HEAD, and OPTIONS skip the check. So does a request with no session, which is how login and register stay open. P6's `apiFetch` should send the header on every mutation. Origin and `Sec-Fetch-Site` are not consulted: they fail local tools, and some browsers drop Origin.
 
 `SessionService::markAiVerified` writes `ai_verified_until`. P9 uses that for the "Turnstile once per AI session" flag. This phase does not set it.

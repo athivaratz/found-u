@@ -28,14 +28,21 @@ final class SessionMiddleware implements MiddlewareInterface
         $this->sessions->bind($queue);
         $request = $request->withAttribute(Attrs::COOKIES, $queue);
 
+        // Polling /changes every few seconds must not slide the session.
+        // Opening it would rewrite expires_at about once a minute. The feed
+        // is only timestamps, so this request stays a guest and does not
+        // read the cookie at all.
+        $skipSession = $request->getMethod() === 'GET' && Path::normalize($request) === '/changes';
         $cookies = $request->getCookieParams();
-        $raw = $cookies[SetCookie::sessionName($https)] ?? '';
+        $raw = $skipSession ? '' : ($cookies[SetCookie::sessionName($https)] ?? '');
         $via = 'cookie';
         if (!is_string($raw) || $raw === '') {
-            $header = $request->getHeaderLine('Authorization');
-            if (str_starts_with($header, 'Bearer ')) {
-                $raw = trim(substr($header, 7));
-                $via = 'bearer';
+            if (!$skipSession) {
+                $header = $request->getHeaderLine('Authorization');
+                if (str_starts_with($header, 'Bearer ')) {
+                    $raw = trim(substr($header, 7));
+                    $via = 'bearer';
+                }
             }
         }
         $actor = Actor::guest();
