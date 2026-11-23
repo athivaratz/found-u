@@ -100,4 +100,39 @@ final class CronTasksTest extends DbTestCase
             }
         }
     }
+
+    public function testDumpCanStopAndResumeInsideThirtySeconds(): void
+    {
+        $id = Ids::uuid();
+        Database::run(
+            $this->pdo,
+            'INSERT INTO articles (id, slug, section, status, title, tags, content_json) VALUES (?, ?, \'blog\', \'draft\', ?, JSON_ARRAY(), JSON_OBJECT(\'type\', \'doc\', \'content\', JSON_ARRAY()))',
+            [$id, 'chunk-' . substr($id, 0, 8), 'ทีละก้อน']
+        );
+        $plain = sys_get_temp_dir() . '/foundu-chunk-' . bin2hex(random_bytes(4)) . '.sql';
+        $gz = $plain . '.gz';
+        $cursor = [];
+        try {
+            $started = microtime(true);
+            $done = SqlDump::advance($this->pdo, $plain, time() + 25, $cursor, 1);
+            $elapsed = microtime(true) - $started;
+            $this->assertFalse($done);
+            $this->assertLessThan(30, $elapsed);
+            $this->assertGreaterThan(0, (int) ($cursor['bytes'] ?? 0));
+            $done = SqlDump::advance($this->pdo, $plain, time() + 25, $cursor, 0);
+            $this->assertTrue($done);
+            SqlDump::gzip($plain, $gz);
+            Database::run($this->pdo, 'DELETE FROM articles WHERE id = ?', [$id]);
+            SqlDump::restore($this->pdo, $gz);
+            $title = Database::run($this->pdo, 'SELECT title FROM articles WHERE id = ?', [$id])->fetchColumn();
+            $this->assertSame('ทีละก้อน', $title);
+        } finally {
+            if (is_file($plain)) {
+                unlink($plain);
+            }
+            if (is_file($gz)) {
+                unlink($gz);
+            }
+        }
+    }
 }

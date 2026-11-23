@@ -11,6 +11,7 @@ use Foundu\Ai\Generate;
 use Foundu\Auth\Actor;
 use Foundu\Auth\Authz;
 use Foundu\Data\Gate;
+use Foundu\Data\Privacy;
 use Foundu\Data\Reply;
 use Foundu\Data\Settings;
 use Foundu\Data\Site;
@@ -91,9 +92,13 @@ final class Routes
                 $budget->release($pdo, $token);
             }
         }
+        $visible = [];
+        foreach ($matches as $match) {
+            $visible[] = is_array($match) ? Privacy::pair($match, $actor) : $match;
+        }
         return Reply::json($response, 200, [
-            'matches' => $matches,
-            'total' => count($matches),
+            'matches' => $visible,
+            'total' => count($visible),
             'useAI' => $useAI,
         ]);
     }

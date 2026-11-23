@@ -244,6 +244,7 @@ final class AuthRoutes
 
     private static function lookup(ServerRequestInterface $request, ResponseInterface $response, array $config, PDO $pdo, Turnstile $turnstile, Limiter $limiter): ResponseInterface
     {
+        self::signupsOpen($config);
         $studentId = self::queryStudent($request);
         self::captcha($turnstile, $request, null);
         self::window($limiter, $pdo, 'register_lookup', $studentId, self::SLOW_ERROR);
@@ -280,6 +281,7 @@ final class AuthRoutes
 
     private static function complete(ServerRequestInterface $request, ResponseInterface $response, array $config, PDO $pdo, SessionService $sessions, Turnstile $turnstile, LoginLockout $lockout): ResponseInterface
     {
+        self::signupsOpen($config);
         $body = self::body($request);
         $studentId = self::studentId($body);
         $token = self::text($body, 'registrationToken', 512);
@@ -1056,6 +1058,14 @@ final class AuthRoutes
     {
         $actor = $request->getAttribute(Attrs::ACTOR);
         return $actor instanceof Actor ? $actor : Actor::guest();
+    }
+
+    private static function signupsOpen(array $config): void
+    {
+        $flag = strtolower(trim((string) ($config['SIGNUPS_ENABLED'] ?? '1')));
+        if (in_array($flag, ['0', 'false', 'off', 'no'], true)) {
+            throw new HttpError(403, 'ปิดรับสมัครชั่วคราว');
+        }
     }
 
     private static function assertOpen(LoginLockout $lockout, PDO $pdo, ?string $studentId, string $ip): void

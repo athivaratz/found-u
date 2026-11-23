@@ -10,7 +10,10 @@
 
 Options -Indexes -MultiViews
 
-LimitRequestBody 262144
+# PHP still rejects a body over the per-route cap (256 KiB, 64 KiB on
+# most AI posts, 1.5 MiB on /api/vision and /api/agent/chat). This has
+# to be at least that largest cap or Apache answers 413 before PHP runs.
+LimitRequestBody 1572864
 
 <IfModule php_module>
     php_flag session.upload_progress.enabled Off

@@ -57,6 +57,7 @@ final class Config
         'GEOCODE_USER_AGENT',
         'GEOCODE_ENDPOINT',
         'GEOCODE_API_KEY',
+        'SIGNUPS_ENABLED',
     ];
 
     public static function int(array $config, string $key, int $default, int $min, int $max): int

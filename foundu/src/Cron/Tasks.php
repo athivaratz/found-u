@@ -37,7 +37,7 @@ final class Tasks
         $lines[] = self::guard('cloudflare', 20, $now, static function () use ($appRoot, $now): string {
             return self::cloudflare($appRoot, $now);
         });
-        $lines[] = self::guard('dump', 60, $now, static function () use ($pdo, $config, $appRoot, $now): string {
+        $lines[] = self::guard('dump', 20, $now, static function () use ($pdo, $config, $appRoot, $now): string {
             return self::dump($pdo, $config, $appRoot, $now);
         });
         return array_values(array_filter($lines, static fn (string $line): bool => $line !== ''));
@@ -84,24 +84,43 @@ final class Tasks
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
-        $path = $dir . '/db-dump.sql.gz';
-        $deadline = time() + 50;
+        $plain = $dir . '/db-dump.sql';
+        $gz = $dir . '/db-dump.sql.gz';
+        $statePath = $dir . '/db-dump-state.json';
+        $cursor = ['bytes' => 0, 'table' => 0, 'offset' => 0, 'header' => false];
+        if (is_file($statePath)) {
+            $decoded = json_decode((string) file_get_contents($statePath), true);
+            if (is_array($decoded)) {
+                $cursor = $decoded;
+            }
+        }
+        $deadline = min(time() + 18, $now + 24);
         try {
-            SqlDump::write($pdo, $path, $deadline);
+            $done = SqlDump::advance($pdo, $plain, $deadline, $cursor, 0);
+            file_put_contents($statePath, json_encode($cursor, JSON_THROW_ON_ERROR));
+            if (!$done) {
+                return 'dump partial';
+            }
+            SqlDump::gzip($plain, $gz);
             $key = 'backups/foundu-' . gmdate('Ymd\THis\Z', $now) . '.sql.gz';
-            $put->putFile($key, 'application/gzip', $path);
+            $put->putFile($key, 'application/gzip', $gz);
             file_put_contents($stamp, (string) $now);
+            @unlink($statePath);
+            @unlink($plain);
             return 'dump ' . $key;
         } finally {
-            if (is_file($path)) {
-                @unlink($path);
+            if (is_file($gz)) {
+                @unlink($gz);
             }
         }
     }
 
     private static function guard(string $name, int $budget, int $now, callable $work): string
     {
-        if (time() > $now + 110) {
+        // The host stops PHP at 30 seconds. Leave a few seconds for the
+        // lock release and the log line. A dump that is not finished
+        // continues on the next cron run.
+        if (time() >= $now + 25) {
             return $name . ' skipped';
         }
         if (function_exists('set_time_limit')) {

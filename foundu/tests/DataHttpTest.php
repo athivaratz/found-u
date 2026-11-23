@@ -452,6 +452,60 @@ final class DataHttpTest extends DbTestCase
         ];
     }
 
+    public function testListsHideContactsFromGuestsAndOtherStudents(): void
+    {
+        $this->student('22001');
+        $this->student('22002');
+        $this->student('22003', 'admin');
+        $owner = $this->login('22001');
+        $other = $this->login('22002');
+        $admin = $this->login('22003');
+        $phone = '0899998888';
+        $body = $this->lostBody();
+        $body['contacts'] = [['type' => 'phone', 'value' => $phone]];
+        $created = $this->post('/lost-items', $body, $owner);
+        $this->assertSame(201, $created['status']);
+        $this->assertSame($phone, $created['body']['item']['contacts'][0]['value']);
+        $id = $created['body']['id'];
+        $code = $created['body']['item']['trackingCode'];
+
+        foreach ([
+            '/lost-items',
+            '/lost-items/latest',
+            '/lost-items/' . $id,
+            '/lost-items/by-code/' . rawurlencode($code),
+        ] as $path) {
+            $guest = $this->get($path);
+            $this->assertSame(200, $guest['status'], $path);
+            $this->assertStringNotContainsString($phone, $guest['raw'], $path);
+            $item = $guest['body']['item'] ?? $guest['body']['items'][0];
+            $this->assertSame([], $item['contacts'], $path);
+            $this->assertNull($item['studentId'], $path);
+            $stranger = $this->get($path, $other);
+            $this->assertStringNotContainsString($phone, $stranger['raw'], $path);
+        }
+
+        $mine = $this->get('/lost-items/' . $id, $owner);
+        $this->assertSame($phone, $mine['body']['item']['contacts'][0]['value']);
+        $this->assertSame('22001', $mine['body']['item']['studentId']);
+        $asAdmin = $this->get('/lost-items/' . $id, $admin);
+        $this->assertSame($phone, $asAdmin['body']['item']['contacts'][0]['value']);
+
+        $found = $this->post('/found-items', [
+            'description' => 'เจอโทรศัพท์',
+            'locationFound' => 'สนาม',
+            'status' => 'pending_room_confirm',
+            'finderContacts' => [['type' => 'line', 'value' => 'line-secret']],
+        ], $owner);
+        $this->assertSame(201, $found['status']);
+        $foundId = $found['body']['id'];
+        $guestFound = $this->get('/found-items/' . $foundId);
+        $this->assertSame([], $guestFound['body']['item']['finderContacts']);
+        $this->assertStringNotContainsString('line-secret', $guestFound['raw']);
+        $ownerFound = $this->get('/found-items/' . $foundId, $owner);
+        $this->assertSame('line-secret', $ownerFound['body']['item']['finderContacts'][0]['value']);
+    }
+
     public function testAiUsageAndCmsAuthz(): void
     {
         $userId = $this->student('21001');

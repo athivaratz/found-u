@@ -36,6 +36,62 @@ services:
       retries: 30
       start_period: 40s
 
+  # Same app on the other PHP lines the host offers. Not started by
+  # `docker compose up`. `SERVICE=web83 foundu/bin/phpunit.sh` builds it.
+  web83:
+    profiles: ["php83"]
+    build:
+      context: ./docker/php
+      args:
+        PHP_IMAGE: php:8.3.37-apache
+    image: foundu-web:8.3.37
+    ports:
+      - "8083:80"
+    environment:
+      APP_ENV: local
+      APP_URL: http://localhost:8083
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      FOUNDU_CF_ALLOWLIST: "off"
+      FOUNDU_MOCK_CF: "0"
+      DB_HOST: mariadb
+      DB_PORT: "3306"
+      DB_NAME: foundu
+      DB_USER: foundu
+      DB_PASS: foundu_dev
+    volumes:
+      - ./public_html:/srv/site/public_html
+      - ./foundu:/srv/site/foundu
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  web84:
+    profiles: ["php84"]
+    build:
+      context: ./docker/php
+      args:
+        PHP_IMAGE: php:8.4.28-apache
+    image: foundu-web:8.4.28
+    ports:
+      - "8084:80"
+    environment:
+      APP_ENV: local
+      APP_URL: http://localhost:8084
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      FOUNDU_CF_ALLOWLIST: "off"
+      FOUNDU_MOCK_CF: "0"
+      DB_HOST: mariadb
+      DB_PORT: "3306"
+      DB_NAME: foundu
+      DB_USER: foundu
+      DB_PASS: foundu_dev
+    volumes:
+      - ./public_html:/srv/site/public_html
+      - ./foundu:/srv/site/foundu
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
   mariadb:
     build:
       context: ./docker/mariadb

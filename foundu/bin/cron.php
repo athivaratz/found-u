@@ -8,6 +8,8 @@ declare(strict_types=1);
 // expires (10 minutes), then the next run takes the row.
 // Item expiry, chat-log purge, the Cloudflare IP refresh, and the database
 // dump run in this file after the short cleanup. Do not add a second entry.
+// The whole run is meant to finish inside the host's 30 second limit.
+// A database dump that does not finish is continued on the next run.
 
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "cron.php is command-line only\n");

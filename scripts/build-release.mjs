@@ -158,6 +158,9 @@ if (spawnSync("composer", ["--version"], { stdio: "ignore" }).status === 0) {
     root
   );
 } else {
+  // The composer image has no pdo_mysql. The zip is PHP source.
+  // The host that runs it has the extension. Do not ignore this
+  // when composer itself is installed on the machine.
   run(
     "docker",
     [
@@ -172,6 +175,7 @@ if (spawnSync("composer", ["--version"], { stdio: "ignore" }).status === 0) {
       "--no-dev",
       "--optimize-autoloader",
       "--no-interaction",
+      "--ignore-platform-reqs",
     ],
     root
   );

@@ -95,14 +95,15 @@ final class Items
         }
         $items = [];
         foreach ($page as $row) {
-            $items[] = self::lost($row);
+            $items[] = Privacy::item(self::lost($row), $actor, 'lost');
         }
         return Reply::json($response, 200, ['items' => $items, 'nextCursor' => $next]);
     }
 
     private static function listFound(ServerRequestInterface $request, ResponseInterface $response, PDO $pdo): ResponseInterface
     {
-        Gate::demand('found_items', 'select', Gate::actor($request));
+        $actor = Gate::actor($request);
+        Gate::demand('found_items', 'select', $actor);
         [$limit, $offset, $cursor] = Page::read($request->getQueryParams(), 50, 100);
         $where = [];
         $params = [];
@@ -116,7 +117,7 @@ final class Items
         }
         $items = [];
         foreach ($page as $row) {
-            $items[] = self::found($row);
+            $items[] = Privacy::item(self::found($row), $actor, 'found');
         }
         return Reply::json($response, 200, ['items' => $items, 'nextCursor' => $next]);
     }
@@ -124,20 +125,27 @@ final class Items
     private static function latest(ServerRequestInterface $request, ResponseInterface $response, PDO $pdo, string $kind): ResponseInterface
     {
         $table = $kind === 'found' ? 'found_items' : 'lost_items';
-        Gate::demand($table, 'select', Gate::actor($request));
+        $actor = Gate::actor($request);
+        Gate::demand($table, 'select', $actor);
         $limit = Page::read(['limit' => $request->getQueryParams()['limit'] ?? null], 5, 20)[0];
         if ($kind === 'found') {
             $rows = Database::run(
                 $pdo,
                 'SELECT ' . self::FOUND . ' FROM found_items WHERE status IN (\'found\', \'claimed\') ORDER BY created_at DESC, id DESC LIMIT ' . $limit
             )->fetchAll();
-            $items = array_map([self::class, 'found'], $rows);
+            $items = [];
+            foreach ($rows as $row) {
+                $items[] = Privacy::item(self::found($row), $actor, 'found');
+            }
         } else {
             $rows = Database::run(
                 $pdo,
                 'SELECT ' . self::LOST . ' FROM lost_items WHERE status = \'searching\' ORDER BY created_at DESC, id DESC LIMIT ' . $limit
             )->fetchAll();
-            $items = array_map([self::class, 'lost'], $rows);
+            $items = [];
+            foreach ($rows as $row) {
+                $items[] = Privacy::item(self::lost($row), $actor, 'lost');
+            }
         }
         return Reply::json($response, 200, ['items' => $items]);
     }
@@ -146,14 +154,15 @@ final class Items
     {
         $prefix = $kind === 'found' ? 'FOUND' : 'LOST';
         $table = $kind === 'found' ? 'found_items' : 'lost_items';
-        Gate::demand($table, 'select', Gate::actor($request));
+        $actor = Gate::actor($request);
+        Gate::demand($table, 'select', $actor);
         $code = Values::tracking($code, $prefix);
         if ($kind === 'found') {
             $row = Database::run($pdo, 'SELECT ' . self::FOUND . ' FROM found_items WHERE tracking_code = ? ORDER BY created_at DESC LIMIT 1', [$code])->fetch();
-            $item = is_array($row) ? self::found($row) : null;
+            $item = is_array($row) ? Privacy::item(self::found($row), $actor, 'found') : null;
         } else {
             $row = Database::run($pdo, 'SELECT ' . self::LOST . ' FROM lost_items WHERE tracking_code = ? ORDER BY created_at DESC LIMIT 1', [$code])->fetch();
-            $item = is_array($row) ? self::lost($row) : null;
+            $item = is_array($row) ? Privacy::item(self::lost($row), $actor, 'lost') : null;
         }
         if ($item === null) {
             throw new HttpError(404, 'not_found');
@@ -163,14 +172,15 @@ final class Items
 
     private static function one(ServerRequestInterface $request, ResponseInterface $response, PDO $pdo, string $kind, string $id): ResponseInterface
     {
-        Gate::demand($kind === 'found' ? 'found_items' : 'lost_items', 'select', Gate::actor($request));
+        $actor = Gate::actor($request);
+        Gate::demand($kind === 'found' ? 'found_items' : 'lost_items', 'select', $actor);
         $id = Values::uuid($id, 'id', true);
         if ($kind === 'found') {
             $row = Database::run($pdo, 'SELECT ' . self::FOUND . ' FROM found_items WHERE id = ? LIMIT 1', [$id])->fetch();
-            $item = is_array($row) ? self::found($row) : null;
+            $item = is_array($row) ? Privacy::item(self::found($row), $actor, 'found') : null;
         } else {
             $row = Database::run($pdo, 'SELECT ' . self::LOST . ' FROM lost_items WHERE id = ? LIMIT 1', [$id])->fetch();
-            $item = is_array($row) ? self::lost($row) : null;
+            $item = is_array($row) ? Privacy::item(self::lost($row), $actor, 'lost') : null;
         }
         if ($item === null) {
             throw new HttpError(404, 'not_found');

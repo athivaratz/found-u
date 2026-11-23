@@ -1,4 +1,5 @@
-FROM php:8.2.36-apache
+ARG PHP_IMAGE=php:8.2.36-apache
+FROM ${PHP_IMAGE}
 
 # Apache in this tag is 2.4.71. Fail the build if a later rebuild is older.
 RUN ver="$(apache2 -v | sed -n 's/.*Apache\/\([0-9.]*\).*/\1/p')" \

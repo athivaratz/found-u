@@ -28,8 +28,23 @@ final class AuthHttpTest extends DbTestCase
         putenv('APP_URL=http://localhost:8080');
         putenv('APP_KEY=unit-test-app-key-32-bytes-minimum!!');
         putenv('SCHOOL_AUTH_DOMAIN=school.test');
+        putenv('SIGNUPS_ENABLED');
         parent::setUp();
         $this->app = Kernel::create(dirname(__DIR__));
+    }
+
+    public function testSignupsCanBeClosedFromEnv(): void
+    {
+        putenv('SIGNUPS_ENABLED=0');
+        try {
+            $this->app = Kernel::create(dirname(__DIR__));
+            $this->roster('10020', 'เอ', 'บี');
+            $closed = $this->get('/auth/register/lookup?studentId=10020');
+            $this->assertSame(403, $closed['status']);
+            $this->assertSame('ปิดรับสมัครชั่วคราว', $closed['body']['error']);
+        } finally {
+            putenv('SIGNUPS_ENABLED');
+        }
     }
 
     public function testPasswordLoginAdminAndWrongPassword(): void

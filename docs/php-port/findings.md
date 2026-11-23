@@ -262,3 +262,21 @@ Login, register, the landing, and the admin shell match the P6 frames. Login and
 | note | No staging host, load test, runbook, or backup cron check yet | Those are the rest of PLAN §7. PHP 8.2 reaches EOL on 2026-12-31 |
 | note | PHPUnit in docker is 8.2.36 | 8.3 was run as a second image for this phase. The host must also accept 8.4 |
 | note | `agentMaxSteps` in settings can be 20, and output tokens can be higher | The loop clamps steps to 6 and tokens to 2048 so one request cannot fill the 30 second limit. `AGENT_WALL_SECONDS` is 25, `set_time_limit` is 28, and each upstream call stays at or below 20 seconds |
+
+## P12
+
+The catalog hole in the table above is closed. `Foundu\Data\Privacy` strips `contacts`, `finderContacts`, and the lost-item `studentId` for anyone who is not the owner or an admin. List, latest, by-code, the item page, search, and `POST /match` all go through it. The create response is still the caller's own row.
+
+`post_max_size` was 256K in `.user.ini`, so a vision photo never reached the 1.5 MiB PHP cap. Apache `LimitRequestBody` and the ini files are now 1.5 MiB and 8M. PHP still returns `payload_too_large` over 256 KiB on a normal route.
+
+The dump no longer tries to finish the whole database in one cron run. `SqlDump::advance` keeps going until the deadline, and the next run continues the file. Restore sets `@foundu_allow_privileged` because the account trigger refuses a delete. A database with 2001 lost items dumped in 0.073s and restored in 0.197s. The cron line is still `*/5 * * * * php ~/foundu/bin/cron.php`.
+
+`SIGNUPS_ENABLED=0` stops new registration. Login still works. That is the switch in the runbook.
+
+PHPUnit is 100 tests, 1034 assertions, 1 skipped (MinIO), on 8.2.36, 8.3.37, and 8.4.28. The DirectAdmin selector should be 8.3 or 8.4. The 8.2.36 boot guard stays, because 8.2 is not dead until 31 Dec 2026.
+
+The old `lib/*-server.ts` files, `lib/php-moved.ts`, the unused agent server, and `lib/search` (it called Supabase) are gone. Nothing in `app/` or `components/` imported them. `scripts/test-openrouter-response.ts` went with the old agent.
+
+Attack and load numbers are in `performance.md` and `security-review.md`. Screenshots for this phase are in `screenshots/p12/`.
+
+Still only possible on the real host: the Cloudflare dashboard, the Origin certificate, whether `REMOTE_ADDR` is already the visitor IP, an Imunify360 whitelist for `/api/agent/chat`, the PHP selector and the extension list, and the panel cron. The questions are in `go-live.md`.

@@ -6,6 +6,7 @@ namespace Foundu\Search;
 
 use Foundu\Auth\Actor;
 use Foundu\Data\Items as ItemRows;
+use Foundu\Data\Privacy;
 use Foundu\Data\Settings;
 use Foundu\Database;
 use Foundu\Http\HttpError;
@@ -70,32 +71,22 @@ final class Items
         return Relevance::filter($lost, $found, $text, $mode);
     }
 
-    // Guests and other students do not get phone, Line, or the rest of the
-    // contact list. The owner and an admin still do. List routes are unchanged.
+    // Same rule as the catalog reads. Guests and other students do not get
+    // phone, Line, or the lost-item student id. The owner and an admin do.
     public static function redact(array $body, Actor $actor): array
     {
-        foreach (['lost' => 'contacts', 'found' => 'finderContacts'] as $side => $field) {
+        foreach (['lost' => 'lost', 'found' => 'found'] as $side => $kind) {
             if (!isset($body[$side]) || !is_array($body[$side])) {
                 continue;
             }
             foreach ($body[$side] as $index => $item) {
-                if (!is_array($item) || self::seesContacts($actor, $item)) {
+                if (!is_array($item)) {
                     continue;
                 }
-                $item[$field] = [];
-                $body[$side][$index] = $item;
+                $body[$side][$index] = Privacy::item($item, $actor, $kind);
             }
         }
         return $body;
-    }
-
-    private static function seesContacts(Actor $actor, array $item): bool
-    {
-        if ($actor->isAdmin()) {
-            return true;
-        }
-        $owner = $item['userId'] ?? null;
-        return is_string($actor->accountId) && $actor->accountId !== '' && $owner === $actor->accountId;
     }
 
     private static function side(

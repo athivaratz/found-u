@@ -67,6 +67,7 @@ $values = [
     'GEOCODE_USER_AGENT' => $envOr('GEOCODE_USER_AGENT', 'Found-U (school lost-and-found)'),
     'GEOCODE_ENDPOINT' => $envOr('GEOCODE_ENDPOINT', ''),
     'GEOCODE_API_KEY' => $envOr('GEOCODE_API_KEY', ''),
+    'SIGNUPS_ENABLED' => $envOr('SIGNUPS_ENABLED', '1'),
 ];
 
 $export = var_export($values, true);
