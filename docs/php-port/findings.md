@@ -100,3 +100,15 @@ Pinned while building the local stack. Versions checked against public releases 
 | low | A token-protected web page that runs migrations | Not built. The token would live next to the site, and a bug in the check would be schema execution. Import `foundu/migrations/all.sql` in phpMyAdmin. `bin/migrate.php` is the CLI and the panel cron, and it records checksums so a file that changed after it was applied is refused |
 
 `password_hash` prefers Argon2id (`memory_cost` 65536, `time_cost` 4, `threads` 1) and falls back to bcrypt. bcrypt ignores bytes after 72, so `create-admin.php` refuses a longer password when the hash it actually produced is bcrypt. `password_verify` accepts either form. Do not copy the old scrypt `salt:hash` format.
+
+## Closed or narrowed in P3
+
+| Sev | What | What changed |
+|---|---|---|
+| medium | `/api/health` had no rate limit | It now uses the same per-IP API window as every other non-auth path (120/minute by default). It is still unauthenticated |
+| medium | `Database` kept a static PDO and `create-admin.php --apply` set `@foundu_allow_privileged` inside a transaction | A MariaDB user variable is not undone by `ROLLBACK`, and PHP-FPM reuses the process, so a flag or an open transaction would have been visible on the next request that shared the worker. `Database::privileged()` clears the flag in a `finally`. The end of the request rolls back a leftover transaction and sets the flag back to 0. `create-admin.php --apply` goes through that helper. The printed SQL for phpMyAdmin still sets and clears the variable itself, because that session is not ours |
+| low | The app connection did not set a strict SQL mode | It now sets the same `sql_mode` as the migration scripts, so a too-long string fails instead of being stored chopped |
+
+The error JSON from this layer does not include a stack trace, including when `APP_ENV=local`. Local adds `detail` with the exception message. The trace is in `foundu/storage/logs` and, for 5xx, in `error_logs`. That is deliberate: a local docker port is still an HTTP port.
+
+Slim's routing middleware throws 404 before it calls whatever is inside it. The first draft of the kernel added routing on the outside of the rate limit, so a request for a path that does not exist never touched `rate_limits`. Routing now sits inside the limiter. Unknown paths are counted and then answered 404.

@@ -50,11 +50,12 @@ echo "migrate, first time"
 $COMPOSE exec -T -e DB_NAME="$DB" web php /srv/site/foundu/bin/migrate.php > "$OUT"
 grep -q 'applied 001_schema_migrations.sql' "$OUT" || fail "first run did not apply 001"
 grep -q 'applied 010_change_feed.sql' "$OUT" || fail "first run did not apply 010"
-grep -q 'done applied=10 skipped=0' "$OUT" || fail "first run count: $(cat "$OUT")"
+grep -q 'applied 011_cron_lock.sql' "$OUT" || fail "first run did not apply 011"
+grep -q 'done applied=11 skipped=0' "$OUT" || fail "first run count: $(cat "$OUT")"
 
 echo "migrate, second time"
 $COMPOSE exec -T -e DB_NAME="$DB" web php /srv/site/foundu/bin/migrate.php > "$OUT"
-grep -q 'done applied=0 skipped=10' "$OUT" || fail "second run count: $(cat "$OUT")"
+grep -q 'done applied=0 skipped=11' "$OUT" || fail "second run count: $(cat "$OUT")"
 grep -q '^applied ' "$OUT" && fail "second run applied a file"
 
 echo "import all.sql twice"
@@ -63,7 +64,7 @@ $COMPOSE exec -T mariadb mariadb --default-character-set=utf8mb4 -ufoundu -pfoun
 
 echo "migrate still skips"
 $COMPOSE exec -T -e DB_NAME="$DB" web php /srv/site/foundu/bin/migrate.php > "$OUT"
-grep -q 'done applied=0 skipped=10' "$OUT" || fail "tracker changed after all.sql"
+grep -q 'done applied=0 skipped=11' "$OUT" || fail "tracker changed after all.sql"
 
 bad=$(sql_app "
 SELECT TABLE_NAME FROM information_schema.TABLES
@@ -77,7 +78,7 @@ for missing in discord_links discord_verification_sessions system_config profile
     [ "$hit" = "0" ] || fail "unexpected table ${missing}"
 done
 
-for need in accounts sessions rate_limits login_attempts ai_slots ai_credentials ai_usage change_feed schema_migrations passkey_lookup admin_whitelist lost_items found_items nfc_tags articles; do
+for need in accounts sessions rate_limits login_attempts ai_slots ai_credentials ai_usage change_feed schema_migrations passkey_lookup admin_whitelist lost_items found_items nfc_tags articles cron_lock; do
     hit=$(sql_app "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${need}';")
     [ "$hit" = "1" ] || fail "missing table ${need}"
 done

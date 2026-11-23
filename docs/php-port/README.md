@@ -12,11 +12,12 @@ Branch for the port is `php-dev`. Do not merge this into `main` from these notes
 | [authz-matrix.md](authz-matrix.md) | RLS policies translated into table × role × operation. 70 policies, 25 tables |
 | [scope-cut.md](scope-cut.md) | Files, tables, and env to remove (Discord, setup wizard, Supabase scripts). Not deleted yet |
 | [findings.md](findings.md) | Security holes, authz gaps, host incompatibilities, and a few obvious cleanups |
+| [core.md](core.md) | P3 shared layer: request order, cookies, CSRF, limits, cron |
 | [baseline/](baseline/) | Visual baseline for P11. No screenshots yet. The reason is in that folder |
 
 ## Status
 
-P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema: `foundu/migrations/`, `make migrate`, `make seed`, `foundu/bin/create-admin.php`. The Next app is unchanged.
+P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema: `foundu/migrations/`, `make migrate`, `make seed`, `foundu/bin/create-admin.php`. P3 is the shared PHP core: sessions, CSRF, rate limits, Turnstile, the authz helper, and `bin/cron.php`. How a later route plugs in is [core.md](core.md). The Next app is unchanged.
 
 | Piece | State |
 |---|---|
@@ -48,7 +49,7 @@ npm run test:contract
 make test
 ```
 
-`make test` applies `foundu/migrations` to an empty MariaDB, applies it again, imports `all.sql` twice, then runs the P1 smoke checks. `make migrate` and `make seed` are the local schema and the starter categories.
+`make test` applies `foundu/migrations` to an empty MariaDB, applies it again, imports `all.sql` twice, runs the P1 smoke checks, migrates the dev database, then runs PHPUnit (`foundu/bin/phpunit.sh`) against `foundu_phpunit`. `make migrate` and `make seed` are the local schema and the starter categories.
 
 With a running server that is past the setup guard:
 

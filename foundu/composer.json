@@ -23,6 +23,19 @@
     "autoload": {
         "psr-4": {
             "Foundu\\": "src/"
+        },
+        "classmap": [
+            "src/Auth/SessionService.php",
+            "src/Auth/Turnstile.php",
+            "src/Ai/Quota.php"
+        ]
+    },
+    "require-dev": {
+        "phpunit/phpunit": "11.5.58"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Foundu\\Tests\\": "tests/"
         }
     },
     "config": {

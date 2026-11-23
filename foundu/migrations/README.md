@@ -30,6 +30,8 @@ A filled-in copy of `seed-admin.sql.example` is the same idea if you would rathe
 
 Starter categories and locations for a local database (and for the host, if you want the same lists) are `foundu/seed/dev.sql`. It does not create an admin.
 
+`cron_lock` is a single row the panel cron takes before it deletes expired sessions and counters. It is not part of the change feed.
+
 ## Local
 
 ```bash

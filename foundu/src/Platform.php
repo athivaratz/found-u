@@ -54,4 +54,20 @@ final class Platform
         }
         return false;
     }
+
+    // 8.2 still boots after 31 Dec 2026, but it no longer gets security fixes.
+    // 8.3 and 8.4 do not need this warning. $today is Y-m-d in UTC.
+    public static function eolWarning($today = null)
+    {
+        if (PHP_VERSION_ID >= 80300) {
+            return null;
+        }
+        if (!is_string($today) || $today === '') {
+            $today = gmdate('Y-m-d');
+        }
+        if (strcmp($today, '2026-12-31') <= 0) {
+            return null;
+        }
+        return 'PHP 8.2 security support ended on 2026-12-31. Select 8.3 or 8.4 in DirectAdmin.';
+    }
 }

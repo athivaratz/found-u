@@ -60,6 +60,8 @@ docs/*
 /foundu/config/mock-cf.on
 /foundu/storage/cache/*
 !/foundu/storage/cache/.gitkeep
+/foundu/storage/logs/*
+!/foundu/storage/logs/.gitkeep
 /public_html/.cf-allowlist-off
 .vscode/
 .cursor/

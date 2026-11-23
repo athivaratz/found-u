@@ -33,9 +33,42 @@ final class Config
         'RATE_LIMIT_API_PER_MINUTE',
         'RATE_LIMIT_AUTH_PER_MINUTE',
         'RATE_LIMIT_PRESIGN_PER_HOUR',
+        'SESSION_IDLE_SECONDS',
+        'SESSION_ABSOLUTE_SECONDS',
+        'TURNSTILE_ENABLED',
+        'BODY_MAX_BYTES',
+        'BODY_MAX_AI_BYTES',
+        'AI_QUOTA_PER_MINUTE',
+        'AI_QUOTA_PER_HOUR',
+        'AI_SYSTEM_QUOTA_PER_MINUTE',
+        'AI_SYSTEM_QUOTA_PER_HOUR',
+        'AI_SLOT_LEASE_SECONDS',
+        'LOGIN_LOCK_ACCOUNT_LIMIT',
+        'LOGIN_LOCK_ACCOUNT_SECONDS',
+        'LOGIN_LOCK_IP_LIMIT',
+        'LOGIN_LOCK_IP_SECONDS',
         'SEARCH_SIMILARITY_THRESHOLD',
         'AGENT_SEARCH_SIMILARITY_THRESHOLD',
     ];
+
+    public static function int(array $config, string $key, int $default, int $min, int $max): int
+    {
+        $raw = $config[$key] ?? $default;
+        if (is_int($raw)) {
+            $value = $raw;
+        } elseif (is_string($raw) && preg_match('/^\d+$/', $raw) === 1) {
+            $value = (int) $raw;
+        } else {
+            $value = $default;
+        }
+        if ($value < $min) {
+            return $min;
+        }
+        if ($value > $max) {
+            return $max;
+        }
+        return $value;
+    }
 
     public static function load(string $appRoot): array
     {

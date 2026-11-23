@@ -16,7 +16,9 @@ composer:
 
 test:
 	./foundu/bin/migrate-test.sh
+	$(COMPOSE) exec -T web php /srv/site/foundu/bin/migrate.php
 	./foundu/bin/smoke-test.sh
+	./foundu/bin/phpunit.sh
 
 migrate:
 	$(COMPOSE) exec -T web php /srv/site/foundu/bin/migrate.php
