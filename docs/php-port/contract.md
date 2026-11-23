@@ -167,29 +167,29 @@ Tables: `accounts.passkey_credentials`, `passkey_lookup`. Challenges are an in-m
 
 ### Agent and AI
 
-`POST /api/agent/chat` cookie-user. Body `{ messages, memoryFacts?, sessionId?, clientLocation?, adminLocationBypass? }`. Success is an **AI SDK UI message stream**, not JSON, with headers `X-Agent-Provider` and maybe `X-Chat-Session-Id`. 401 JSON. 429 `{ fallback: true, reason: "rate_limit", message, suggestedRoutes }`. 503 `reason: "provider_error"`. 500 `reason: "unknown"`. `suggestedRoutes` is `/home`, `/tracking`, `/lost`, `/found`. Tables: `app_settings`, `ai_usage`, `agent_chat_logs`, plus the tool queries. **Host:** return one JSON document with the same assistant message the stream would have finished with, plus the fallback object on failure. Do not hold an SSE connection. Cap concurrency at 3.
+`POST /api/agent/chat` cookie-user. Body `{ messages, memoryFacts?, sessionId?, clientLocation?, adminLocationBypass? }`. `memoryFacts` are kept only when `userId` matches the caller, then capped by settings. `adminLocationBypass` is honored only for an admin. Success is an **AI SDK UI message stream**, not JSON. Headers include `X-Agent-Stream-Version: 2`, `X-Agent-Provider`, and maybe `X-Chat-Session-Id`. 401 JSON. 429 `{ fallback: true, reason: "rate_limit", message, suggestedRoutes }`. 503 `reason: "provider_error"`. 500 `reason: "unknown"`. `suggestedRoutes` is `/home`, `/tracking`, `/lost`, `/found`. Tables: `app_settings`, `ai_usage`, `agent_chat_logs`, plus the tool queries. **Host:** return one JSON document with the same assistant message the stream would have finished with, plus the fallback object on failure. Do not hold an SSE connection. Cap concurrency at 3.
 
 `GET /api/agent/chat/sync?sessionId=` cookie-user. 400 if `sessionId` is missing. 200 `{ parts: null }` or `{ parts, truncated, createdAt }`. Table: `agent_chat_logs` filtered by the caller's `user_id`. This exists so a client can recover after a stream. With a single JSON response it becomes optional; keep the shape if the client still calls it.
 
-`GET /api/agent/openrouter/endpoints?model=` cookie-admin. Proxies OpenRouter. 200 their JSON or 502/503.
+`GET /api/agent/openrouter/endpoints?model=` cookie-admin. 200 `{ modelId, endpoints }`. Missing key is 503 `{ error, modelId, endpoints: [] }`. Upstream failure is 502 with the same empty list.
 
-`GET|POST /api/agent/test-providers` cookie-admin. POST may send `{ settings, provider }`. 200 a probe result. This calls Gemini/OpenRouter and will sit on a PHP worker. Same timeout and concurrency cap as the agent.
+`GET|POST /api/agent/test-providers` cookie-admin. POST may send `{ settings, provider }`. 200 `{ providers, settingsSource }`. Each provider entry is `{ configured, ok, model?, error? }`. This calls Gemini/OpenRouter and will sit on a PHP worker. Same timeout and concurrency cap as the agent.
 
 `GET /api/ai/models` cookie-admin. 200 `{ models }` from the configured provider.
 
 `GET /api/ner?userId=` public. 400 `{ error: "userId required" }`. 200 the quota object from `getRateLimitQuota`. **No auth.** The `userId` is whoever the client sends.
 
-`POST /api/ner` public. Body `{ text, type: "lost"|"found", userId? }`. If `userId` is omitted, the rate limit is skipped. 200 the NER object. 429 `{ error: "rate_limit_exceeded", reason, message, userRemainingMinute, userRemainingHour, systemRemainingMinute, systemRemainingHour, resetMinute, resetHour }`. 500 `{ error: "Failed to extract data from text" }` or `"Internal server error"`. **Host:** require a session, ignore a client-supplied user id, and count the call against that session. That is an authz fix recorded in findings, not a silent shape change: the success body stays the NER object.
+`POST /api/ner` public. Body `{ text, type: "lost"|"found", userId? }`. If `userId` is omitted, the rate limit is skipped. 200 `{ item, description, location, time, contact, contactType, category, remark, target }`. 429 `{ error: "rate_limit_exceeded", reason, message, userRemainingMinute, userRemainingHour, systemRemainingMinute, systemRemainingHour, resetMinute, resetHour }`. 500 `{ error: "Failed to extract data from text" }` or `"Internal server error"`. **Host:** require a session, ignore a client-supplied user id, and count the call against that session. That is an authz fix recorded in findings, not a silent shape change: the success body stays the NER object.
 
 `GET /api/vision?userId=` public. Same quota hole as NER.
 
-`POST /api/vision` public. Body `{ imageDataUrl? , imageBase64?, mimeType?, userId?, testMode? }`. 400 if the image is missing. `testMode: true` skips the rate limit when `userId` belongs to an admin, without proving the caller is that admin. 200 `{ data }` or the mapped found-form payload the route already returns (see `app/api/vision/route.ts`). 429 same quota object as NER. **Host:** same session rule as NER. Image bytes travel in the JSON body; keep the body cap in mind (plan says 64KB for AI, which is smaller than a photo — P8 must allow the image and still reject huge JSON).
+`POST /api/vision` public. Body `{ imageDataUrl? , imageBase64?, mimeType?, userId?, testMode? }`. 400 if the image is missing. `testMode: true` skips the rate limit when `userId` belongs to an admin, without proving the caller is that admin. 200 `{ data }` where `data` is `{ itemName, category, color, brand, details, confidence }`. Admin test mode adds `formMapping`, `debug`, `meta`, and `quota`. 429 same quota object as NER. **Host:** same session rule as NER. Image bytes travel in the JSON body; keep the body cap in mind (plan says 64KB for AI, which is smaller than a photo — P8 must allow the image and still reject huge JSON).
 
 ### Match
 
 `POST /api/match` public (auth is read and ignored). Body `{ type: "lost"|"found", itemId, useAI? }`. 200 `{ matches, total, useAI }`. Each match is `serializeMatchForJson`: lost item, found item, `score`, `reasons`, `confidence` (`high|medium|low`), `scorePercentage`, `key`. 404 `{ error: "Item not found" }`. Also runs the overdue sweep first. Tables: `lost_items`, `found_items`, `match_dismissals`.
 
-`GET /api/match/batch?useAI=true` and `POST /api/match/batch` bearer-admin. POST body `{ useAI?, includeHistory? }` (history defaults on). 200 `{ matches, total, pool, useAI, history }`. History items are `{ key, lostItem, foundItem, matchedAt }`. GET always includes history.
+`GET /api/match/batch?useAI=true` and `POST /api/match/batch` bearer-admin. POST body `{ useAI?, includeHistory? }` (history defaults on). 200 `{ matches, total, pool, useAI, history }`. `pool` is `{ lost, found, highConfidence }` (counts). History items are `{ key, lostItem, foundItem, matchedAt }`. GET always includes history.
 
 `POST /api/match/confirm` bearer-admin. Body `{ lostId, foundId }`. 200 `{ ok: true, lostId, foundId, lostStatus: "found", foundStatus: "found" }`. 409 `{ error }` from the RPC (`lost_not_found`, `found_not_found`, `lost_not_matchable`, `found_not_matchable`). Table writes go through `confirm_item_match`. **Host:** PHP transaction, `FOR UPDATE`. Do not expose a DEFINER function to every logged-in user (see findings).
 
@@ -213,7 +213,7 @@ Tables: `accounts.passkey_credentials`, `passkey_lookup`. Challenges are an in-m
 
 ### Storage, profile, public, cron, geocode
 
-`POST /api/storage/upload` cookie-user. Multipart `file` + `path`, or JSON presign `{ path, contentType, ... }` from `presignUploadSchema`. The server rewrites the path under the user id. 200 `{ uploadUrl?, publicUrl, path, backend }` where `backend` is `r2` or the Supabase bucket. 400 if presign is requested without R2. **Host:** presign in PHP. No Supabase Storage fallback once Supabase is gone; R2 only.
+`POST /api/storage/upload` cookie-user. Multipart `file` + `path` (max 10MB), or JSON presign `{ path, contentType, ... }` from `presignUploadSchema`. `buildAuthorizedPath` allows only `avatars/{userId}/…` (rewritten to `avatars/{userId}/{timestamp}.jpg`, and the id must be the caller) or `found-items/{itemId}/…` (rewritten to `found-items/{itemId}/{timestamp}.jpg`). Anything else, or `..`, is 403. 200 `{ uploadUrl?, publicUrl, path, backend }` where `backend` is `r2` or the Supabase bucket. 400 if presign is requested without R2. **Host:** presign in PHP. No Supabase Storage fallback once Supabase is gone; R2 only. Keep the same prefix rules.
 
 `POST /api/storage/delete` cookie-user. Body `{ path }` or `{ url }`. 200 `{ success: true }`. Owner or admin.
 
