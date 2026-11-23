@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import LoginPrompt from "@/components/auth/login-prompt";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import { StudentAppShell } from "@/components/layout/student-app-shell";
 import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
 import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
@@ -457,6 +458,7 @@ export default function ReportLostPage() {
         />
 
         <FormStepper steps={[...LOST_FORM_STEPS]} currentStep={formStep} className="mb-6" />
+        <TurnstileWidget className="mb-4" />
 
         <form
           onSubmit={(e) => {

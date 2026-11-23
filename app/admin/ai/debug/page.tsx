@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useCallback, useEffect, useState } from "react";
 import { phpFetchHeaders } from "@/lib/api-client";
 import Link from "next/link";

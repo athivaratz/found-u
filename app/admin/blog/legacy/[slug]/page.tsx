@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { segmentAfter } from "@/lib/dynamic-segment";
 import {
   ArrowDown,
   ArrowLeft,
@@ -50,8 +51,8 @@ const emptySection = (): Omit<SectionRow, "id" | "page_slug" | "sort_order"> => 
 });
 
 export default function AdminHelpEditorPage() {
-  const params = useParams();
-  const slug = String(params.slug ?? "").trim() || null;
+  const pathname = usePathname();
+  const slug = segmentAfter(pathname, "/admin/blog/legacy") || null;
   const { user } = useAuth();
   const { showAlert, showConfirm, dialog } = useAppDialog();
   const [loading, setLoading] = useState(true);

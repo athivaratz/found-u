@@ -1,7 +1,7 @@
+import { apiFetch } from "@/lib/api-client";
 import { getPublishedArticleBySlug } from "@/lib/blog/data";
 import type { Article } from "@/lib/blog/types";
 import type { HelpPage, HelpPageWithSections, HelpSection } from "@/lib/help/types";
-import { phpGet } from "@/lib/php-origin";
 
 type HelpPayload = {
   page?: HelpPage;
@@ -9,9 +9,13 @@ type HelpPayload = {
 };
 
 export async function getHelpPageWithSections(slug: string): Promise<HelpPageWithSections | null> {
-  const body = await phpGet<HelpPayload>(`/api/help/${encodeURIComponent(slug)}`);
-  if (!body?.page) return null;
-  return { ...body.page, sections: body.sections ?? [] };
+  try {
+    const body = await apiFetch<HelpPayload>(`/api/help/${encodeURIComponent(slug)}`);
+    if (!body.page) return null;
+    return { ...body.page, sections: body.sections ?? [] };
+  } catch {
+    return null;
+  }
 }
 
 export async function getHelpContent(
@@ -31,13 +35,24 @@ export async function getHelpContent(
 }
 
 export async function listHelpPages(): Promise<HelpPage[]> {
-  const [legacyBody, articleBody] = await Promise.all([
-    phpGet<{ pages?: HelpPage[] }>("/api/admin/help-pages"),
-    phpGet<{ articles?: Array<Record<string, unknown>> }>("/api/articles?section=help"),
-  ]);
-  const legacy = legacyBody?.pages ?? [];
+  let legacy: HelpPage[] = [];
+  try {
+    const legacyBody = await apiFetch<{ pages?: HelpPage[] }>("/api/admin/help-pages");
+    legacy = legacyBody.pages ?? [];
+  } catch {
+    legacy = [];
+  }
+  let articles: Array<Record<string, unknown>> = [];
+  try {
+    const articleBody = await apiFetch<{ articles?: Array<Record<string, unknown>> }>(
+      "/api/articles?section=help"
+    );
+    articles = articleBody.articles ?? [];
+  } catch {
+    articles = [];
+  }
   const legacySlugs = new Set(legacy.map((page) => page.slug));
-  const fromArticles: HelpPage[] = (articleBody?.articles ?? [])
+  const fromArticles: HelpPage[] = articles
     .filter((row) => !legacySlugs.has(String(row.slug ?? "")))
     .map((row) => ({
       slug: String(row.slug ?? ""),
@@ -46,15 +61,5 @@ export async function listHelpPages(): Promise<HelpPage[]> {
       intro: null,
       updated_at: String(row.updated_at ?? new Date().toISOString()),
     }));
-  if (legacy.length > 0 || fromArticles.length > 0) {
-    return [...legacy, ...fromArticles];
-  }
-  const published = articleBody?.articles ?? [];
-  return published.map((row) => ({
-    slug: String(row.slug ?? ""),
-    title: String(row.title ?? ""),
-    description: row.excerpt == null ? null : String(row.excerpt),
-    intro: null,
-    updated_at: String(row.updated_at ?? new Date().toISOString()),
-  }));
+  return [...legacy, ...fromArticles];
 }

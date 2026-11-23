@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect, useState } from "react";
 import { Radio, Search, Loader2, Ban, RotateCcw } from "lucide-react";
 import { getAllNfcTags, updateNfcTag } from "@/lib/database";

@@ -100,7 +100,7 @@ RLS on. Only `service_role_all_passkey_lookup`. Clients cannot read it. PHP keep
 | update | N | N | N | Y |
 | delete | N | N | N | Y |
 
-Public select includes contact JSON. That is what the policy says. Hiding contacts is a product change and is listed in findings; do not do it quietly inside P5 if the pages still read those fields.
+Public select on the list routes still includes contact JSON. That is what the policy says, and the catalog pages still read those fields. `GET /api/search` is narrower: a guest or another student gets `contacts` and `finderContacts` as empty arrays. The owner and an admin still see them. See findings, P11.
 
 `confirm_item_match` / `unmatch_item_match` ignore this matrix because they are `SECURITY DEFINER` and granted to every authenticated user. PHP does not grant that. Only the admin match routes may link or unlink rows, inside a transaction.
 

@@ -27,6 +27,7 @@ import {
 } from "@/lib/vision";
 import { cn } from "@/lib/utils";
 import { phpFetchHeaders } from "@/lib/api-client";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 
 type TestTab = "ner" | "vision";
 
@@ -394,6 +395,7 @@ export default function AITestsPage() {
       </header>
 
       <main className="p-4 max-w-3xl mx-auto space-y-6">
+        <TurnstileWidget />
         <div className="flex gap-2 p-1 bg-bg-primary dark:bg-gray-800 rounded-xl">
           <button
             type="button"

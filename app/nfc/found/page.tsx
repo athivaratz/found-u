@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2, MapPin, Package, Navigation } from "lucide-react";
@@ -9,6 +7,7 @@ import Header from "@/components/layout/header";
 import BottomNav from "@/components/layout/bottom-nav";
 import AppShell from "@/components/layout/app-shell";
 import LoginPrompt from "@/components/auth/login-prompt";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import NfcScanner from "@/components/nfc/nfc-scanner";
 import { CATEGORIES, type ContactInfo, type ContactType, type LocationCoords } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -325,6 +324,7 @@ function NfcFoundContent() {
                     />
                   </div>
                 </div>
+                <TurnstileWidget className="mb-3" />
                 <button
                   type="submit"
                   disabled={isSubmitting || !message.trim()}

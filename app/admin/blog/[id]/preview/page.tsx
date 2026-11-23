@@ -1,20 +1,50 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ArticleContent } from "@/components/blog/article-content";
-import { getArticleById } from "@/lib/blog/data";
+import { apiFetch } from "@/lib/api-client";
+import { mapArticle } from "@/lib/blog/map";
+import type { Article } from "@/lib/blog/types";
+import { segmentAfter } from "@/lib/dynamic-segment";
 import { focusRing, shell } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+export default function AdminBlogPreviewPage() {
+  const pathname = usePathname();
+  const id = segmentAfter(pathname, "/admin/blog");
+  const [article, setArticle] = useState<Article | null | undefined>(undefined);
 
-type PageProps = {
-  params: Promise<{ id: string }>;
-};
+  useEffect(() => {
+    if (!id || id === "legacy") {
+      setArticle(null);
+      return;
+    }
+    let cancelled = false;
+    apiFetch<{ article?: Record<string, unknown> }>(`/api/admin/articles/${encodeURIComponent(id)}`)
+      .then((body) => {
+        if (!cancelled) setArticle(body.article ? mapArticle(body.article) : null);
+      })
+      .catch(() => {
+        if (!cancelled) setArticle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
-export default async function AdminBlogPreviewPage({ params }: PageProps) {
-  const { id } = await params;
-  const article = await getArticleById(id);
-  if (!article) notFound();
+  if (article === undefined) {
+    return <div className="min-h-screen bg-bg-secondary" />;
+  }
+
+  if (!article) {
+    return (
+      <div className="min-h-screen bg-bg-secondary p-8 text-text-secondary">
+        ไม่พบบทความ
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg-secondary text-text-primary">

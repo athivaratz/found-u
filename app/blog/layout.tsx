@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { PublicFooter } from "@/components/shared/public-footer";
@@ -6,12 +9,35 @@ import { listPublishedArticles } from "@/lib/blog/data";
 import { focusRing, shell } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
-export default async function BlogLayout({
+export default function BlogLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const articles = await listPublishedArticles({ section: "blog" });
+  const [links, setLinks] = useState<{ href: string; label: string }[]>([
+    { href: "/blog", label: "บทความ" },
+    { href: "/help", label: "ศูนย์ช่วยเหลือ" },
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listPublishedArticles({ section: "blog" })
+      .then((articles) => {
+        if (cancelled) return;
+        setLinks([
+          { href: "/blog", label: "บทความ" },
+          ...articles.slice(0, 3).map((article) => ({
+            href: `/blog/${article.slug}`,
+            label: article.title,
+          })),
+          { href: "/help", label: "ศูนย์ช่วยเหลือ" },
+        ]);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-bg-secondary text-text-primary">
@@ -59,16 +85,7 @@ export default async function BlogLayout({
 
       <main className={cn(shell, "py-8 md:py-12")}>{children}</main>
 
-      <PublicFooter
-        helpLinks={[
-          { href: "/blog", label: "บทความ" },
-          ...articles.slice(0, 3).map((a) => ({
-            href: `/blog/${a.slug}`,
-            label: a.title,
-          })),
-          { href: "/help", label: "ศูนย์ช่วยเหลือ" },
-        ]}
-      />
+      <PublicFooter helpLinks={links} />
     </div>
   );
 }

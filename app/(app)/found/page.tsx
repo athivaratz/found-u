@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import {
   Camera,
   CheckCircle2,
@@ -791,6 +792,7 @@ export default function ReportFoundPage() {
         />
 
         <FormStepper steps={[...FOUND_FORM_STEPS]} currentStep={formStep} className="mb-6" />
+        <TurnstileWidget className="mb-4" />
 
         <form
           onSubmit={(e) => {

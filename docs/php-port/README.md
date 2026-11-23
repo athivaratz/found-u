@@ -22,7 +22,7 @@ Branch for the port is `php-dev`. Do not merge this into `main` from these notes
 
 ## Status
 
-P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema. P3 is the shared PHP core. P4 is auth. P5 is the data API. P6 is the browser adapter: `lib/database.ts` and `lib/api-client.ts` talk to `/api`, the session is only a cookie, and the setup wizard, Discord, and the Supabase client are gone. `next dev` proxies `/api` when `FOUNDU_API_ORIGIN` is set. P7 signs R2 uploads in PHP; the browser PUTs the file. P8 is search, matching, and the AI calls. P10 adds article and help writes, NFC, the Nominatim proxy, the meta-tag front for `/blog` and `/help`, and the rest of `bin/cron.php`. P11 still owns the static export and has to keep the rewrites described in `cms.md`.
+P0 is the inventory. P1 is the local Apache and MariaDB stack. P2 is the schema. P3 is the shared PHP core. P4 is auth. P5 is the data API. P6 is the browser adapter: `lib/database.ts` and `lib/api-client.ts` talk to `/api`, the session is only a cookie, and the setup wizard, Discord, and the Supabase client are gone. P7 signs R2 uploads in PHP; the browser PUTs the file. P8 is search, matching, and the AI calls. P10 adds article and help writes, NFC, the Nominatim proxy, the meta-tag front for `/blog` and `/help`, and the rest of `bin/cron.php`. P11 is the static export: `npm run build-release` writes `dist/foundu-release.zip` (public_html next to foundu). Apache and the browser share one origin. There is no `FOUNDU_API_ORIGIN`.
 
 | Piece | State |
 |---|---|

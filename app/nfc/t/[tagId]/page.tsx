@@ -1,28 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { segmentAfter } from "@/lib/dynamic-segment";
 
-export default function NfcTagDeepLinkPage({
-  params,
-}: {
-  params: Promise<{ tagId: string }> | { tagId: string };
-}) {
+export default function NfcTagDeepLinkPage() {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    const run = async () => {
-      const resolved = await Promise.resolve(params);
-      const tagId = resolved.tagId?.toUpperCase()?.trim();
-      if (tagId) {
-        router.replace(`/nfc/found?tag=${encodeURIComponent(tagId)}`);
-      } else {
-        router.replace("/nfc");
-      }
-    };
-    void run();
-  }, [params, router]);
+    const tagId = segmentAfter(pathname, "/nfc/t").toUpperCase().trim();
+    if (tagId) {
+      router.replace(`/nfc/found?tag=${encodeURIComponent(tagId)}`);
+    } else {
+      router.replace("/nfc");
+    }
+  }, [pathname, router]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4">

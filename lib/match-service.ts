@@ -1,21 +1,7 @@
-import { createAdminClient } from "@/lib/php-moved";
-import { mapFoundItemRow, mapLostItemRow } from "@/lib/agent/row-mappers";
-import {
-  MATCHABLE_FOUND_STATUSES,
-  MATCHABLE_LOST_STATUSES,
-  MATCH_TIME_WINDOW_DAYS,
-  findMatchesForFoundItem,
-  findMatchesForFoundItemAI,
-  findMatchesForLostItem,
-  findMatchesForLostItemAI,
-  getMatchConfidence,
-  type MatchContext,
-  type MatchScore,
-} from "@/lib/matching";
+import { apiFetch, ApiError } from "@/lib/api-client";
+import { getMatchConfidence, type MatchScore } from "@/lib/matching";
 import type { AppSettings, FoundItem, LostItem } from "@/lib/types";
-import { DEFAULT_APP_SETTINGS } from "@/lib/types";
 import { coerceAppSettings } from "@/lib/database";
-import { normalizeMapZones } from "@/lib/map-zones";
 
 export type MatchAiConfig = {
   model?: string;
@@ -30,126 +16,39 @@ export type FormattedMatch = MatchScore & {
   scorePercentage: number;
 };
 
-function formatMatch(match: MatchScore): FormattedMatch {
-  return {
+type MatchBody = {
+  matches?: FormattedMatch[];
+  pool?: { lost: number; found: number; highConfidence: number };
+  history?: Array<{
+    key: string;
+    lostItem: LostItem;
+    foundItem: FoundItem;
+    matchedAt: string;
+  }>;
+};
+
+function asMatches(rows: FormattedMatch[] | undefined): FormattedMatch[] {
+  return (rows ?? []).map((match) => ({
     ...match,
-    key: `${match.lostItem.id}_${match.foundItem.id}`,
-    confidence: getMatchConfidence(match.score),
-    scorePercentage: Math.round(match.score * 100),
-  };
-}
-
-function aiConfigFromSettings(settings?: AppSettings | null): MatchAiConfig {
-  const s = settings ?? DEFAULT_APP_SETTINGS;
-  return {
-    model: s.aiMatchingModel,
-    temperature: s.aiMatchingTemperature,
-    topP: s.aiMatchingTopP,
-    maxOutputTokens: s.aiMatchingMaxOutputTokens,
-  };
-}
-
-function matchContextFromSettings(settings?: AppSettings | null): MatchContext {
-  const zones = normalizeMapZones(settings?.mapZones);
-  return zones.length ? { zones } : {};
-}
-
-function dateWindowBounds(anchor: Date): { from: string; to: string } {
-  const ms = MATCH_TIME_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-  return {
-    from: new Date(anchor.getTime() - ms).toISOString(),
-    to: new Date(anchor.getTime() + ms).toISOString(),
-  };
+    key: match.key || `${match.lostItem?.id}_${match.foundItem?.id}`,
+    confidence: match.confidence || getMatchConfidence(match.score),
+    scorePercentage: match.scorePercentage ?? Math.round((match.score || 0) * 100),
+  }));
 }
 
 export async function getAppSettingsAdmin(): Promise<AppSettings> {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("app_settings")
-    .select("settings")
-    .eq("id", "default")
-    .maybeSingle();
-  const settings = (data?.settings as Record<string, unknown> | null) || {};
-  return coerceAppSettings(settings);
+  const body = await apiFetch<{ settings?: Record<string, unknown> }>("/api/settings");
+  return coerceAppSettings(body.settings ?? {});
 }
 
-export async function loadMatchableLostItems(options?: {
-  aroundDate?: Date;
-}): Promise<LostItem[]> {
-  const admin = createAdminClient();
-  let query = admin
-    .from("lost_items")
-    .select("*")
-    .in("status", [...MATCHABLE_LOST_STATUSES])
-    .is("matched_found_id", null)
-    .order("created_at", { ascending: false });
-
-  if (options?.aroundDate) {
-    const { from, to } = dateWindowBounds(options.aroundDate);
-    query = query.gte("date_lost", from).lte("date_lost", to);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []).map((row: any) => mapLostItemRow(row as Record<string, unknown>));
+export async function loadMatchableLostItems(): Promise<LostItem[]> {
+  const body = await apiFetch<{ items?: LostItem[] }>("/api/lost-items?status=searching");
+  return body.items ?? [];
 }
 
-export async function loadMatchableFoundItems(options?: {
-  aroundDate?: Date;
-}): Promise<FoundItem[]> {
-  const admin = createAdminClient();
-  let query = admin
-    .from("found_items")
-    .select("*")
-    .in("status", [...MATCHABLE_FOUND_STATUSES])
-    .is("matched_lost_id", null)
-    .order("created_at", { ascending: false });
-
-  if (options?.aroundDate) {
-    const { from, to } = dateWindowBounds(options.aroundDate);
-    query = query.gte("date_found", from).lte("date_found", to);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []).map((row: any) => mapFoundItemRow(row as Record<string, unknown>));
-}
-
-export async function getLostItemByIdAdmin(id: string): Promise<LostItem | null> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("lost_items").select("*").eq("id", id).maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return mapLostItemRow(data as Record<string, unknown>);
-}
-
-export async function getFoundItemByIdAdmin(id: string): Promise<FoundItem | null> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("found_items").select("*").eq("id", id).maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return mapFoundItemRow(data as Record<string, unknown>);
-}
-
-async function loadDismissalKeys(): Promise<Set<string>> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("match_dismissals").select("lost_id, found_id");
-  if (error) {
-    // Table may not exist yet in local envs — treat as empty
-    console.warn("[match-service] match_dismissals load failed:", error.message);
-    return new Set();
-  }
-  return new Set(
-    (data ?? []).map((row: any) => {
-      const r = row as { lost_id: string; found_id: string };
-      return `${r.lost_id}_${r.found_id}`;
-    })
-  );
-}
-
-function filterDismissed(matches: MatchScore[], dismissed: Set<string>): MatchScore[] {
-  if (dismissed.size === 0) return matches;
-  return matches.filter((m) => !dismissed.has(`${m.lostItem.id}_${m.foundItem.id}`));
+export async function loadMatchableFoundItems(): Promise<FoundItem[]> {
+  const body = await apiFetch<{ items?: FoundItem[] }>("/api/found-items");
+  return body.items ?? [];
 }
 
 export async function suggestForItem(options: {
@@ -158,29 +57,16 @@ export async function suggestForItem(options: {
   useAI?: boolean;
   settings?: AppSettings | null;
 }): Promise<FormattedMatch[]> {
-  const useAI = Boolean(options.useAI);
-  const settings = options.settings ?? (await getAppSettingsAdmin());
-  const aiConfig = useAI ? aiConfigFromSettings(settings) : undefined;
-  const matchCtx = matchContextFromSettings(settings);
-  const dismissed = await loadDismissalKeys();
-
-  if (options.type === "lost") {
-    const lostItem = await getLostItemByIdAdmin(options.itemId);
-    if (!lostItem) throw new Error("LOST_NOT_FOUND");
-    const foundItems = await loadMatchableFoundItems({ aroundDate: lostItem.dateLost });
-    const matches = useAI
-      ? await findMatchesForLostItemAI(lostItem, foundItems, 5, aiConfig, matchCtx)
-      : findMatchesForLostItem(lostItem, foundItems, matchCtx);
-    return filterDismissed(matches, dismissed).map(formatMatch);
-  }
-
-  const foundItem = await getFoundItemByIdAdmin(options.itemId);
-  if (!foundItem) throw new Error("FOUND_NOT_FOUND");
-  const lostItems = await loadMatchableLostItems({ aroundDate: foundItem.dateFound });
-  const matches = useAI
-    ? await findMatchesForFoundItemAI(foundItem, lostItems, 5, aiConfig, matchCtx)
-    : findMatchesForFoundItem(foundItem, lostItems, matchCtx);
-  return filterDismissed(matches, dismissed).map(formatMatch);
+  void options.settings;
+  const body = await apiFetch<MatchBody>("/api/match", {
+    method: "POST",
+    json: {
+      type: options.type,
+      itemId: options.itemId,
+      useAI: Boolean(options.useAI),
+    },
+  });
+  return asMatches(body.matches);
 }
 
 export async function suggestAll(options?: {
@@ -190,39 +76,17 @@ export async function suggestAll(options?: {
   matches: FormattedMatch[];
   pool: { lost: number; found: number; highConfidence: number };
 }> {
-  const useAI = Boolean(options?.useAI);
-  const settings = options?.settings ?? (await getAppSettingsAdmin());
-  const aiConfig = useAI ? aiConfigFromSettings(settings) : undefined;
-  const matchCtx = matchContextFromSettings(settings);
-  const [lostItems, foundItems, dismissed] = await Promise.all([
-    loadMatchableLostItems(),
-    loadMatchableFoundItems(),
-    loadDismissalKeys(),
-  ]);
-
-  const seen = new Set<string>();
-  const results: MatchScore[] = [];
-
-  for (const lostItem of lostItems) {
-    const itemMatches = useAI
-      ? await findMatchesForLostItemAI(lostItem, foundItems, 5, aiConfig, matchCtx)
-      : findMatchesForLostItem(lostItem, foundItems, matchCtx);
-
-    for (const match of itemMatches) {
-      const key = `${match.lostItem.id}_${match.foundItem.id}`;
-      if (seen.has(key) || dismissed.has(key)) continue;
-      seen.add(key);
-      results.push(match);
-    }
-  }
-
-  results.sort((a, b) => b.score - a.score);
-  const matches = results.map(formatMatch);
+  void options?.settings;
+  const body = await apiFetch<MatchBody>("/api/match/batch", {
+    method: "POST",
+    json: { useAI: Boolean(options?.useAI) },
+  });
+  const matches = asMatches(body.matches);
   return {
     matches,
-    pool: {
-      lost: lostItems.length,
-      found: foundItems.length,
+    pool: body.pool ?? {
+      lost: 0,
+      found: 0,
       highConfidence: matches.filter((m) => m.confidence === "high").length,
     },
   };
@@ -232,71 +96,35 @@ export type ConfirmMatchResult =
   | { ok: true; lostId: string; foundId: string }
   | { ok: false; error: string };
 
-export async function confirmMatch(
+async function mutate(
+  path: string,
   lostId: string,
   foundId: string
 ): Promise<ConfirmMatchResult> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.rpc("confirm_item_match", {
-    p_lost_id: lostId,
-    p_found_id: foundId,
-  });
-
-  if (error) {
-    console.error("[confirmMatch]", error);
-    return { ok: false, error: error.message };
+  try {
+    await apiFetch(path, { method: "POST", json: { lostId, foundId } });
+    return { ok: true, lostId, foundId };
+  } catch (error) {
+    const message = error instanceof ApiError ? error.code : "request_failed";
+    return { ok: false, error: message };
   }
-
-  const result = data as { ok?: boolean; error?: string; lost_id?: string; found_id?: string } | null;
-  if (!result?.ok) {
-    return { ok: false, error: result?.error || "confirm_failed" };
-  }
-  return { ok: true, lostId, foundId };
 }
 
-export async function unmatchPair(
-  lostId: string,
-  foundId: string
-): Promise<ConfirmMatchResult> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.rpc("unmatch_item_match", {
-    p_lost_id: lostId,
-    p_found_id: foundId,
-  });
+export function confirmMatch(lostId: string, foundId: string): Promise<ConfirmMatchResult> {
+  return mutate("/api/match/confirm", lostId, foundId);
+}
 
-  if (error) {
-    console.error("[unmatchPair]", error);
-    return { ok: false, error: error.message };
-  }
-
-  const result = data as { ok?: boolean; error?: string } | null;
-  if (!result?.ok) {
-    return { ok: false, error: result?.error || "unmatch_failed" };
-  }
-  return { ok: true, lostId, foundId };
+export function unmatchPair(lostId: string, foundId: string): Promise<ConfirmMatchResult> {
+  return mutate("/api/match/unmatch", lostId, foundId);
 }
 
 export async function rejectPair(
   lostId: string,
   foundId: string,
-  dismissedBy?: string
+  _dismissedBy?: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const admin = createAdminClient();
-  const { error } = await admin.from("match_dismissals").upsert(
-    {
-      lost_id: lostId,
-      found_id: foundId,
-      dismissed_by: dismissedBy || null,
-      created_at: new Date().toISOString(),
-    },
-    { onConflict: "lost_id,found_id" }
-  );
-
-  if (error) {
-    console.error("[rejectPair]", error);
-    return { ok: false, error: error.message };
-  }
-  return { ok: true };
+  const result = await mutate("/api/match/reject", lostId, foundId);
+  return result.ok ? { ok: true } : result;
 }
 
 export type ConfirmedMatchPair = {
@@ -307,30 +135,13 @@ export type ConfirmedMatchPair = {
 };
 
 export async function listConfirmedMatches(limit = 50): Promise<ConfirmedMatchPair[]> {
-  const admin = createAdminClient();
-  const { data: lostRows, error } = await admin
-    .from("lost_items")
-    .select("*")
-    .not("matched_found_id", "is", null)
-    .order("updated_at", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-
-  const pairs: ConfirmedMatchPair[] = [];
-  for (const row of lostRows ?? []) {
-    const lost = mapLostItemRow(row as Record<string, unknown>);
-    if (!lost.matchedFoundId) continue;
-    const found = await getFoundItemByIdAdmin(lost.matchedFoundId);
-    if (!found) continue;
-    pairs.push({
-      key: `${lost.id}_${found.id}`,
-      lostItem: lost,
-      foundItem: found,
-      matchedAt: lost.updatedAt,
-    });
-  }
-  return pairs;
+  const body = await apiFetch<MatchBody>(`/api/match/batch?limit=${limit}`);
+  return (body.history ?? []).map((row) => ({
+    key: row.key,
+    lostItem: row.lostItem,
+    foundItem: row.foundItem,
+    matchedAt: new Date(row.matchedAt),
+  }));
 }
 
 export function serializeMatchForJson(match: FormattedMatch) {

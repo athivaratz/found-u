@@ -12,6 +12,10 @@ services:
     environment:
       APP_ENV: local
       APP_URL: http://localhost:8080
+      # Cloudflare's always-pass test widget. The secret stays empty here so
+      # PHPUnit logins are not asked for a token. Set TURNSTILE_SECRET to
+      # 1x0000000000000000000000000000000AA when you want the check to run.
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       FOUNDU_CF_ALLOWLIST: "off"
       FOUNDU_MOCK_CF: "0"
       DB_HOST: mariadb

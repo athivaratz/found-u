@@ -1,3 +1,5 @@
+import { turnstileHeader } from "@/lib/turnstile";
+
 // Same-origin calls to the PHP API. The session lives in an HttpOnly cookie.
 // This file never reads or stores that secret. Unsafe methods copy the
 // readable CSRF cookie into X-CSRF-Token. Cloudflare's custom rule looks
@@ -51,6 +53,7 @@ export function phpFetchHeaders(method = "GET"): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "X-Requested-With": "foundu",
+    ...turnstileHeader(),
   };
   const verb = method.toUpperCase();
   if (verb !== "GET" && verb !== "HEAD" && verb !== "OPTIONS") {
@@ -92,6 +95,10 @@ function buildHeaders(method: string, init: ApiInit): Headers {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   headers.set("X-Requested-With", "foundu");
+  const turnstile = turnstileHeader();
+  if (turnstile["X-Turnstile-Token"]) {
+    headers.set("X-Turnstile-Token", turnstile["X-Turnstile-Token"]);
+  }
   if (init.json !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

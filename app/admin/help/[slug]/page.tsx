@@ -1,10 +1,17 @@
-import { redirect } from "next/navigation";
+"use client";
 
-type PageProps = {
-  params: Promise<{ slug: string }>;
-};
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { segmentAfter } from "@/lib/dynamic-segment";
 
-export default async function AdminHelpSlugRedirectPage({ params }: PageProps) {
-  const { slug } = await params;
-  redirect(`/admin/blog/legacy/${slug}`);
+export default function AdminHelpSlugRedirectPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const slug = segmentAfter(pathname, "/admin/help");
+    router.replace(slug ? `/admin/blog/legacy/${slug}` : "/admin/blog?section=help");
+  }, [pathname, router]);
+
+  return null;
 }

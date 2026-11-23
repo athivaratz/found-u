@@ -40,6 +40,7 @@ import {
 } from "@/components/auth/auth-ui";
 import { fieldId } from "@/lib/feedback/types";
 import { cn } from "@/lib/utils";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 
 type LoginView = "quick" | "full";
 
@@ -326,6 +327,7 @@ function LoginPageContent() {
                   required
                 />
               </div>
+              <TurnstileWidget />
               <SubmitButton loading={submitting} label={AUTH_COPY.signIn} />
             </form>
 
@@ -403,6 +405,7 @@ function LoginPageContent() {
               <Link href={AUTH_ROUTES.resetPassword} className={`text-sm ${authLinkClass}`}>
                 {AUTH_COPY.forgotPassword}
               </Link>
+              <TurnstileWidget />
               <SubmitButton loading={submitting} label={AUTH_COPY.signIn} />
             </form>
 

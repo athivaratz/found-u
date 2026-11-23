@@ -17,7 +17,7 @@ use Throwable;
 
 final class Site
 {
-    public static function register(App $app, \Closure $pdo, string $appRoot, Limiter $limiter): void
+    public static function register(App $app, \Closure $pdo, string $appRoot, Limiter $limiter, array $config = []): void
     {
         $app->get('/changes', static function ($request, $response) use ($pdo) {
             return self::changes($request, $response, Gate::db($pdo));
@@ -30,6 +30,10 @@ final class Site
         });
         $app->get('/public-settings', static function ($request, $response) use ($pdo) {
             return self::publicSettings($request, $response, Gate::db($pdo));
+        });
+        $app->get('/public-config', static function ($request, $response) use ($config) {
+            $key = trim((string) ($config['TURNSTILE_SITE_KEY'] ?? ''));
+            return Reply::public($request, $response, ['turnstileSiteKey' => $key]);
         });
         $app->get('/public-images', static function ($request, $response) use ($appRoot) {
             return self::images($request, $response, $appRoot);
@@ -274,7 +278,10 @@ final class Site
 
     private static function heroImages(string $appRoot, string $folder): array
     {
-        $public = dirname($appRoot) . '/public';
+        $public = dirname($appRoot) . '/public_html';
+        if (!is_dir($public . '/' . $folder)) {
+            $public = dirname($appRoot) . '/public';
+        }
         $root = realpath($public);
         $dir = realpath($public . '/' . $folder);
         if ($root === false || $dir === false || !str_starts_with($dir, $root . DIRECTORY_SEPARATOR)) {

@@ -102,6 +102,45 @@ final class AiPipelineTest extends DbTestCase
         }
     }
 
+    public function testSearchHidesContactsFromGuestsAndOtherStudents(): void
+    {
+        $owner = $this->student('32001');
+        $this->student('32002');
+        $other = $this->login('32002');
+        $session = $this->login('32001');
+        $phone = '0812345678';
+        Database::run(
+            $this->pdo,
+            'INSERT INTO lost_items (id, tracking_code, item_name, category, description, location_lost, contacts, user_id, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))',
+            [
+                '32000000-0000-4000-8000-000000000001',
+                'LOST-PHONE1',
+                'โทรศัพท์ทดสอบ',
+                'phone',
+                'เครื่องสีดำ',
+                'โรงอาหาร',
+                json_encode([['type' => 'phone', 'value' => $phone]], JSON_UNESCAPED_UNICODE),
+                $owner,
+                'searching',
+            ]
+        );
+
+        $guest = $this->get('/search?type=lost&q=' . rawurlencode('โทรศัพท์ทดสอบ'));
+        $this->assertSame(200, $guest['status']);
+        $this->assertStringNotContainsString($phone, $guest['raw']);
+        $this->assertSame([], $guest['body']['lost'][0]['contacts']);
+
+        $stranger = $this->get('/search?type=lost&q=' . rawurlencode('โทรศัพท์ทดสอบ'), $other);
+        $this->assertSame(200, $stranger['status']);
+        $this->assertSame([], $stranger['body']['lost'][0]['contacts']);
+        $this->assertStringNotContainsString($phone, $stranger['raw']);
+
+        $mine = $this->get('/search?type=lost&q=' . rawurlencode('โทรศัพท์ทดสอบ'), $session);
+        $this->assertSame(200, $mine['status']);
+        $this->assertSame($phone, $mine['body']['lost'][0]['contacts'][0]['value']);
+    }
+
     public function testMatchConfirmUnmatchRejectAndAuthz(): void
     {
         $this->student('31001');

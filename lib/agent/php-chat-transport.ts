@@ -4,6 +4,7 @@ import {
   type UIMessageChunk,
 } from "ai";
 import { phpFetchHeaders } from "@/lib/api-client";
+import { readTurnstileToken } from "@/lib/turnstile";
 import type { AgentFallbackPayload } from "@/lib/agent/fallback";
 
 type SendOptions = Parameters<ChatTransport<UIMessage>["sendMessages"]>[0];
@@ -84,15 +85,6 @@ export class PhpAgentChatTransport implements ChatTransport<UIMessage> {
   async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
     return null;
   }
-}
-
-function readTurnstileToken(): string | undefined {
-  if (typeof document === "undefined") return undefined;
-  const input = document.querySelector<HTMLInputElement>(
-    'input[name="cf-turnstile-response"]'
-  );
-  const value = input?.value?.trim();
-  return value ? value : undefined;
 }
 
 function isFallback(value: unknown): value is AgentFallbackPayload {

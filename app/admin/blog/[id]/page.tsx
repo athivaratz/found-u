@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { segmentAfter } from "@/lib/dynamic-segment";
 import {
   ArrowLeft,
   ExternalLink,
@@ -29,8 +30,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function AdminBlogEditorPage() {
-  const params = useParams();
-  const id = String(params.id ?? "");
+  const pathname = usePathname();
+  const id = segmentAfter(pathname, "/admin/blog");
   const router = useRouter();
   const { user } = useAuth();
   const { showAlert, showConfirm, dialog } = useAppDialog();

@@ -1,10 +1,9 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import nextDynamic from "next/dynamic";
 import { Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
@@ -568,6 +567,7 @@ export default function AdminMatchingPage() {
         </div>
 
         <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center">
+          <TurnstileWidget />
           <button
             type="button"
             onClick={() => void handleAiRerank()}

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Foundu\Search;
 
+use Foundu\Auth\Actor;
 use Foundu\Data\Items as ItemRows;
 use Foundu\Data\Settings;
 use Foundu\Database;
@@ -67,6 +68,34 @@ final class Items
             $found = self::side($pdo, 'found', $text, $threshold, $limit, $category, $status);
         }
         return Relevance::filter($lost, $found, $text, $mode);
+    }
+
+    // Guests and other students do not get phone, Line, or the rest of the
+    // contact list. The owner and an admin still do. List routes are unchanged.
+    public static function redact(array $body, Actor $actor): array
+    {
+        foreach (['lost' => 'contacts', 'found' => 'finderContacts'] as $side => $field) {
+            if (!isset($body[$side]) || !is_array($body[$side])) {
+                continue;
+            }
+            foreach ($body[$side] as $index => $item) {
+                if (!is_array($item) || self::seesContacts($actor, $item)) {
+                    continue;
+                }
+                $item[$field] = [];
+                $body[$side][$index] = $item;
+            }
+        }
+        return $body;
+    }
+
+    private static function seesContacts(Actor $actor, array $item): bool
+    {
+        if ($actor->isAdmin()) {
+            return true;
+        }
+        $owner = $item['userId'] ?? null;
+        return is_string($actor->accountId) && $actor->accountId !== '' && $owner === $actor->accountId;
     }
 
     private static function side(

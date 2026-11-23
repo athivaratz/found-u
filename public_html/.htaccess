@@ -31,8 +31,12 @@ LimitRequestBody 262144
     Header always set Permissions-Policy "geolocation=(self)"
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "DENY"
-    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:"
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:"
     Header always unset X-Powered-By
+    # Hashed Next files can sit at the edge for a year. HTML is short.
+    # Blog and help HTML is meta.php, which sets its own s-maxage.
+    Header always set Cache-Control "public, max-age=31536000, immutable" "expr=%{REQUEST_URI} =~ m#^/_next/static/#"
+    Header always set Cache-Control "private, max-age=0, must-revalidate" "expr=%{REQUEST_URI} =~ m#(/$|\.html$)# && %{REQUEST_URI} !~ m#^/_next/# && %{REQUEST_URI} !~ m#^/(blog|help)/.+# && %{REQUEST_URI} !~ m#^/(api|og)/#"
 </IfModule>
 
 <If "-f %{DOCUMENT_ROOT}.'/.cf-allowlist-off'">
@@ -75,6 +79,9 @@ LimitRequestBody 262144
     Require all denied
 </FilesMatch>
 
+DirectoryIndex index.html
+ErrorDocument 404 /404.html
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
@@ -85,6 +92,10 @@ LimitRequestBody 262144
     RewriteRule ^login/change-password/?$ /auth/change-password/ [R=301,L,QSA]
     RewriteRule ^login/setup-pin/?$ /auth/setup-pin/ [R=301,L,QSA]
     RewriteRule ^login/?$ /auth/login/ [R=301,L,QSA]
+    RewriteRule ^settings/security/?$ /settings/ [R=301,L,QSA]
+    RewriteRule ^admin/help/?$ /admin/blog/?section=help [R=302,L,QSA]
+    RewriteRule ^admin/ai/models/?$ /admin/ai/gemini/ [R=301,L,QSA]
+    RewriteRule ^admin/help/([^/]+)/?$ /admin/blog/legacy/$1/ [R=301,L,QSA]
 
     RewriteRule ^\.well-known/ - [L]
     RewriteRule (^|/)\. - [F,L]
@@ -97,20 +108,29 @@ LimitRequestBody 262144
 
     RewriteRule ^api(?:/.*)?$ api/index.php [END,QSA]
 
-    RewriteRule ^admin/blog/legacy/([^/]+)/?$ /admin/blog/legacy/_/index.html [END]
-    RewriteRule ^admin/blog/([^/]+)/?$ /admin/blog/_/index.html [END]
-    RewriteRule ^admin/help/([^/]+)/?$ /admin/help/_/index.html [END]
-
-    # Blog and help HTML go through meta.php so the exported shell gets a
-    # real title, description, canonical, and Open Graph tags. The shell
-    # files are public_html/blog/_/index.html and help/_/index.html.
-    # P11 must keep these rules, and must not let a later catch-all
-    # serve those paths as plain index.html. See docs/php-port/cms.md.
+    # Open Graph, then the PNG, then the HTML shells. These stay above
+    # any rule that serves a static file. See docs/php-port/cms.md.
     RewriteRule ^blog/([^/]+)/opengraph-image/?$ og.php?kind=blog&slug=$1 [END,QSA]
     RewriteRule ^help/([^/]+)/opengraph-image/?$ og.php?kind=help&slug=$1 [END,QSA]
     RewriteRule ^og/(blog|help)/([^/]+)\.png$ og.php?kind=$1&slug=$2 [END,QSA]
+    # index.html is the list page. A rewrite of that name sends DirectoryIndex
+    # into meta.php, and Options -Indexes then answers 403 for /blog/ and /help/.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^blog/([^/]+)/?$ meta.php?kind=blog&slug=$1 [END,QSA]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^help/([^/]+)/?$ meta.php?kind=help&slug=$1 [END,QSA]
 
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    RewriteRule ^admin/blog/([^/]+)/preview/?$ /admin/blog/_/preview/index.html [END]
+    RewriteRule ^admin/blog/legacy/([^/]+)/?$ /admin/blog/legacy/_/index.html [END]
+    RewriteRule ^admin/blog/([^/]+)/?$ /admin/blog/_/index.html [END]
+    RewriteRule ^admin/help/([^/]+)/?$ /admin/help/_/index.html [END]
     RewriteRule ^nfc/t/([^/]+)/?$ /nfc/t/_/index.html [END]
+
+    RewriteRule ^ /404.html [L]
 </IfModule>

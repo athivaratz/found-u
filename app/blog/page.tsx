@@ -1,27 +1,33 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { listPublishedArticles } from "@/lib/blog/data";
+import type { Article } from "@/lib/blog/types";
 import { focusRing } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+function BlogIndex() {
+  const searchParams = useSearchParams();
+  const tag = searchParams.get("tag")?.trim() || "";
+  const [articles, setArticles] = useState<Article[] | null>(null);
 
-export const metadata: Metadata = {
-  title: "บทความ — Found-U",
-  description: "บทความ คู่มือ และอัปเดตจากทีม Found-U",
-};
-
-type PageProps = {
-  searchParams: Promise<{ tag?: string }>;
-};
-
-export default async function BlogIndexPage({ searchParams }: PageProps) {
-  const { tag } = await searchParams;
-  const articles = await listPublishedArticles({
-    section: "blog",
-    tag: tag?.trim() || undefined,
-  });
+  useEffect(() => {
+    let cancelled = false;
+    listPublishedArticles({ section: "blog", tag: tag || undefined })
+      .then((rows) => {
+        if (!cancelled) setArticles(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setArticles([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tag]);
 
   return (
     <div className="space-y-8">
@@ -48,7 +54,9 @@ export default async function BlogIndexPage({ searchParams }: PageProps) {
         </p>
       </div>
 
-      {articles.length === 0 ? (
+      {articles === null ? (
+        <div className="h-40 animate-pulse rounded-2xl border border-border-light bg-bg-primary" />
+      ) : articles.length === 0 ? (
         <div className="rounded-2xl border border-border-light bg-bg-primary p-6 text-text-secondary">
           ยังไม่มีบทความที่เผยแพร่
         </div>
@@ -70,7 +78,7 @@ export default async function BlogIndexPage({ searchParams }: PageProps) {
                       alt=""
                       fill
                       className="object-cover"
-                      unoptimized={article.cover_image_url.startsWith("http")}
+                      unoptimized
                     />
                   </div>
                 ) : null}
@@ -110,5 +118,13 @@ export default async function BlogIndexPage({ searchParams }: PageProps) {
         </ul>
       )}
     </div>
+  );
+}
+
+export default function BlogIndexPage() {
+  return (
+    <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl border border-border-light bg-bg-primary" />}>
+      <BlogIndex />
+    </Suspense>
   );
 }

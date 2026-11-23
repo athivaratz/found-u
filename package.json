@@ -11,7 +11,8 @@
     "gen:students": "bun run scripts/generate-students-csv.ts",
     "gen:roster": "bun run scripts/generate-roster-csv.ts",
     "test": "bun test tests",
-    "test:contract": "node --test tests/contract/*.test.mjs"
+    "test:contract": "node --test tests/contract/*.test.mjs",
+    "build-release": "node scripts/build-release.mjs"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.6",

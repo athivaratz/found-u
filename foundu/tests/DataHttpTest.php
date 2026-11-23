@@ -219,7 +219,7 @@ final class DataHttpTest extends DbTestCase
         $this->assertSame('ปิดปรับปรุง', $after['body']['comingSoonMessage']);
         $this->assertGreaterThan('2000-01-01', $this->stamp('app_settings'));
 
-        $probe = dirname(__DIR__, 2) . '/public/img/foundu-p5-probe.png';
+        $probe = dirname(__DIR__, 2) . '/public_html/img/foundu-p5-probe.png';
         $dir = dirname($probe);
         $wrote = is_dir($dir) || @mkdir($dir, 0775, true);
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', true);

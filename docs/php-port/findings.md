@@ -230,5 +230,35 @@ Creating an item is limited to 30 an hour for a student and 200 an hour for an a
 | note | `lib/match-service.ts` and `lib/vision.ts` `extractVisionData` still throw or still call Gemini from Node | The chat tools no longer do. Those two stay for a later pass. The pages that call vision and match already post to PHP |
 | note | The thinking log is replayed, not streamed | `PhpAgentChatTransport` turns the JSON into UI message chunks. Bubbles and the tool list match the old UI. Tokens do not arrive one by one |
 | note | A timed-out turn does not make a recovery call | The old TypeScript agent sometimes asked the model again. PHP stops and returns a short Thai partial so the request stays inside about 25 seconds and `max_execution_time` |
-| note | Vision, NER, and match now share the session Turnstile pass | P11 has to put the widget on those forms too, not only the chat composer. The chat transport copies `input[name=cf-turnstile-response]` into `turnstileToken`. The server also accepts `X-Turnstile-Token` |
+| note | Vision, NER, and match now share the session Turnstile pass | The widget is on those forms as of P11. The chat transport copies `input[name=cf-turnstile-response]` into `turnstileToken`. The server also accepts `X-Turnstile-Token` |
+
+## P11
+
+| Sev | What | What changed |
+|---|---|---|
+| high | Guest `GET /api/search` returned phone and the other contact fields | `Foundu\Search\Items::redact` clears `contacts` and `finderContacts` unless the caller is the owner or an admin. List routes are unchanged, so the catalog pages still show what they showed |
+| note | The Next app still needed a Node server for blog metadata, the OG image, vision, and match | `output: 'export'` and `trailingSlash: true`. Blog and help pages fetch `/api` in the browser. `og.php` replaces the edge image. `extractVisionData`, `extractNERData`, and `lib/match-service.ts` post to PHP. `getArticleById` returns null because the export cannot forward the admin cookie |
+| note | `FOUNDU_API_ORIGIN` and `lib/php-origin.ts` were the dev proxy | Gone. The browser and Apache are the same origin |
+| note | Docker leaves `TURNSTILE_SECRET` empty | The test site key `1x00000000000000000000AA` is set so the widget renders. Verification stays off until a secret is filled in, otherwise every PHPUnit login would fail. Production sets the real secret and `TURNSTILE_ENABLED` |
+| note | CSP `img-src` no longer allows every `https` host | `'self' data: blob:`. `scripts/build-release.mjs` appends the origin of `R2_PUBLIC_BASE_URL` when that variable is set, and it appends sha256 hashes for inline scripts Next wrote into the HTML |
+| note | `style-src` includes `'unsafe-inline'` | The export and the Turnstile widget both inject a style tag. Script sources stay hashed |
+| note | A few `lib/*-server.ts` files still import `next/server` and throw through `php-moved` | Nothing in `app/` or `components/` imports them. They are not in the export. `scripts/test-openrouter-response.ts` still names the old agent |
+| note | `composer install --no-dev` runs on a copy under `dist/stage` | The working `foundu/vendor` keeps PHPUnit |
+| note | `/blog/` and `/help/` were 403 when the slug rule also matched `index.html` | DirectoryIndex then hit `meta.php`, the subrequest was a 404, and `Options -Indexes` forbade the directory. The slug rules now skip a real file or directory |
+| note | `ArticleContent` was an async server component | The blog and help pages are client components, and a promise child threw in the browser. It now renders in the client. Shiki runs after paint |
+| low | Admin avatars used `ui-avatars.com` | `img-src` is `'self' data: blob:` plus the R2 origin when the zip is built with `R2_PUBLIC_BASE_URL`. A missing photo is the first letter |
+| note | The handover sweep posted without naming the method, so the CSRF header was left off | `phpFetchHeaders("POST")`. A 403 there was this, not the expire rule |
+
+## Checked against the P6 shots
+
+Login, register, the landing, and the admin shell match the P6 frames. Login and the chat composer add the Turnstile test widget. The landing hero is a different mock from `public_html/img` (the found form, where P6 showed the lost list). Admin and chat open under the first-run dialog, which P6 had already dismissed. Blog and help were empty in P6 because there were no rows.
+
+## Left for P12
+
+| Sev | What | Why it is still like this |
+|---|---|---|
+| high | List routes still return contacts to a guest | Search was the hole called out for this phase. Hiding contacts on the catalog is a product change |
+| medium | Bot Fight Mode, the origin IP, and Imunify360 are not set up | Cloudflare and the host panel. The agent JSON may still look like a payload |
+| note | No staging host, load test, runbook, or backup cron check yet | Those are the rest of PLAN §7. PHP 8.2 reaches EOL on 2026-12-31 |
+| note | PHPUnit in docker is 8.2.36 | 8.3 was run as a second image for this phase. The host must also accept 8.4 |
 | note | `agentMaxSteps` in settings can be 20, and output tokens can be higher | The loop clamps steps to 6 and tokens to 2048 so one request cannot fill the 30 second limit. `AGENT_WALL_SECONDS` is 25, `set_time_limit` is 28, and each upstream call stays at or below 20 seconds |

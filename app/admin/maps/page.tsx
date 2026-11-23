@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect, useState } from "react";
 import { MapPin, Save, Loader2, CheckCircle } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";

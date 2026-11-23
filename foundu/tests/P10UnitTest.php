@@ -84,6 +84,9 @@ final class P10UnitTest extends TestCase
 
     public function testOgImageIsPngAndCached(): void
     {
+        if (!function_exists('imagecreatetruecolor') || !function_exists('imagepng')) {
+            $this->markTestSkipped('GD is not installed, so the card is the tiny fallback PNG');
+        }
         $root = dirname(__DIR__);
         $first = OgImage::file($root, 'แจ้งของหายที่โรงอาหาร', 'ระบบของโรงเรียน');
         $second = OgImage::file($root, 'แจ้งของหายที่โรงอาหาร', 'ระบบของโรงเรียน');
