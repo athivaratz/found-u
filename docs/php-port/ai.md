@@ -1,6 +1,6 @@
 # AI, search, and matching
 
-This is the PHP side of vision, NER, item search, and the match desk. The chat agent is not here yet. P9 should call the pieces below and should not open its own cURL client or its own key store.
+This is the PHP side of vision, NER, item search, the match desk, and the chat agent. The agent uses the same `Budget`, `Credentials`, and `Generate` path as the other AI routes. It does not open a second cURL client or a second key store.
 
 ## What a request is allowed to do
 
@@ -12,7 +12,7 @@ Quota is the existing `Foundu\Ai\Quota`: 5 calls a minute and 30 an hour per acc
 
 Admin vision `testMode` skips the quota row. The flag is ignored unless the session is an admin. A client-supplied `userId` is ignored on vision, NER, and the quota GET. Those routes require a logged-in account.
 
-Turnstile on the first AI call of a session is still open. P9 owns that check. Do not add a second quota table for it.
+The first AI call of a browser session needs a Turnstile token. `Foundu\Ai\SessionPass` checks `sessions.ai_verified_until` before the lease and before `Budget::charge`. A pass lasts 30 minutes (`SessionPass::WINDOW`). The token is `turnstileToken` in the JSON body, or the `X-Turnstile-Token` header. A miss is 403 `turnstile_required` with `ยืนยันว่าไม่ใช่บอทก่อนใช้ AI ในรอบนี้`. Chat turns that into the fallback object the panel already shows. Vision, NER, match with `useAI`, the provider test, and the OpenRouter endpoint list use the same gate and still return the 403 as-is. There is no second quota table.
 
 ## Providers
 
@@ -65,13 +65,39 @@ Confirm and unmatch are one transaction with `SELECT … FOR UPDATE` on the lost
 
 Non-AI match is limited to 30 requests a minute per account (or per IP for a guest). Batch is 10. That limiter is `too_many_requests`, separate from the AI quota.
 
-## What P9 should wire
+## Chat agent
 
-The browser already posts vision, NER, match, credentials, and the provider test with `phpFetchHeaders()` from `lib/api-client.ts` (CSRF and `X-Requested-With: foundu`, no 429 retry). `lib/match-service.ts`, `lib/vision.ts` `extractVisionData`, and the agent tools still throw or still talk to Gemini from Node. Replace those with:
+`POST /api/agent/chat` is a logged-in user. The body is `{ messages, memoryFacts?, sessionId?, clientLocation?, adminLocationBypass?, turnstileToken? }`. `memoryFacts` are kept only when `userId` matches the caller. `adminLocationBypass` is honored only for an admin. A student who sends it is logged as `bypass_ignored` and the fence still applies.
 
-- `Foundu\Ai\Budget` for the lease and the quota charge
-- `Foundu\Ai\Credentials` and `Foundu\Ai\Generate` for the model call
-- `GET /api/search` when a tool needs items, with `mode=agent`
-- one JSON object, not a stream
+The success body is one JSON object, not a stream:
 
-Do not return API keys. Do not raise the upstream timeout above 20 seconds. Do not put the agent prompt in the error envelope.
+```json
+{
+  "id": "…",
+  "role": "assistant",
+  "parts": [],
+  "provider": "gemini",
+  "model": "gemini-2.0-flash",
+  "finishReason": "stop",
+  "truncated": false,
+  "sessionId": "…"
+}
+```
+
+A text part is `{ "type": "text", "text": "…" }`. A tool part is `{ "type": "tool-searchItems", "toolCallId": "…", "state": "output-available", "input": {}, "output": { "ok": true, "resultType": "search", "data": {} } }`. `finishReason` is `stop`, `timeout`, or `step-count`. Headers are `X-Agent-Stream-Version: 2`, `X-Agent-Provider`, `X-Chat-Session-Id`, and `X-Agent-SSE` (`off`, or `pending` when `AGENT_SSE=1`). `AGENT_SSE` defaults to 0. Turning it on does not stream. The response is still this JSON.
+
+429 is `{ fallback: true, reason: "rate_limit", message, suggestedRoutes }`. A full semaphore uses `คิว AI เต็ม ลองใหม่อีกสักครู่` and does not write `ai_usage`. Quota exhaustion uses the settings message and does write the earlier allowed calls. 503 is `reason: "provider_error"` when both providers fail. 401 is the normal JSON error. `suggestedRoutes` is `/home`, `/tracking`, `/lost`, `/found`.
+
+`GET /api/agent/chat/sync?sessionId=` returns `{ parts: null }` for a missing or someone else's session, otherwise `{ parts, truncated, createdAt }` for the caller. `sessionId` is 1–64 of `[A-Za-z0-9_-]`. Admin `GET /api/admin/agent-logs` and `GET /api/admin/agent-logs/{id}` return the snake_case rows the debug page already reads. `DELETE /api/admin/agent-logs` deletes rows older than 7 days. `Foundu\Cron\Tasks::chat` deletes up to 500 of those rows each run.
+
+The loop is `Foundu\Agent\Loop`. It asks Gemini, then OpenRouter, through `Generate::agent`. Tool calls use the native function-call shape. After the first tool step the next call has tools turned off and a short note to answer in Thai. `agentMaxSteps` is clamped to 6. Output tokens are clamped to 128–2048. `AGENT_WALL_SECONDS` defaults to 25 and is clamped to 5–28. `set_time_limit(28)` is set on the chat route. Each upstream call is at most 20 seconds and at most the time still left, and at least 2. If the clock runs out, or the step cap is hit, after a tool ran and no sentence came back, the reply is a short Thai partial built from the tool data. It ends with ครับ and `truncated` is true.
+
+The seven tools are `searchItems`, `lookupTrackingCode`, `analyzeImage`, `findMatches`, `getUserItems`, `reportLostItem`, and `reportFoundItem`. Search goes through `Foundu\Search\Items` with `mode=agent`, then `Foundu\Agent\Privacy` strips contacts, user ids, and tracking codes the caller does not own. A non-admin search for `found` is treated as `lost`. Lookup of a found code returns "ไม่พบ" unless the caller owns it or is an admin. `findMatches` is the caller's item or an admin's. `getUserItems` is the caller. Reports are inserted as the session account. Found GPS comes from `clientLocation`, never from the model. The school fence matches the old `found-location-guard` (150 m accuracy, ray cast, fail closed when the polygon is empty and enforcement is on). `POST /api/agent/chat` accepts up to 1.5 MiB so one photo can ride along. Other `/agent` posts stay at 64 KiB. `analyzeImage` refuses `http` and `https` URLs. It only accepts a data URL or base64, then `Vision::extract` with the fixed vision prompt. The model does not get to choose that prompt, and a photo URL is not stored. Nested vision and match do not take a second lease or a second quota row. `findMatches` only calls the model when more than 12 seconds remain.
+
+User text, assistant text, and tool results are wrapped as `<<<USER>>>`, `<<<ASSISTANT>>>`, and `<<<TOOL name>>>`. The marker `<<<` is stripped from user text. A line that looks like an instruction to ignore the prompt is logged once as `prompt_injection_marker` and the turn still runs. Tool output is capped around 4000 bytes. Output that contains CJK or another blocked script is stripped. A tracking code in the answer that no tool returned is logged and left in the text. Guard trips go to the PHP log and to `activity_logs` (`action` `agent guard {reason}`, `action_type` `security`). The row is skipped if a transaction is already open. The log does not store the prompt or the key.
+
+`lib/agent/php-chat-transport.ts` is what `useChat` calls. It posts with `phpFetchHeaders()` (CSRF and `X-Requested-With: foundu`, no 429 retry) and replays the JSON as UI message chunks, so the bubbles and the thinking log look the same. Token-by-token streaming is gone. A `fallback: true` body sets the existing fallback panel. The admin debug page sends the same headers.
+
+Tests live in `foundu/tests/AgentChatTest.php`. They script `Foundu\Ai\Runtime::$upstream`. `Foundu\Agent\Clock::$milliseconds` is how the time-budget case trips without sleeping.
+
+Do not return API keys. Do not raise the upstream timeout above 20 seconds. Do not put the agent prompt in the error envelope. Do not enable `AGENT_SSE` until the host can flush a response.

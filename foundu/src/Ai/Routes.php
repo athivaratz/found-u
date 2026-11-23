@@ -96,6 +96,7 @@ final class Routes
         [$mime, $base64] = Vision::image($body);
         $settings = Settings::read($pdo);
         $testMode = ($body['testMode'] ?? false) === true && $actor->isAdmin();
+        SessionPass::ensure($request, $pdo, $config, $body);
         @set_time_limit(26);
         $token = $budget->lease($pdo, $actor->accountId, time());
         try {
@@ -147,6 +148,7 @@ final class Routes
             throw new HttpError(400, 'invalid_input', ['field' => 'type']);
         }
         $settings = Settings::read($pdo);
+        SessionPass::ensure($request, $pdo, $config, $body);
         @set_time_limit(26);
         $token = $budget->lease($pdo, $actor->accountId, time());
         try {
@@ -220,6 +222,7 @@ final class Routes
     ): ResponseInterface {
         $actor = Gate::actor($request);
         Authz::requireRole($actor, Actor::ADMIN);
+        SessionPass::ensure($request, $pdo, $config, self::body($request, false));
         @set_time_limit(26);
         $token = $budget->lease($pdo, $actor->accountId, time());
         try {
@@ -244,6 +247,7 @@ final class Routes
         $actor = Gate::actor($request);
         Authz::requireRole($actor, Actor::ADMIN);
         $model = (string) ($request->getQueryParams()['model'] ?? '');
+        SessionPass::ensure($request, $pdo, $config, []);
         @set_time_limit(20);
         $token = $budget->lease($pdo, $actor->accountId, time());
         try {

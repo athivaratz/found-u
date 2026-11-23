@@ -60,6 +60,8 @@ final class Turnstile
 {
     private const URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
+    public static ?FormPoster $testingPoster = null;
+
     public function __construct(
         private readonly array $config,
         private readonly FormPoster $poster,
@@ -69,7 +71,7 @@ final class Turnstile
 
     public static function fromConfig(array $config, ?FormPoster $poster = null): self
     {
-        return new self($config, $poster ?? new CurlPoster(), 5);
+        return new self($config, $poster ?? self::$testingPoster ?? new CurlPoster(), 5);
     }
 
     public function enabled(): bool

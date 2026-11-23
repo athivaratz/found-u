@@ -81,7 +81,7 @@ Idle default is 30 minutes (`SESSION_IDLE_SECONDS`). Absolute default is 12 hour
 
 CSRF is double-submit, checked against the session row. The second cookie (`__Host-foundu-csrf` or `foundu_csrf`) is not `HttpOnly`, so the browser script can copy it into `X-CSRF-Token`. A mutation with a live session must send a header that matches both that cookie and `sessions.csrf_token`. GET, HEAD, and OPTIONS skip the check. So does a request with no session, which is how login and register stay open. P6's `apiFetch` should send the header on every mutation. Origin and `Sec-Fetch-Site` are not consulted: they fail local tools, and some browsers drop Origin.
 
-`SessionService::markAiVerified` writes `ai_verified_until`. P9 uses that for the "Turnstile once per AI session" flag. This phase does not set it.
+`SessionService::markAiVerified` writes `ai_verified_until`. `Foundu\Ai\SessionPass` sets it for 30 minutes after a Turnstile pass, and every AI route that takes a lease checks it first.
 
 ## Turnstile, lockout, AI
 

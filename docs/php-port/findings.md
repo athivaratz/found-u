@@ -210,3 +210,25 @@ Creating an item is limited to 30 an hour for a student and 200 an hour for an a
 | low | `Values::contacts` with `$required = true` still accepts an empty list | Pre-existing. NFC register checks the list is non-empty before it calls that helper. Item create still allows an empty contact list, which matches the current forms |
 | note | The daily dump PUTs with `SigV4::authorization` | Same signer as the presigned upload. Region is `R2_REGION`, or `auto`. The dump is skipped when the R2 keys are empty |
 | note | Article and help writes are no longer 501 | Closed the P6 note above. The blog index navigates to the new draft |
+
+## Closed or narrowed in P9
+
+| Sev | What | What changed |
+|---|---|---|
+| medium | The first AI call of a session did not check Turnstile | `Foundu\Ai\SessionPass` runs before the lease and before `Budget::charge` on chat, vision, NER, match with `useAI`, the provider test, and the OpenRouter endpoint list. A pass is stored on `sessions.ai_verified_until` for 30 minutes. A miss does not write `ai_usage` |
+| medium | `analyzeImage` used to fetch a URL the model supplied | Remote `http` and `https` URLs are refused and logged as `remote_image_blocked`. Only a data URL or base64 is sent to `Vision::extract`, and the vision prompt is the fixed one. A photo URL is not stored on the item |
+| low | The agent loop was specified as an SSE stream, which this host does not flush | `POST /api/agent/chat` returns one JSON document. `AGENT_SSE` defaults to 0. Setting it to 1 only changes `X-Agent-SSE` to `pending` |
+| low | A chat turn that includes a photo did not fit the 64 KiB AI body cap | `/agent/chat` uses the same 1.5 MiB cap as `/vision`. Other `/agent` posts stay at 64 KiB. Tool image text is still capped inside the tool |
+
+## Left open on purpose in P9
+
+| Sev | What | Why it is still like this |
+|---|---|---|
+| high | Guest reads of lost and found items, including `GET /api/search`, still include contacts | Unchanged from P5 and P8. The agent redacts before the model sees a row. The HTTP search route does not |
+| medium | Imunify360 may block the agent JSON | Tool names, `<<<USER>>>`, base64, and a long `parts` array look like a payload to a WAF. Staging should watch for a 403 that never reaches PHP. The body is still one JSON document |
+| note | Chat logs are purged in two places | Admin `DELETE /api/admin/agent-logs` removes every row older than 7 days. `Foundu\Cron\Tasks::chat` deletes up to 500 of those rows each run. Keep the window the same if either one changes |
+| note | `lib/match-service.ts` and `lib/vision.ts` `extractVisionData` still throw or still call Gemini from Node | The chat tools no longer do. Those two stay for a later pass. The pages that call vision and match already post to PHP |
+| note | The thinking log is replayed, not streamed | `PhpAgentChatTransport` turns the JSON into UI message chunks. Bubbles and the tool list match the old UI. Tokens do not arrive one by one |
+| note | A timed-out turn does not make a recovery call | The old TypeScript agent sometimes asked the model again. PHP stops and returns a short Thai partial so the request stays inside about 25 seconds and `max_execution_time` |
+| note | Vision, NER, and match now share the session Turnstile pass | P11 has to put the widget on those forms too, not only the chat composer. The chat transport copies `input[name=cf-turnstile-response]` into `turnstileToken`. The server also accepts `X-Turnstile-Token` |
+| note | `agentMaxSteps` in settings can be 20, and output tokens can be higher | The loop clamps steps to 6 and tokens to 2048 so one request cannot fill the 30 second limit. `AGENT_WALL_SECONDS` is 25, `set_time_limit` is 28, and each upstream call stays at or below 20 seconds |

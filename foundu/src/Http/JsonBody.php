@@ -41,9 +41,10 @@ final class JsonBody
     public static function maxFor(string $path, int $normal, int $ai): int
     {
         $path = strtolower($path);
-        // A compressed photo does not fit in the 64 KiB AI cap. Vision is
-        // the exception. Ner, the agent, and other AI posts stay small.
-        if ($path === '/vision' || str_starts_with($path, '/vision/')) {
+        // A compressed photo does not fit in the 64 KiB AI cap. Vision and
+        // the chat turn that may carry that photo are the exceptions.
+        // Ner and the other agent posts stay small.
+        if ($path === '/vision' || str_starts_with($path, '/vision/') || $path === '/agent/chat') {
             return self::VISION_MAX;
         }
         foreach (['/agent', '/ai', '/ner'] as $prefix) {

@@ -1,4 +1,8 @@
-import { createClient } from "@/lib/php-moved";
+// Throws if a leftover Node path calls it. The loose return keeps the
+// old tool file compiling. The PHP agent owns these queries.
+function createClient(): any {
+  throw new Error("Agent item queries run in the PHP API.");
+}
 import type { FoundItem, LostItem } from "@/lib/types";
 import { mapFoundItemRow, mapLostItemRow } from "@/lib/agent/row-mappers";
 import {

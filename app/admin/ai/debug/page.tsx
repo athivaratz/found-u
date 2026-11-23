@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useCallback, useEffect, useState } from "react";
+import { phpFetchHeaders } from "@/lib/api-client";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -49,7 +50,10 @@ export default function AdminAgentDebugPage() {
     setLoadError(null);
     try {
       const q = truncatedOnly ? "?truncated=1" : "";
-      const res = await fetch(`/api/admin/agent-logs${q}`);
+      const res = await fetch(`/api/admin/agent-logs${q}`, {
+        headers: phpFetchHeaders("GET"),
+        credentials: "include",
+      });
       const data = await res.json();
       if (!res.ok) {
         setLogs([]);
@@ -78,7 +82,10 @@ export default function AdminAgentDebugPage() {
     setExpandedId(id);
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/admin/agent-logs/${id}`);
+      const res = await fetch(`/api/admin/agent-logs/${id}`, {
+        headers: phpFetchHeaders("GET"),
+        credentials: "include",
+      });
       const data = await res.json();
       setDetail(data.log ?? null);
     } finally {

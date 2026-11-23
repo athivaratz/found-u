@@ -1,4 +1,7 @@
-import { createAdminClient } from "@/lib/php-moved";
+// Throws if a leftover Node path calls it. The PHP agent writes the log.
+function createAdminClient(): any {
+  throw new Error("Agent chat logs are written by the PHP API.");
+}
 import type { AgentStreamCollector } from "@/lib/agent/agent-ui-stream";
 
 export async function persistAgentChatLog(

@@ -46,6 +46,8 @@ final class Config
         'AI_SYSTEM_QUOTA_PER_HOUR',
         'AI_SLOT_LEASE_SECONDS',
         'AI_UPSTREAM_TIMEOUT',
+        'AGENT_WALL_SECONDS',
+        'AGENT_SSE',
         'LOGIN_LOCK_ACCOUNT_LIMIT',
         'LOGIN_LOCK_ACCOUNT_SECONDS',
         'LOGIN_LOCK_IP_LIMIT',

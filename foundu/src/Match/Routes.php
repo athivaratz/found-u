@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Foundu\Match;
 
 use Foundu\Ai\Budget;
+use Foundu\Ai\SessionPass;
 use Foundu\Ai\Credentials;
 use Foundu\Ai\Generate;
 use Foundu\Auth\Actor;
@@ -71,6 +72,7 @@ final class Routes
         try {
             if ($useAI) {
                 Authz::requireRole($actor, Actor::USER);
+                SessionPass::ensure($request, $pdo, $config, $body);
                 @set_time_limit(26);
                 $token = $budget->lease($pdo, $actor->accountId, time());
                 $budget->charge($pdo, $actor, 'match', $settings, false, time());
@@ -119,6 +121,7 @@ final class Routes
         $token = null;
         try {
             if ($useAI) {
+                SessionPass::ensure($request, $pdo, $config, $body);
                 @set_time_limit(26);
                 $token = $budget->lease($pdo, $actor->accountId, time());
                 $budget->charge($pdo, $actor, 'match', $settings, false, time());

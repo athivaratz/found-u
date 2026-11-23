@@ -44,6 +44,8 @@ final class JsonAndTurnstileTest extends TestCase
         }
 
         $this->assertSame(JsonBody::VISION_MAX, JsonBody::maxFor('/vision', 262144, 65536));
+        $this->assertSame(JsonBody::VISION_MAX, JsonBody::maxFor('/agent/chat', 262144, 65536));
+        $this->assertSame(65536, JsonBody::maxFor('/agent/test-providers', 262144, 65536));
         $this->assertSame(65536, JsonBody::maxFor('/ner', 262144, 65536));
         $this->assertSame(262144, JsonBody::maxFor('/health', 262144, 65536));
     }

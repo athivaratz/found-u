@@ -1,4 +1,8 @@
-import { createClient } from "@/lib/php-moved";
+// Throws if a leftover Node path calls it. The loose return keeps the
+// old tool file compiling. The PHP agent owns these writes.
+function createClient(): any {
+  throw new Error("Agent item writes run in the PHP API.");
+}
 import { suggestForItem } from "@/lib/match-service";
 import {
   mapFoundItemRow,

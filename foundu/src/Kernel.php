@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Foundu;
 
+use Foundu\Agent\Routes as AgentRoutes;
 use Foundu\Ai\Routes as AiRoutes;
 use Foundu\Auth\AuthRoutes;
 use Foundu\Data\DataRoutes;
@@ -79,6 +80,7 @@ final class Kernel
         SearchRoutes::register($app, $config, $pdo);
         MatchRoutes::register($app, $config, $pdo);
         AiRoutes::register($app, $config, $pdo);
+        AgentRoutes::register($app, $config, $pdo);
 
         return $app;
     }
