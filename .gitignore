@@ -50,7 +50,9 @@ service-account*.json
 next-env.d.ts
 
 # development
-docs/
+docs/*
+!docs/php-port/
+!docs/php-port/**
 .vscode/
 .cursor/
 supabase/.temp/
@@ -63,7 +65,9 @@ screencapture/
 Mermaid_Flowchart/
 .audit/
 .VSCodeCounter/
-tests/
+tests/*
+!tests/contract/
+!tests/contract/**
 AGENTS.md
 DESIGN.md
 PRODUCT.md
