@@ -103,6 +103,13 @@ ErrorDocument 404 /404.html
     RewriteRule ^\.well-known/ - [L]
     RewriteRule (^|/)\. - [F,L]
 
+    # Installer lives at /install until it deletes itself. The public path
+    # does not end in .php, so a Cloudflare rule that blocks other PHP files
+    # still allows this one. A direct hit on install/index.php stays forbidden.
+    # Apache adds a slash to the real directory before this rule sees a POST,
+    # so the forms post to /install/ (the slashed path is rewritten here).
+    RewriteRule ^install/?$ install/index.php [END]
+
     RewriteCond %{REQUEST_URI} \.(?:php|phtml|phar|phps)$ [NC]
     RewriteCond %{REQUEST_URI} !^/api/index\.php$ [NC]
     RewriteRule ^ - [F,L]

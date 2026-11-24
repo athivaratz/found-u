@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 // Applies foundu/migrations/[0-9]*.sql in order and records them in
-// schema_migrations. CLI only. On a host with no shell, import
-// foundu/migrations/all.sql in phpMyAdmin instead. There is no web route.
+// schema_migrations. CLI only. On a host with no shell, use /install
+// or import foundu/migrations/all.sql in phpMyAdmin.
 
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "migrate.php is command-line only\n");
@@ -21,6 +21,7 @@ require $autoload;
 
 use Foundu\Config;
 use Foundu\Database;
+use Foundu\Install\SqlScript;
 
 $dryRun = false;
 $database = null;
@@ -102,7 +103,7 @@ foreach ($files as $path) {
         continue;
     }
 
-    $statements = split_sql($sql);
+    $statements = SqlScript::split($sql);
     foreach ($statements as $index => $statement) {
         if (preg_match('/\bBEGIN\b/i', $statement) === 1 && preg_match('/\bEND\b/i', $statement) !== 1) {
             fwrite(STDERR, "{$name} statement " . ($index + 1) . " looks like a trigger that was split apart.\n");
@@ -141,157 +142,3 @@ foreach ($files as $path) {
 fwrite(STDOUT, "done applied={$did} skipped={$skipped}\n");
 exit(0);
 
-/**
- * Split a script the way the mysql client does, including DELIMITER.
- * Strings and comments are not split. The delimiter itself is not executed.
- *
- * @return list<string>
- */
-function split_sql(string $sql): array
-{
-    $len = strlen($sql);
-    $i = 0;
-    $delimiter = ';';
-    $buf = '';
-    $state = 'code';
-    $out = [];
-
-    $flush = static function () use (&$buf, &$out): void {
-        $stmt = trim($buf);
-        $buf = '';
-        if ($stmt === '' || sql_code_is_empty($stmt)) {
-            return;
-        }
-        $out[] = $stmt;
-    };
-
-    while ($i < $len) {
-        $c = $sql[$i];
-        $n = $i + 1 < $len ? $sql[$i + 1] : '';
-
-        if ($state === 'line') {
-            $buf .= $c;
-            $i++;
-            if ($c === "\n") {
-                $state = 'code';
-            }
-            continue;
-        }
-
-        if ($state === 'block') {
-            if ($c === '*' && $n === '/') {
-                $buf .= '*/';
-                $i += 2;
-                $state = 'code';
-                continue;
-            }
-            $buf .= $c;
-            $i++;
-            continue;
-        }
-
-        if ($state === 'sq') {
-            if ($c === '\\' && $n !== '') {
-                $buf .= $c . $n;
-                $i += 2;
-                continue;
-            }
-            if ($c === "'" && $n === "'") {
-                $buf .= "''";
-                $i += 2;
-                continue;
-            }
-            $buf .= $c;
-            $i++;
-            if ($c === "'") {
-                $state = 'code';
-            }
-            continue;
-        }
-
-        if ($state === 'dq') {
-            if ($c === '\\' && $n !== '') {
-                $buf .= $c . $n;
-                $i += 2;
-                continue;
-            }
-            if ($c === '"' && $n === '"') {
-                $buf .= '""';
-                $i += 2;
-                continue;
-            }
-            $buf .= $c;
-            $i++;
-            if ($c === '"') {
-                $state = 'code';
-            }
-            continue;
-        }
-
-        if ($c === "'") {
-            $state = 'sq';
-            $buf .= $c;
-            $i++;
-            continue;
-        }
-        if ($c === '"') {
-            $state = 'dq';
-            $buf .= $c;
-            $i++;
-            continue;
-        }
-        if ($c === '#') {
-            $state = 'line';
-            $buf .= $c;
-            $i++;
-            continue;
-        }
-        if ($c === '-' && $n === '-') {
-            $state = 'line';
-            $buf .= $c;
-            $i++;
-            continue;
-        }
-        if ($c === '/' && $n === '*') {
-            $state = 'block';
-            $buf .= '/*';
-            $i += 2;
-            continue;
-        }
-
-        if (sql_code_is_empty($buf) && ($c === 'D' || $c === 'd')) {
-            if (preg_match('/\Gdelimiter\s+(\S+)/i', $sql, $match, 0, $i) === 1) {
-                $delimiter = $match[1];
-                $i += strlen($match[0]);
-                while ($i < $len && $sql[$i] !== "\n") {
-                    $i++;
-                }
-                if ($i < $len && $sql[$i] === "\n") {
-                    $i++;
-                }
-                continue;
-            }
-        }
-
-        $dlen = strlen($delimiter);
-        if ($dlen > 0 && substr($sql, $i, $dlen) === $delimiter) {
-            $flush();
-            $i += $dlen;
-            continue;
-        }
-
-        $buf .= $c;
-        $i++;
-    }
-
-    $flush();
-    return $out;
-}
-
-function sql_code_is_empty(string $buf): bool
-{
-    $stripped = preg_replace('/\/\*.*?\*\//s', '', $buf) ?? $buf;
-    $stripped = preg_replace('/--[^\n]*(\n|$)/', "\n", $stripped) ?? $stripped;
-    $stripped = preg_replace('/#[^\n]*(\n|$)/', "\n", $stripped) ?? $stripped;
-    return trim($stripped) === '';
-}

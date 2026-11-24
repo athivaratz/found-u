@@ -99,12 +99,16 @@ final class Tasks
             $done = SqlDump::advance($pdo, $plain, $deadline, $cursor, 0);
             file_put_contents($statePath, json_encode($cursor, JSON_THROW_ON_ERROR));
             if (!$done) {
+                $partialBytes = is_file($plain) ? (int) filesize($plain) : (int) ($cursor['bytes'] ?? 0);
+                self::rememberDump($dir, false, $now, $partialBytes);
                 return 'dump partial';
             }
             SqlDump::gzip($plain, $gz);
             $key = 'backups/foundu-' . gmdate('Ymd\THis\Z', $now) . '.sql.gz';
+            $bytes = is_file($gz) ? (int) filesize($gz) : 0;
             $put->putFile($key, 'application/gzip', $gz);
             file_put_contents($stamp, (string) $now);
+            self::rememberDump($dir, true, $now, $bytes);
             @unlink($statePath);
             @unlink($plain);
             return 'dump ' . $key;
@@ -113,6 +117,19 @@ final class Tasks
                 @unlink($gz);
             }
         }
+    }
+
+    private static function rememberDump(string $dir, bool $finished, int $now, int $bytes): void
+    {
+        $meta = [
+            'finished' => $finished,
+            'at' => gmdate('Y-m-d\TH:i:s\Z', $now),
+            'bytes' => $bytes,
+        ];
+        @file_put_contents(
+            $dir . '/db-dump-last.json',
+            json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+        );
     }
 
     private static function guard(string $name, int $budget, int $now, callable $work): string

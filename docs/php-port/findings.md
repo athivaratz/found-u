@@ -280,3 +280,23 @@ The old `lib/*-server.ts` files, `lib/php-moved.ts`, the unused agent server, an
 Attack and load numbers are in `performance.md` and `security-review.md`. Screenshots for this phase are in `screenshots/p12/`.
 
 Still only possible on the real host: the Cloudflare dashboard, the Origin certificate, whether `REMOTE_ADDR` is already the visitor IP, an Imunify360 whitelist for `/api/agent/chat`, the PHP selector and the extension list, and the panel cron. The questions are in `go-live.md`.
+
+## P13
+
+The release zip now has a web installer at `/install`. `build-release` writes a one-time token into `foundu/install-token.txt` (mode 600, next to `public_html`, not inside it). The page stays up until both `foundu/config/.env.php` and `foundu/config/install.lock` exist. An env file on its own is the manual path, still in progress, so the installer does not lock itself out of that. After the last step it writes the lock, deletes the token, and deletes `public_html/install/index.php`. The next request is a 404. A bare `/install` still 301s to `/install/` because that path is a real directory; the slashed URL is the 404.
+
+Apache adds a slash to a real directory before the parent rewrite can see a POST, and a 301 drops the form body. The forms post to `/install/`. Direct `install/index.php` stays 403.
+
+The token is 64 hex characters, compared with `hash_equals`. A wrong length still does a dummy compare. Failed tries and posts are counted in `foundu/storage/install-attempts.json`. The file stores a salt and a hash of the address, not the address and not the token. Eight bad tokens in 15 minutes, or 120 posts, return 429. The limit uses `REMOTE_ADDR`, not `CF-Connecting-IP`, so that header cannot walk around it. The setup session is a PHP session under `foundu/storage/install-sessions`, cookie `foundu_setup`, path `/install`, HttpOnly, SameSite=Lax, Secure only on HTTPS. It is not the app's database session, because the database does not exist yet. CSRF is a hidden field on every post. The database password stays in that session until the admin account is created, then it is dropped. `.env.php` is written to a temp file, moved into place, and deleted again if the mode is not exactly 600. An existing env file is not overwritten. The page does not print the token, the database password, or `APP_KEY`. It does not log through Monolog.
+
+Preflight blocks the next step only when PHP is below 8.2.36, a required extension is missing, memory is under 128M, `max_execution_time` is between 1 and 19 seconds, upload sizes are under 2M, upload progress is still on, `foundu` is not writable, or `.user.ini` asked for upload progress off and PHP still has it on. PHP 8.2 gets a warning that support ends 31 Dec 2026. MariaDB under 10.11 is a warning, not a block. Outbound HTTPS and the Cloudflare address check are warnings too. Each failure says, in Thai, what to ask the host. The "example" view is a fixed failure list for the screenshot. It is labeled as an example.
+
+Schema import uses the same statement splitter as `migrate.php`, one statement at a time, no `exec()`. A progress file records the filename, checksum, and statement index. A request stops before the next statement once 18 seconds have passed. The continue button submits itself. The admin "รันไมเกรชันที่ค้าง" button uses the same chunking, with its own progress file, and it does not accept a SQL body.
+
+`APP_KEY` is 32 random bytes, base64url. Sodium still derives its key from that. There is no separate data key. Turnstile is enabled only when both keys are filled. Empty R2 or Turnstile has to be an explicit "fill later" checkbox.
+
+The fresh zip (`dist/foundu-release.zip`, 9665380 bytes) was unpacked into an empty MariaDB and walked in a browser on PHP 8.2.36. Preflight passed with warnings (R2's generic host did not answer, and the docker peer is not a Cloudflare address). The import finished in one request. Config skipped AI, R2, and Turnstile. The first admin logged in and opened สถานะระบบ. `.env.php` and `install.lock` were mode 600. The token file and `install/index.php` were gone. `/install/` answered 404.
+
+PHPUnit is 110 tests, 1123 assertions, 1 skipped (MinIO), on 8.2.36, 8.3.37, and 8.4.28. `composer audit` and `npm audit` reported nothing. Screenshots are in `screenshots/p13/`.
+
+Still only possible on the real host: whether `REMOTE_ADDR` is Cloudflare or the visitor (the installer says which, and that decides if the `Require ip` block stays), whether `.user.ini` is actually read, outbound HTTPS from the shared host, the PHP selector, Imunify360, the Origin certificate, and pasting the cron line into the DirectAdmin panel. The installer can show the line. It cannot create the cron job.

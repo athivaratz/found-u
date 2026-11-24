@@ -18,16 +18,19 @@
 8. cron ใน DirectAdmin ถี่สุดได้ทุกกี่นาที แอปใช้ทุก 5 นาที
 9. เซิร์ฟเวอร์เรียก HTTPS ออกไปที่ `generativelanguage.googleapis.com`, `openrouter.ai`, `*.r2.cloudflarestorage.com` และ `challenges.cloudflare.com` ได้ไหม ถ้าออกเน็ตไม่ได้ แชท อัปโหลดรูป และ Turnstile จะพัง
 
-## ขั้นตอน
+## ขั้นตอนหลัก ใช้หน้าติดตั้ง
 
 1. สร้างฐานข้อมูลใน DirectAdmin จดชื่อฐาน ชื่อผู้ใช้ และรหัสผ่าน
-2. เข้า phpMyAdmin เลือกฐานนั้น นำเข้า `foundu/migrations/all.sql` จาก zip นำเข้าครั้งเดียวพอ
-3. อัปโหลด `foundu-release.zip` ใน File Manager แตกไฟล์ให้ได้สองโฟลเดอร์คู่กัน: `public_html/` และ `foundu/` โฟลเดอร์ `foundu` อยู่ข้าง `public_html` ไม่ใช่ข้างใน
-4. คัดลอก `foundu/config/.env.php.example` เป็น `foundu/config/.env.php` กรอกค่าจริง แล้วตั้งสิทธิ์ไฟล์เป็น **600**
-5. ค่าที่ต้องมีก่อนเปิดให้คนใช้: `APP_URL` (https และโดเมนจริง), `APP_KEY` (สุ่มยาว), `DATA_KEY` และ `LOOKUP_KEY` (คีย์ libsodium base64), `DB_*`, `R2_*`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET`, `TURNSTILE_ENABLED=1` คีย์ AI ใส่อย่างน้อยหนึ่งตัวถ้าจะเปิดแชท
-6. ใน Select PHP Version เลือก 8.3 หรือ 8.4 เปิดส่วนขยายข้อ 3
-7. สร้างผู้ดูแล: ตั้ง `BOOTSTRAP_ADMIN_STUDENT_IDS` เป็นรหัส 5 หลักที่จะใช้ แล้วสมัครด้วยรหัสนั้น บัญชีแรกจะเป็น admin จากนั้นเอาค่านี้กลับเป็น `11111` หรือเว้นตามที่ตั้งใจ
-8. ตั้ง cron ใน DirectAdmin
+2. อัปโหลด `foundu-release.zip` ใน File Manager แตกไฟล์ที่โฟลเดอร์บ้าน ให้ได้สองโฟลเดอร์คู่กัน: `public_html/` และ `foundu/` โฟลเดอร์ `foundu` อยู่ข้าง `public_html` ไม่ใช่ข้างใน
+3. ใน Select PHP Version เลือก 8.3 หรือ 8.4 เปิดส่วนขยายข้อ 3
+4. เปิด File Manager ที่ `foundu/install-token.txt` คัดลอกทั้งบรรทัด ไฟล์นี้อยู่นอกเว็บ อย่าส่งให้คนอื่น
+5. เปิด `https://โดเมนของคุณ/install` วางโทเค็น แล้วทำห้าขั้น
+   - ตรวจเครื่อง จะบอกเป็นภาษาไทยว่าต้องถามโฮสต์อะไร รวมถึง `REMOTE_ADDR` เป็นไอพีของ Cloudflare หรือไอพีผู้เยี่ยม ถ้าเป็นไอพีผู้เยี่ยมทั้งที่มาจาก Cloudflare ต้องเอาบล็อก `Require ip` ออกก่อน
+   - ฐานข้อมูล ใส่ค่าจากข้อ 1 แล้วให้มันนำเข้าเอง ถ้าไฟล์ใหญ่ มันจะทำทีละช่วง ไม่เกิน 30 วินาที แล้วทำต่อเอง
+   - ค่าตั้ง ใส่ `APP_URL` เป็น https ของโดเมนจริง ค่า R2 และ Turnstile คีย์ AI ข้ามได้ เซิร์ฟเวอร์สุ่มคีย์เซสชันกับคีย์ libsodium ให้ แล้วเขียน `foundu/config/.env.php` สิทธิ์ 600 หน้านี้ไม่แสดงค่าเต็ม
+   - ผู้ดูแลคนแรก รหัสนักเรียน 5 หลัก รหัสผ่านมีตัวอักษรและตัวเลข อย่างน้อย 8 ตัว
+   - เสร็จ คัดลอกคำสั่ง cron ก่อนปิดหน้า จากนั้นหน้านี้จะเป็น 404 และไฟล์โทเค็นถูกลบ
+6. ตั้ง cron ใน DirectAdmin ตามบรรทัดที่หน้าสุดท้ายให้มา ซึ่งคือ
 
 ```
 */5 * * * * php ~/foundu/bin/cron.php
@@ -35,8 +38,21 @@
 
 เส้นทางต้องตรงกับที่แตกไฟล์ ถ้าโฮสต์เรียก php คนละตัว ให้ใช้พาธเต็มของ PHP 8.3 หรือ 8.4 ที่แผงบอก
 
-9. ทำ Cloudflare ตาม `cloudflare.md` DNS สีส้ม, SSL Full (strict), กฎ WAF, rate limit, แคช, Turnstile
-10. ล้างแคช Cloudflare แล้วลองรายการด้านล่าง
+7. เปิดลิงก์รายการตรวจ Cloudflare ที่หน้าสุดท้ายให้มา หรือทำตาม `cloudflare.md` DNS สีส้ม, SSL Full (strict), กฎ WAF, rate limit, แคช, Turnstile
+8. ล้างแคช Cloudflare แล้วลองรายการด้านล่าง
+
+ค่าที่ต้องมีก่อนเปิดให้คนใช้ ถ้าขั้นค่าตั้งยังเว้นไว้: `APP_URL`, `R2_*`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET` และ `TURNSTILE_ENABLED=1` คีย์ AI ใส่อย่างน้อยหนึ่งตัวถ้าจะเปิดแชท แก้ใน `.env.php` แล้วตรวจว่าสิทธิ์ยังเป็น 600
+
+## ทางสำรอง ทำมือ
+
+ใช้เมื่อหน้า `/install` เปิดไม่ได้ ไม่ใช่ทางหลัก
+
+1. คัดลอก `foundu/config/.env.php.example` เป็น `foundu/config/.env.php` กรอกค่าจริง แล้วตั้งสิทธิ์ **600** อย่าอัปไฟล์ที่ docker สร้างให้
+2. สุ่ม `APP_KEY` เองให้ยาวอย่างน้อย 32 ไบต์ คีย์ libsodium ของแอปได้จากค่านี้
+3. ใน phpMyAdmin เลือกฐาน นำเข้า `foundu/migrations/all.sql`
+4. บนเครื่องตัวเองรัน `foundu/bin/create-admin.php` แล้วนำ SQL ที่มันพิมพ์ไปวางใน phpMyAdmin
+5. สร้างไฟล์ว่าง `foundu/config/install.lock` แล้วลบ `public_html/install` กับ `foundu/install-token.txt` ถ้าไม่ทำ หน้าติดตั้งยังเปิดอยู่
+6. ตั้ง cron และ Cloudflare ตามด้านบน
 
 ## ลองหลังเปิด
 

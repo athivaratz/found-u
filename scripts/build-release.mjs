@@ -2,7 +2,7 @@
 // Builds the DirectAdmin zip: static Next export plus the PHP app.
 // Run this on a machine with Node and Composer. The host has neither.
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -107,23 +107,24 @@ English
 1. In DirectAdmin, open File Manager and go to your home directory (the folder that contains public_html).
 2. Upload foundu-release.zip there and click Extract.
 3. You should see public_html/ (the site) and foundu/ (the PHP app, next to public_html, not inside it).
-4. Copy foundu/config/.env.php.example to foundu/config/.env.php and fill in the database, APP_URL, APP_KEY, and R2 values.
-5. Set permissions on foundu/config/.env.php to 600 (File Manager → the file → Permissions).
-6. In phpMyAdmin, import foundu/migrations/all.sql, then the admin INSERT printed by create-admin.php on your own computer.
-7. Point the domain at public_html. APP_URL must be the public https origin. Purge the Cloudflare cache after each upload.
-8. Add a cron job: */5 * * * * php ~/foundu/bin/cron.php
+4. In File Manager open foundu/install-token.txt (this folder sits next to public_html, not inside it). Copy the whole line. That file is the one-time setup token.
+5. In a browser open https://your-domain/install and paste the token. Follow the five steps. The installer writes foundu/config/.env.php with mode 600, imports the database in short slices, and creates the first admin.
+6. The last step shows the cron line and a link to /cloudflare-checklist.html. After that, /install answers 404 and the token file is deleted. Copy the cron line before you close the page.
+7. In DirectAdmin, add that cron. Then follow the Cloudflare checklist and purge the cache.
 
 ไทย
 1. เปิด File Manager ใน DirectAdmin ไปที่โฟลเดอร์บ้าน (โฟลเดอร์ที่มี public_html)
 2. อัปโหลด foundu-release.zip แล้วกด Extract
 3. ต้องได้ public_html/ (เว็บ) กับ foundu/ (แอป PHP อยู่ข้าง public_html ไม่ใช่ข้างใน)
-4. ก็อป foundu/config/.env.php.example เป็น foundu/config/.env.php แล้วใส่ค่าฐานข้อมูล, APP_URL, APP_KEY และ R2
-5. ตั้งสิทธิ์ foundu/config/.env.php เป็น 600
-6. ใน phpMyAdmin นำเข้า foundu/migrations/all.sql แล้วตามด้วย SQL ของแอดมินจาก create-admin.php ที่รันบนเครื่องตัวเอง
-7. โดเมนต้องชี้มาที่ public_html ค่า APP_URL คือที่อยู่เว็บจริงที่ขึ้นต้นด้วย https หลังอัปโหลดให้ล้างแคช Cloudflare
-8. ตั้ง cron: */5 * * * * php ~/foundu/bin/cron.php
+4. ใน File Manager เปิด foundu/install-token.txt แล้วคัดลอกทั้งบรรทัด นี่คือโทเค็นใช้ครั้งเดียว
+5. เปิดเบราว์เซอร์ไปที่ https://โดเมนของคุณ/install วางโทเค็น แล้วทำ 5 ขั้น ตัวติดตั้งจะเขียน foundu/config/.env.php สิทธิ์ 600 นำเข้าฐานข้อมูลทีละช่วง และสร้างผู้ดูแลคนแรก
+6. ขั้นสุดท้ายแสดงคำสั่ง cron กับลิงก์รายการตรวจ Cloudflare จากนั้น /install จะขึ้น 404 และไฟล์โทเค็นถูกลบ คัดลอกคำสั่ง cron ก่อนปิดหน้า
+7. ใส่ cron ใน DirectAdmin แล้วทำรายการ Cloudflare จากนั้นล้างแคช
+
+ทางสำรอง ถ้าหน้าติดตั้งใช้ไม่ได้: ก็อป foundu/config/.env.php.example เป็น foundu/config/.env.php แล้วตั้งสิทธิ์ 600 นำเข้า foundu/migrations/all.sql ใน phpMyAdmin แล้วตามด้วย SQL จาก create-admin.php ที่รันบนเครื่องตัวเอง จากนั้นสร้างไฟล์ว่าง foundu/config/install.lock และลบ public_html/install กับ foundu/install-token.txt เพื่อไม่ให้หน้าติดตั้งค้างอยู่
 
 Do not upload a .env.php that was generated inside docker. That file has the container password.
+Do not commit or paste install-token.txt or .env.php.
 `;
 
 rm(stage);
@@ -139,6 +140,9 @@ copyDir(path.join(root, "foundu"), founduStage, (name) => {
     name === ".env" ||
     name === ".env.php" ||
     name === "mock-cf.on" ||
+    name === "install-preview.on" ||
+    name === "install-token.txt" ||
+    name === "install.lock" ||
     name.endsWith(".log")
   );
 });
@@ -149,6 +153,9 @@ fs.mkdirSync(path.join(founduStage, "storage", "logs"), { recursive: true });
 for (const file of walk(founduStage)) {
   if (file.endsWith(".php") && path.basename(file) === ".env.php") fs.rmSync(file);
 }
+const setupToken = randomBytes(32).toString("hex");
+fs.writeFileSync(path.join(founduStage, "install-token.txt"), `${setupToken}\n`, { mode: 0o600 });
+fs.chmodSync(path.join(founduStage, "install-token.txt"), 0o600);
 
 // --no-dev on the working tree would drop PHPUnit. This copy is the zip.
 if (spawnSync("composer", ["--version"], { stdio: "ignore" }).status === 0) {
@@ -188,6 +195,11 @@ for (const name of [".htaccess", ".user.ini", "meta.php", "og.php"]) {
   fs.copyFileSync(path.join(root, "public_html", name), path.join(web, name));
 }
 copyDir(path.join(root, "public_html", "api"), path.join(web, "api"), () => false);
+copyDir(path.join(root, "public_html", "install"), path.join(web, "install"), () => false);
+fs.copyFileSync(
+  path.join(root, "public_html", "cloudflare-checklist.html"),
+  path.join(web, "cloudflare-checklist.html")
+);
 patchHtaccess(path.join(web, ".htaccess"));
 
 const shellBlog = path.join(web, "blog", "_", "index.html");

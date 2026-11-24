@@ -21,11 +21,13 @@ if [[ ! -f "$APP/vendor/autoload.php" ]]; then
     chown -R "$host_uid:$host_gid" "$APP/vendor" || true
 fi
 
-if [[ ! -f "$APP/config/.env.php" ]]; then
+if [[ "${FOUNDU_SKIP_ENV:-0}" != "1" && ! -f "$APP/config/.env.php" ]]; then
     php "$APP/bin/write-env.php"
 fi
-chown "$host_uid:$host_gid" "$APP/config/.env.php"
-chmod 600 "$APP/config/.env.php"
+if [[ -f "$APP/config/.env.php" ]]; then
+    chown "$host_uid:$host_gid" "$APP/config/.env.php"
+    chmod 600 "$APP/config/.env.php"
+fi
 
 chown "$host_uid:$host_gid" "$APP/storage/cache"
 chmod 775 "$APP/storage/cache"

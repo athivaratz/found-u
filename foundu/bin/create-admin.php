@@ -19,6 +19,7 @@ if (!is_file($autoload)) {
 }
 require $autoload;
 
+use Foundu\Auth\BootstrapAdmin;
 use Foundu\Auth\PasswordHash;
 use Foundu\Config;
 use Foundu\Database;
@@ -119,38 +120,16 @@ if ($database !== null) {
 if ($apply) {
     try {
         $pdo = Database::connection($config);
-        $count = Database::privileged($pdo, static function (PDO $pdo) use (
-            $id, $studentId, $email, $display, $first, $last, $nickname, $hash
-        ): int {
-            $pdo->beginTransaction();
-            try {
-                $stmt = $pdo->prepare(
-                    'INSERT INTO accounts (
-                        id, student_id, linked_uid, email, display_name, first_name, last_name, nickname,
-                        role, current_password_hash, school_password_hash, is_student_verified, is_registered,
-                        status, auth_methods, passkey_credentials
-                     ) SELECT
-                        ?, ?, ?, ?, ?, ?, ?, ?,
-                        \'admin\', ?, ?, 1, 1,
-                        \'active\', JSON_ARRAY(\'password\'), JSON_ARRAY()
-                     FROM DUAL
-                     WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE student_id = ? OR id = ?)'
-                );
-                $stmt->execute([
-                    $id, $studentId, $id, $email, $display, $first, $last, $nickname,
-                    $hash, $hash,
-                    $studentId, $id,
-                ]);
-                $written = $stmt->rowCount();
-                $pdo->commit();
-                return $written;
-            } catch (Throwable $e) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-                throw $e;
-            }
-        });
+        $count = BootstrapAdmin::apply($pdo, [
+            'id' => $id,
+            'studentId' => $studentId,
+            'email' => $email,
+            'display' => $display,
+            'first' => $first,
+            'last' => $last,
+            'nickname' => $nickname,
+            'hash' => $hash,
+        ]);
     } catch (Throwable $e) {
         if (isset($pdo) && $pdo->inTransaction()) {
             $pdo->rollBack();

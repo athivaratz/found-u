@@ -108,7 +108,7 @@ PHPUnit บน 8.3 หรือ 8.4 ใช้ `SERVICE=web83 foundu/bin/phpunit.
 
 ## ขึ้นเว็บโรงเรียน
 
-โฮสต์เป้าหมายคือ DirectAdmin ไม่มี SSH และไม่มี Node ตอนให้บริการ ขั้นตอนทีละข้อภาษาไทยอยู่ใน [docs/php-port/go-live.md](docs/php-port/go-live.md) ค่าที่ต้องกรอกอยู่ใน `foundu/config/.env.php.example` เมื่อเว็บมีปัญหาให้อ่าน [docs/php-port/runbook.md](docs/php-port/runbook.md)
+โฮสต์เป้าหมายคือ DirectAdmin ไม่มี SSH และไม่มี Node ตอนให้บริการ ทางหลักคือเปิด `/install` หลังแตก zip โทเค็นอยู่ใน `foundu/install-token.txt` ขั้นตอนภาษาไทยอยู่ใน [docs/php-port/go-live.md](docs/php-port/go-live.md) เมื่อเว็บมีปัญหาให้อ่าน [docs/php-port/runbook.md](docs/php-port/runbook.md)
 
 ## ทีมงาน
 
@@ -131,7 +131,7 @@ This research and innovation activity is funded by National Research Council of 
 - MariaDB ในเครื่องคือ 10.11.20 ไม่ใช้ 10.6 SQL ใช้ได้กับ 10.11 และ 11 ถ้ารุ่นบนโฮสต์ต่ำกว่านี้ให้บอกก่อนนำเข้า schema
 - `session.upload_progress.enabled` ถูกปิดใน `docker/php/php.ini`, `public_html/.user.ini` และตอนบูตของ `api/index.php`
 - zip ที่อัปมี `public_html/` กับ `foundu/` นอก web root รวม `foundu/vendor` โฮสต์ไม่มี composer และไม่มี SSH
-- ก็อป `foundu/config/.env.php.example` เป็น `.env.php` แล้ว chmod 600 อย่าอัปไฟล์ที่ container สร้างให้
+- เปิด `/install` ด้วยโทเค็นใน `foundu/install-token.txt` ทางสำรองคือก็อป `.env.php.example` แล้ว chmod 600 อย่าอัปไฟล์ที่ container สร้างให้
 - `.htaccess` เปิดเฉพาะ IP ของ Cloudflare Docker สร้าง `public_html/.cf-allowlist-off` เพื่อปิดด่านนี้ในเครื่อง อย่าอัปไฟล์นั้น ถ้าโฮสต์เขียน `REMOTE_ADDR` ทับเป็นไอพีผู้เยี่ยม บล็อก `Require ip` จะ 403 ทุกคน อ่าน [docs/php-port/cloudflare.md](docs/php-port/cloudflare.md)
 - ไม่มี Redis ตัวนับอยู่ที่ MariaDB APCu เป็นทางลัดถ้าโฮสต์เปิดให้ cron คือ `*/5 * * * * php ~/foundu/bin/cron.php`
 - body ที่ Apache รับได้คือ 1.5 MiB PHP ยังตัดคำขอธรรมดาที่เกิน 256 KiB และคำขอแชทที่เกิน 64 KiB รูปใน vision กับแชทไปได้ถึง 1.5 MiB

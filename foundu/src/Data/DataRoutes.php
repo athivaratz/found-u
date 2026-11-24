@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Foundu\Data;
 
 use Foundu\Auth\SessionService;
+use Foundu\Install\Status;
 use Foundu\RateLimit\Limiter;
 use Slim\App;
 
@@ -22,5 +23,6 @@ final class DataRoutes
         Nfc::register($app, $config, $pdo, $limiter);
         Geocode::register($app, $config, $pdo, $limiter);
         Site::register($app, $pdo, $appRoot, $limiter, $config);
+        Status::register($app, $config, $pdo, $appRoot);
     }
 }

@@ -97,7 +97,7 @@ Browser Cache TTL: **Respect existing headers**.
 Cache rules (Free allows 10):
 
 1. URI Path starts with `/_next/static/` → Eligible for cache, Edge TTL 1 year
-2. URI Path does not start with `/api/` and the extension is html, or the path ends with `/` → Eligible for cache, Edge TTL 30 minutes
+2. URI Path does not start with `/api/` or `/install` and the extension is html, or the path ends with `/` → Eligible for cache, Edge TTL 30 minutes. Leave `/install` and `/cloudflare-checklist.html` uncached. The installer sends `Cache-Control: private, no-store`.
 3. URI Path starts with `/api/public-` or `/api/cms/` and the method is GET → Eligible for cache, respect the origin `Cache-Control`
 4. URI Path starts with `/api/` → Bypass cache
 
@@ -123,6 +123,8 @@ The keys Cloudflare publishes for testing (`1x00000000000000000000AA` always pas
 
 This lock assumes `REMOTE_ADDR` is still the address of the TCP connection, which is Cloudflare.
 
-If VisperHost already rewrites `REMOTE_ADDR` to the visitor IP (`mod_remoteip`, or LiteSpeed "Use Client IP in Header"), the `Require ip` block sees the visitor, not Cloudflare, and **every visitor gets 403**. Check that before you upload the release. The question is in `go-live.md`. If they already restore the visitor IP, delete the `Require ip` block (keep the rest of the file) and rely on PHP, which still wants `CF-Connecting-IP` together with `CF-Ray` only when you have confirmed the request came through Cloudflare. Do not start trusting `X-Forwarded-For`.
+If VisperHost already rewrites `REMOTE_ADDR` to the visitor IP (`mod_remoteip`, or LiteSpeed "Use Client IP in Header"), the `Require ip` block sees the visitor, not Cloudflare, and **every visitor gets 403**. Check that before you upload the release. The question is in `go-live.md`, and the installer's first check says which case this request is. If they already restore the visitor IP, delete the `Require ip` block (keep the rest of the file) and rely on PHP, which still wants `CF-Connecting-IP` together with a Cloudflare peer address. Do not start trusting `X-Forwarded-For`.
+
+The installer is `https://your-domain/install`. That path does not end in `.php`, so custom rule 1 does not have to grow an exception. After setup the same URL is a 404 and `foundu/install-token.txt` is gone.
 
 `public_html/.cf-allowlist-off` disables the lock. Docker creates it. Do not upload it.

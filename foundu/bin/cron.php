@@ -61,6 +61,13 @@ try {
         fwrite(STDOUT, $line . "\n");
     }
     Log::get()->info('cron finished', $counts + ['tasks' => $lines]);
+    $cache = $appRoot . '/storage/cache';
+    if (!is_dir($cache)) {
+        @mkdir($cache, 0775, true);
+    }
+    if (is_dir($cache) && is_writable($cache)) {
+        @file_put_contents($cache . '/cron-last-run', (string) $now);
+    }
 } catch (Throwable $e) {
     Log::get()->error('cron failed', ['class' => $e::class]);
     fwrite(STDERR, "cron failed\n");
