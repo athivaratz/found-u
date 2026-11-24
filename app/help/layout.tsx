@@ -1,17 +1,33 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { PublicFooter } from "@/components/shared/public-footer";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { listHelpPages } from "@/lib/help/data";
+import type { HelpPage } from "@/lib/help/types";
 import { focusRing, shell } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
-export default async function HelpLayout({
+export default function HelpLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pages = await listHelpPages();
+  const [pages, setPages] = useState<HelpPage[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listHelpPages()
+      .then((rows) => {
+        if (!cancelled) setPages(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-bg-secondary text-text-primary">

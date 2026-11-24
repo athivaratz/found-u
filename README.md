@@ -31,7 +31,7 @@
 - **จับคู่อัตโนมัติ** ระหว่างรายการของหายกับของเจอ
 - **ผู้ช่วย AI** ที่หน้า `/assistant` — คุยเพื่อค้นหา แจ้งรายการ จับคู่ วิเคราะห์รูป หรือเช็กสถานะได้ในแชทเดียว รองรับ Gemini และ OpenRouter พร้อม fallback อัตโนมัติ
 - **AI วิเคราะห์รูป** เดาชื่อ หมวดหมู่ สี ยี่ห้อจากภาพถ่าย และ **AI แยกข้อมูลจากข้อความ** ตอนแจ้งของหาย
-- **ค้นหาแบบ fuzzy** (`pg_trgm`) ทนพิมพ์ผิด/สะกดใกล้เคียงได้ ทั้งหน้ารายการและใน Agent
+- **ค้นหา** ที่ทนคำใกล้เคียงได้ ทั้งหน้ารายการและในผู้ช่วย AI
 - **แท็ก NFC** ติดของสำคัญ สแกนแล้วแจ้งเจ้าของได้ทันที ไม่ต้องพิมพ์ URL เอง (รองรับ NTAG213/215/216 เขียน Read-only บน Android และพิมพ์ QR สำรองสำหรับ iOS)
 - **แผงแอดมิน** ครบ — จัดการรายการ ผู้ใช้ นักเรียน การจับคู่ moderation ตั้งค่า AI และดู debug log ของ Agent
 
@@ -60,168 +60,55 @@
 
 ## เทคโนโลยีที่ใช้
 
+เว็บที่นักเรียนเปิดเป็นไฟล์นิ่งจาก Next.js ไม่มีเซิร์ฟเวอร์ Node ตอนให้บริการ API เป็น PHP
+
 | ส่วน | ใช้อะไร |
 |------|---------|
-| Framework / UI | [Next.js](https://nextjs.org/) 16 (App Router) + [React](https://react.dev/) 19 + [TypeScript](https://www.typescriptlang.org/) 5.9 |
-| สไตล์ | [Tailwind CSS](https://tailwindcss.com/) 4 |
-| Backend / DB | [Supabase](https://supabase.com/) — Postgres, Auth, Realtime, RLS, `pg_trgm` |
-| Validation | [Zod](https://zod.dev/) 4 บนทุก API route |
-| AI Pipeline | Google Gemini (vision, NER, matching) |
-| AI Agent | [Vercel AI SDK](https://sdk.vercel.ai/) 7 (`@ai-sdk/google`, `@ai-sdk/openai`) + [OpenRouter](https://openrouter.ai/) เป็น fallback |
-| แชทฝั่งไคลเอนต์ | [Dexie](https://dexie.org/) 4 (IndexedDB) |
-| แผนที่ | [Leaflet](https://leafletjs.com/) + OpenStreetMap |
-| ที่เก็บไฟล์ | Cloudflare R2 (หรือ Supabase Storage สำหรับโรงเรียนที่ deploy ใหม่) |
-| Runtime | [Bun](https://bun.sh/) 1.3 |
-| Discord Bot | [discord.js](https://discord.js.org/) 14 + Found-U protected API |
+| หน้าเว็บ | Next.js 16 (static export) + React 19 + TypeScript |
+| สไตล์ | Tailwind CSS 4 |
+| API | PHP 8.2.36 ขึ้นไป, Slim 4, PDO แนะนำเลือก 8.3 หรือ 8.4 ในแผงโฮสต์ |
+| ฐานข้อมูล | MariaDB |
+| รูปและแบ็กอัป | Cloudflare R2 |
+| แชท | Gemini หรือ OpenRouter เรียกจาก PHP ได้ทีละคำตอบ |
+| แผนที่ | Leaflet + OpenStreetMap |
+| หน้าบ้านโดเมน | Cloudflare Free |
 
 ## โครงสร้างโปรเจกต์
 
 ```text
-app/
-  (app)/     หน้าหลังล็อกอิน — home, assistant, lost, found, list, tracking, settings
-  admin/     แผงผู้ดูแล — items, users, students, matching, AI, NFC, moderation
-  api/       REST API — auth, vision, ner, match, agent, storage, nfc
-  auth/      ล็อกอิน เปลี่ยนรหัส ตั้ง PIN
-  nfc/       ลงทะเบียนแท็ก / แท็กของฉัน / แจ้งพบผ่าน NFC
-  setup/     wizard ตั้งค่าระบบครั้งแรก (deploy ใหม่)
-components/  UI, layout, map, camera, agent, dialogs
-contexts/    auth, data (Realtime subscriptions)
-lib/
-  agent/     tools, prompt, provider routing, privacy ของ AI Agent
-  chat/      เก็บ session/message ฝั่งไคลเอนต์ (Dexie), context window, memory
-  search/    fuzzy search (pg_trgm), relevance ranking
-  supabase/  client, server, admin, passkey auth, auth session
-  validations/  Zod schemas
-supabase/migrations/  schema + RLS ทั้งหมด (รันอัตโนมัติหลัง deploy)
+app/            หน้าเว็บที่ถูก export เป็น HTML
+components/     UI, แผนที่, กล้อง, แชท
+public_html/    สิ่งที่ Apache เสิร์ฟ รวม api/index.php
+foundu/         โค้ด PHP, migration, cron, ค่า .env.php
+docker/         Apache + PHP + MariaDB สำหรับลองในเครื่อง
+docs/php-port/  บันทึกการพอร์ต วิธีขึ้นเว็บ และสิ่งที่ต้องทำตอนเว็บล่ม
 ```
 
-## เริ่มพัฒนาในเครื่อง
+## ลองในเครื่อง
 
-ต้องมี [Bun](https://bun.sh/) และโปรเจกต์ Supabase (สร้างฟรีได้ที่ [supabase.com](https://supabase.com/dashboard))
+ต้องมี Docker กับ Node (ใช้ตอนสร้างไฟล์นิ่ง ไม่ได้รันบนโฮสต์)
 
 ```bash
 git clone https://github.com/bodin2/found-u.git
 cd found-u
-bun install
-
-cp .env.example .env.local
-# แก้ .env.local ให้มีค่าจาก Supabase project ของตัวเอง
-# (Project Settings → API และ Database)
-
-bun run db:push   # sync schema/migrations เข้า Supabase
-bun dev           # http://localhost:3000
-```
-
-เปิด `/setup` ครั้งแรกเพื่อสร้างบัญชีแอดมินผ่าน wizard หรือใช้ `bun run create:admin` จากเทอร์มินัลก็ได้ คำสั่งอื่นที่มีให้:
-
-| คำสั่ง | ใช้ทำอะไร |
-|--------|-----------|
-| `bun run lint` / `bun run typecheck` | เช็กโค้ดก่อนคอมมิต |
-| `bun test` | รัน unit tests |
-| `bun run gen:students` / `import:students` | สร้าง/นำเข้ารายชื่อนักเรียนจาก CSV |
-| `bun run test:login` | ทดสอบ flow ล็อกอินนักเรียน |
-
-### ทดสอบ Setup Wizard แบบ Sandbox (ไม่กระทบ `.env.local`)
-
-ใช้ **Supabase project แยก** สำหรับลอง wizard ซ้ำๆ โดยไม่ต้อง redeploy และไม่ต้องเปลี่ยน env หลักที่เชื่อม deploy อยู่แล้ว
-
-```bash
-# 1) สร้างโปรเจกต์ Supabase ฟรีอีกตัว (เช่น found-u-setup-sandbox)
-cp .env.setup.example .env.setup.local
-# แก้ .env.setup.local ใส่ URL / keys / POSTGRES ของ sandbox
-
-# 2) รีเซ็ตสถานะ wizard (ทำซ้ำได้ทุกครั้งหลังทดสอบ)
-bun run setup:reset
-
-# 3) รัน dev ด้วย sandbox env (override .env.local ชั่วคราว)
-bun run dev:setup
-# เปิด http://localhost:3000/setup
-```
-
-| คำสั่ง | ใช้ทำอะไร |
-|--------|-----------|
-| `bun run dev:setup` | `next dev` โดยโหลด `.env.setup.local` |
-| `bun run setup:reset` | รีเซ็ต `setup_status`, branding, AI config, แอดมินที่สร้างจาก wizard |
-
-DB ว่างครั้งแรก: เปิด `/setup` แล้ว hydrator จะรัน migration อัตโนมัติ (เหมือน production) — ไม่ต้อง `db:push` ถ้าใช้ sandbox ใหม่เปล่าๆ
-
-## Deploy ให้โรงเรียนใหม่
-
-แนวทางที่แนะนำ: **Clone + Deploy ก่อน** ให้ใช้งานได้จริง แล้วค่อย **Fork** ทีหลังถ้าต้องการ sync อัปเดตจากโค้ดหลัก
-
-### 1. Clone + Deploy (1 คลิก)
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbodin2%2Ffound-u&project-name=found-u&repository-name=found-u&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22supabase%22%2C%22productSlug%22%3A%22supabase%22%7D%5D)
-
-1. กด **Deploy with Vercel** แล้วล็อกอินด้วย GitHub / Vercel
-2. เลือก **Supabase** → Region **Singapore** → Plan **Free** → **Deploy**
-3. เปิด `https://<ชื่อโปรเจกต์>.vercel.app/setup` แล้วทำตาม wizard 3 ขั้นเพื่อสร้างบัญชีแอดมิน
-
-Vercel จะ clone โค้ดและสร้าง repo `found-u` ในบัญชี GitHub ของคุณเอง ตอนนี้ยังไม่มี upstream จึงยังกด Sync fork ไม่ได้ — ไปทำขั้นที่ 2 เมื่อพร้อม
-
-### 2. Fork + เปลี่ยน Git (ทำตอนพร้อม sync อัปเดต)
-
-1. [Fork Found-U](https://github.com/bodin2/found-u/fork) → ได้ `ชื่อคุณ/found-u` ที่ผูก upstream กับ `bodin2/found-u`
-2. ใน Vercel: **Settings → Git** → Disconnect repo เดิม → Connect เลือก `ชื่อคุณ/found-u`
-3. Redeploy (env และ Supabase ยังอยู่ครบ ไม่ต้องตั้งใหม่)
-
-จากนั้นอัปเดตได้ทุกครั้งด้วย GitHub → **Sync fork → Update branch** แล้ว Vercel จะ deploy ให้อัตโนมัติ migration ของฐานข้อมูลรันเองหลัง deploy ข้อมูลโรงเรียนเดิมไม่หาย
-
-> Vercel รองรับติดตั้ง Supabase พร้อมกันได้เฉพาะตอน deploy จาก `/new/clone` เท่านั้น จะ fork ก่อนแล้วติด Supabase ทีเดียวไม่ได้ — ต้องเริ่มจากขั้นที่ 1 เสมอ
-
-### เลือก region ให้ได้ Free Plan
-
-ตอนติดตั้ง Supabase ผ่าน Vercel ให้เลือก **Region: Southeast Asia (Singapore)** — latency ดีสำหรับไทยและรองรับ Free Plan บางภูมิภาค เช่น Tokyo หรือ Seoul จะขึ้น "Upgrade your plan..." และกด Free ไม่ได้
-
-ถ้ายังเลือก Free ไม่ได้: ลองเปลี่ยนเป็น Singapore, เช็กว่า organization ยังมีโควตา free project เหลือ (จำกัด 2 โปรเจกต์/org) หรือสร้าง project ฟรีเองที่ [supabase.com/dashboard](https://supabase.com/dashboard) แล้วกลับมาเลือก "Connect existing Supabase account" ในเมนู `...` ข้างปุ่ม Install
-
-## ตัวแปรสภาพแวดล้อม
-
-ดูรายการเต็มพร้อมคำอธิบายได้ใน [`.env.example`](.env.example)
-
-- **ต้องมี** (Vercel + Supabase integration ใส่ให้อัตโนมัติ): `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL_NON_POOLING`
-- **ใส่หลังรู้โดเมน** (ไม่บังคับตอน deploy ครั้งแรก): `NEXT_PUBLIC_APP_URL`, `SCHOOL_AUTH_DOMAIN` — ถ้ายังไม่รู้ URL ให้เว้นไว้ แอปจะใช้ `VERCEL_URL` แทนชั่วคราว
-- **AI (ไม่บังคับ)**: `GEMMA_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` — ตั้งผ่าน Setup Wizard หรือใส่เป็น env ก็ได้
-- **Storage (ไม่บังคับ)**: `R2_*` — ถ้าไม่ใส่ ระบบจะใช้ Supabase Storage แทนโดยอัตโนมัติ
-- **ค้นหา**: `SEARCH_USE_TRGM`, `SEARCH_SIMILARITY_THRESHOLD`, `AGENT_SEARCH_SIMILARITY_THRESHOLD`
-
-## Discord: ยืนยันตัวตนและรับ Role
-
-บอทใช้การยืนยันสองฝั่ง: นักเรียนเรียก `/verify` ใน Discord แล้วเปิดลิงก์แบบใช้ครั้งเดียว (หมดอายุใน 15 นาที) เพื่อเข้าสู่ระบบ Found-U บัญชีที่ผ่านการยืนยันและยัง active เท่านั้นจึงเชื่อม Discord ได้ จากนั้นบอทจะมอบ Role ภายในไม่กี่วินาที ผู้ใช้สามารถเรียก `/sync` เพื่อคำนวณ Role ใหม่จากข้อมูลล่าสุดใน Found-U
-
-ข้อมูลที่ใช้กำหนด Role คือ `role` ของ Found-U (`user` / `admin`), `grade_level` และ `room_number` เท่านั้น บอทไม่อ่านรหัสผ่านหรือ Supabase service-role key; ติดต่อเว็บผ่าน API ภายในด้วย secret แยกต่างหาก
-
-### ตั้งค่าใน Discord Developer Portal
-
-1. สร้าง Application และ Bot ที่ [Discord Developer Portal](https://discord.com/developers/applications) แล้วคัดลอก **Application ID** และ **Bot Token**
-2. เชิญบอทเข้าเซิร์ฟเวอร์ด้วย scopes `bot` และ `applications.commands` พร้อมสิทธิ์ **Manage Roles**
-3. เปิด Developer Mode ใน Discord แล้วคัดลอก Server ID และ Role ID ที่ต้องการ
-4. ลาก Role ของบอทให้อยู่เหนือทุก Role ที่บอทต้องจัดการ มิฉะนั้น Discord จะปฏิเสธการเพิ่ม/ลบ Role
-
-### Environment
-
-กำหนดค่าในเว็บไซต์และ process ของบอทตาม [`.env.example`](.env.example) โดยต้องมี `DISCORD_GUILD_ID`, `DISCORD_BOT_API_SECRET` (สุ่มอย่างน้อย 32 ตัวอักษร), `DISCORD_VERIFIED_ROLE_ID` หรือกฎใน `DISCORD_ROLE_RULES_JSON` และสำหรับ process บอทต้องเพิ่ม `FOUNDU_BASE_URL`, `DISCORD_BOT_TOKEN`, `DISCORD_APPLICATION_ID`
-
-ตัวอย่างการกำหนด Role เพิ่มตามชั้น/ห้อง:
-
-```env
-DISCORD_VERIFIED_ROLE_ID=123456789012345678
-DISCORD_ADMIN_ROLE_ID=234567890123456789
-DISCORD_ROLE_RULES_JSON=[{"roleId":"345678901234567890","when":{"gradeLevel":"ม.6"}},{"roleId":"456789012345678901","when":{"gradeLevel":"ม.6","roomNumber":"1"}}]
-```
-
-รัน migration ตามปกติ แล้วติดตั้ง dependency และรันบอทเป็น process แยกจาก Next.js:
-
-```bash
 npm install
-bun run db:push
-# บอทจะอ่าน .env.local อัตโนมัติในเครื่อง; production ควรตั้งใน process manager
-npm run discord:bot
+make up
 ```
 
-บน production ให้ตั้ง environment เดียวกันกับเว็บไซต์สำหรับ `DISCORD_GUILD_ID`, `DISCORD_BOT_API_SECRET`, `DISCORD_VERIFIED_ROLE_ID`, `DISCORD_ADMIN_ROLE_ID`, `DISCORD_ROLE_RULES_JSON` และตั้งค่าเฉพาะบอท (`FOUNDU_BASE_URL`, `DISCORD_BOT_TOKEN`, `DISCORD_APPLICATION_ID`) ใน service/process manager ของบอท ห้ามใส่ `DISCORD_BOT_TOKEN` ในตัวแปร `NEXT_PUBLIC_*`
+เปิด http://localhost:8080 ฐานข้อมูลและค่า `.env.php` ถูกสร้างให้ใน container ของที่ต้องรู้ก่อนขึ้นโฮสต์อยู่ในหัวข้อด้านล่าง ขั้นตอนขึ้นเว็บจริงอยู่ใน [docs/php-port/go-live.md](docs/php-port/go-live.md)
 
-เจอ `500 MIDDLEWARE_INVOCATION_FAILED` หรือ `/setup?reason=missing_env` แปลว่ายังไม่มี env จาก Supabase integration หรือมีค่า `-` เป็น placeholder หลงเหลืออยู่ — แก้แล้ว redeploy ใหม่
+| คำสั่ง | ใช้ทำอะไร |
+|--------|-----------|
+| `make test` | migration, แล้ว PHPUnit |
+| `make logs` | ดูล็อกของ container |
+| `npm run typecheck` | เช็ก TypeScript |
+| `npm run build-release` | สร้าง `dist/foundu-release.zip` สำหรับอัปขึ้นโฮสต์ |
+
+PHPUnit บน 8.3 หรือ 8.4 ใช้ `SERVICE=web83 foundu/bin/phpunit.sh` และ `SERVICE=web84 foundu/bin/phpunit.sh`
+
+## ขึ้นเว็บโรงเรียน
+
+โฮสต์เป้าหมายคือ DirectAdmin ไม่มี SSH และไม่มี Node ตอนให้บริการ ทางหลักคือเปิด `/install` หลังแตก zip โทเค็นอยู่ใน `foundu/install-token.txt` ขั้นตอนภาษาไทยอยู่ใน [docs/php-port/go-live.md](docs/php-port/go-live.md) เมื่อเว็บมีปัญหาให้อ่าน [docs/php-port/runbook.md](docs/php-port/runbook.md)
 
 ## ทีมงาน
 
@@ -238,6 +125,17 @@ This research and innovation activity is funded by National Research Council of 
 
 ---
 
+## ก่อนเอาขึ้นโฮสต์
+
+- ใน DirectAdmin ให้เลือก PHP 8.3 หรือ 8.4 PHP 8.2 หมดอายุวันที่ 31 ธ.ค. 2026 ถ้าตัวที่รันต่ำกว่า 8.2.36 `api/index.php` ตอบ 503
+- MariaDB ในเครื่องคือ 10.11.20 ไม่ใช้ 10.6 SQL ใช้ได้กับ 10.11 และ 11 ถ้ารุ่นบนโฮสต์ต่ำกว่านี้ให้บอกก่อนนำเข้า schema
+- `session.upload_progress.enabled` ถูกปิดใน `docker/php/php.ini`, `public_html/.user.ini` และตอนบูตของ `api/index.php`
+- zip ที่อัปมี `public_html/` กับ `foundu/` นอก web root รวม `foundu/vendor` โฮสต์ไม่มี composer และไม่มี SSH
+- เปิด `/install` ด้วยโทเค็นใน `foundu/install-token.txt` ทางสำรองคือก็อป `.env.php.example` แล้ว chmod 600 อย่าอัปไฟล์ที่ container สร้างให้
+- `.htaccess` เปิดเฉพาะ IP ของ Cloudflare Docker สร้าง `public_html/.cf-allowlist-off` เพื่อปิดด่านนี้ในเครื่อง อย่าอัปไฟล์นั้น ถ้าโฮสต์เขียน `REMOTE_ADDR` ทับเป็นไอพีผู้เยี่ยม บล็อก `Require ip` จะ 403 ทุกคน อ่าน [docs/php-port/cloudflare.md](docs/php-port/cloudflare.md)
+- ไม่มี Redis ตัวนับอยู่ที่ MariaDB APCu เป็นทางลัดถ้าโฮสต์เปิดให้ cron คือ `*/5 * * * * php ~/foundu/bin/cron.php`
+- body ที่ Apache รับได้คือ 1.5 MiB PHP ยังตัดคำขอธรรมดาที่เกิน 256 KiB และคำขอแชทที่เกิน 64 KiB รูปใน vision กับแชทไปได้ถึง 1.5 MiB
+
 ## อื่น ๆ
 
 - ความปลอดภัยและการรายงานช่องโหว่: [SECURITY.md](SECURITY.md)
@@ -248,9 +146,9 @@ This research and innovation activity is funded by National Research Council of 
 <details>
 <summary><strong>English summary</strong></summary>
 
-Found-U is a school lost-and-found web app. Reporters and finders coordinate through tracking codes and automatic matching instead of lost-and-found boxes and bulletin boards. It also ships an AI assistant (chat, powered by Gemini/OpenRouter through the Vercel AI SDK) that can search, file reports, run matching, and read photos in one conversation, plus NFC tags that let anyone who finds a tagged item message the owner instantly.
+Found-U is a school lost-and-found web app. Reporters and finders coordinate through tracking codes and automatic matching. The assistant can search, file a report, and read a photo in one reply. NFC tags let someone who finds a tagged item message the owner.
 
-Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, and Supabase (Postgres, Auth, Realtime, RLS). Deploy your own instance with the **Deploy with Vercel** button above — it provisions Supabase, runs migrations automatically, and walks you through a setup wizard at `/setup`. See the Thai sections above for the full deploy guide, environment variables, and local dev instructions (mostly self-explanatory from the commands and tables).
+The pages are a static Next.js export. The API is PHP (Slim 4) on MariaDB, with pictures and backups in Cloudflare R2. `make up` serves the site at http://localhost:8080. The shared-host steps, in Thai, are in `docs/php-port/go-live.md`. There is no Node process on the host, no SSH, and no Redis.
 
 This research and innovation activity is funded by National Research Council of Thailand (NRCT) and National Science and Technology Development Agency (NSTDA).
 

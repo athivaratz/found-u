@@ -26,6 +26,8 @@ import {
   type VisionExtractedData,
 } from "@/lib/vision";
 import { cn } from "@/lib/utils";
+import { phpFetchHeaders } from "@/lib/api-client";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 
 type TestTab = "ner" | "vision";
 
@@ -84,7 +86,10 @@ export default function AITestsPage() {
   const loadVisionQuota = useCallback(async () => {
     if (!user?.uid) return;
     try {
-      const response = await fetch(`/api/vision?userId=${user.uid}`);
+      const response = await fetch("/api/vision", {
+        headers: phpFetchHeaders("GET"),
+        credentials: "include",
+      });
       if (response.ok) {
         setVisionQuota(await response.json());
       }
@@ -106,7 +111,8 @@ export default function AITestsPage() {
     try {
       const response = await fetch("/api/ner", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: phpFetchHeaders("POST"),
         body: JSON.stringify({ text: testText, type: "lost" }),
       });
 
@@ -179,10 +185,10 @@ export default function AITestsPage() {
     try {
       const response = await fetch("/api/vision", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: phpFetchHeaders("POST"),
         body: JSON.stringify({
           imageDataUrl: imagePreview,
-          userId: user.uid,
           testMode: visionTestMode && isAdmin,
         }),
       });
@@ -389,6 +395,7 @@ export default function AITestsPage() {
       </header>
 
       <main className="p-4 max-w-3xl mx-auto space-y-6">
+        <TurnstileWidget />
         <div className="flex gap-2 p-1 bg-bg-primary dark:bg-gray-800 rounded-xl">
           <button
             type="button"

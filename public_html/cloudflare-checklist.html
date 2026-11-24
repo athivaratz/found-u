@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>รายการตรวจ Cloudflare</title>
+  <link rel="stylesheet" href="/install/install.css">
+</head>
+<body>
+<main>
+  <p class="brand">Found-U</p>
+  <h1>รายการตรวจ Cloudflare</h1>
+  <p>ทำหลังเว็บตอบที่โฮสต์แล้ว และก่อนบอกนักเรียนให้เข้าใช้ แผนนี้คือ Cloudflare Free</p>
+  <ol class="checks">
+    <li>
+      <strong>DNS สีส้ม</strong>
+      <p>ทุกเรคคอร์ดที่ชี้มาที่ไอพีโฮสต์ต้องเป็น Proxied อย่าเปิด mail หรือ ftp บนโดเมนนี้แบบ DNS-only</p>
+    </li>
+    <li>
+      <strong>SSL Full (strict)</strong>
+      <p>สร้าง Origin CA ใน Cloudflare แล้วนำใบรับรองกับคีย์ไปวางใน DirectAdmin ที่ SSL Certificates เปิด Always Use HTTPS</p>
+    </li>
+    <li>
+      <strong>กฎ WAF 5 ข้อ</strong>
+      <p>บล็อกสแกนเนอร์, บังคับหัว X-Requested-With: foundu ที่ /api/, challenge คนนอกไทย, จำกัดเมธอดของ /api/auth/, และกฎฉุกเฉินที่ปิดไว้ รายละเอียดอยู่ใน docs/php-port/cloudflare.md</p>
+    </li>
+    <li>
+      <strong>Rate limit หนึ่งกฎ</strong>
+      <p>เส้นทางขึ้นต้นด้วย /api/ นับต่อไอพี 60 ครั้งใน 10 วินาที แล้วบล็อก 10 วินาที</p>
+    </li>
+    <li>
+      <strong>Bot Fight Mode ปิด</strong>
+      <p>มันอาจท้าทายคำขอของหน้าเว็บเอง เปิดเฉพาะตอนถูกยิง แล้วปิดกลับ</p>
+    </li>
+    <li>
+      <strong>แคช</strong>
+      <p>เคารพหัวของเซิร์ฟเวอร์ แคช /_next/static/ นานได้ อย่าแคช /install และอย่าแคช /api/ นอกเส้นทางสาธารณะที่เอกสารระบุ หลังอัปโหลดให้ล้างแคช</p>
+    </li>
+    <li>
+      <strong>Turnstile</strong>
+      <p>โหมด Managed ใส่ site key และ secret ในไฟล์ตั้งค่า แล้วตั้ง TURNSTILE_ENABLED เป็น 1</p>
+    </li>
+    <li>
+      <strong>ไอพีที่ PHP เห็น</strong>
+      <p>ถ้า REMOTE_ADDR เป็นไอพีของ Cloudflare ให้คงบล็อก Require ip ใน .htaccess ถ้าโฮสต์เขียนทับเป็นไอพีผู้เยี่ยม ต้องเอาบล็อกนั้นออก ไม่งั้นทุกคนได้ 403 หน้าติดตั้งบอกผลนี้ไว้ในขั้นตรวจเครื่อง</p>
+    </li>
+  </ol>
+  <p>หน้าติดตั้งอยู่ที่ /install ซึ่งไม่ได้ลงท้ายด้วย .php จึงไม่โดนกฎที่บล็อกไฟล์ PHP อื่น หลังติดตั้งเสร็จ หน้านี้ยังเปิดได้ ส่วน /install จะเป็น 404</p>
+</main>
+</body>
+</html>

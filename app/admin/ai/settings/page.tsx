@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -25,7 +23,12 @@ import {
 } from "@/lib/admin/ai-settings-keys";
 import { AiSettingField } from "@/components/admin/ai-setting-field";
 import { ApiKeyLabelLink } from "@/components/admin/api-key-label-link";
-import { WIZARD_FREE_OPENROUTER_MODELS } from "@/lib/setup/validations/wizard-ai";
+import { phpFetchHeaders } from "@/lib/api-client";
+const WIZARD_FREE_OPENROUTER_MODELS = [
+  "google/gemini-2.0-flash-exp:free",
+  "google/gemma-3-27b-it:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+] as const;
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@/lib/types";
 
 type AiCredentialsMeta = {
@@ -101,7 +104,10 @@ function AdminAiSettingsContent() {
     setLoadingCredentials(true);
     setCredentialsError(null);
 
-    fetch("/api/admin/ai-credentials")
+    fetch("/api/admin/ai-credentials", {
+      headers: phpFetchHeaders("GET"),
+      credentials: "include",
+    })
       .then(async (res) => {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -160,7 +166,8 @@ function AdminAiSettingsContent() {
     try {
       const res = await fetch("/api/admin/ai-credentials", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: phpFetchHeaders("PATCH"),
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -187,7 +194,8 @@ function AdminAiSettingsContent() {
     try {
       const res = await fetch("/api/agent/test-providers", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: phpFetchHeaders("POST"),
         body: JSON.stringify({ settings, provider }),
       });
       const data = await res.json();

@@ -89,19 +89,11 @@ export default function ResetPasswordPage() {
     setFormError(null);
     try {
       if (mode === "pin") {
-        const result = await postResetPasswordWithPin(studentId, pin, newPassword);
-        if (result.access_token && result.refresh_token) {
-          router.push("/home");
-        } else {
-          router.push(AUTH_ROUTES.login);
-        }
+        await postResetPasswordWithPin(studentId, pin, newPassword);
+        router.push("/home");
       } else {
-        const result = await postResetPassword(studentId, schoolPassword, newPassword);
-        if (result.access_token && result.refresh_token) {
-          router.push("/home");
-        } else {
-          router.push(AUTH_ROUTES.login);
-        }
+        await postResetPassword(studentId, schoolPassword, newPassword);
+        router.push("/home");
       }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : AUTH_COPY.resetPasswordFailed);

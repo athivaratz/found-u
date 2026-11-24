@@ -1,7 +1,6 @@
 "use client";
 
 // Force dynamic rendering for security
-export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react";
 import {
@@ -365,12 +364,18 @@ export default function AdminUsersPage() {
                 >
                   {/* User Info */}
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- external avatar URL */}
-                    <img
-                      src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}&background=06C755&color=fff`}
-                      alt=""
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
+                    {user.photoURL ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- stored photo URL
+                      <img
+                        src={user.photoURL}
+                        alt=""
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#06C755] text-sm font-semibold text-white">
+                        {(user.displayName || "?").trim().slice(0, 1)}
+                      </span>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-gray-900 dark:text-white truncate">

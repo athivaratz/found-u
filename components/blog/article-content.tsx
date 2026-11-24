@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { CodeBlockCopy } from "@/components/blog/code-block-copy";
 import { ArticleVideo } from "@/components/blog/article-video";
@@ -76,11 +79,29 @@ function applyMark(
   }
 }
 
-async function renderBlock(
+function HighlightedCode({ code, language }: { code: string; language: string }) {
+  const [html, setHtml] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    highlightCode(code, language)
+      .then((value) => {
+        if (!cancelled) setHtml(value);
+      })
+      .catch(() => {
+        if (!cancelled) setHtml("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code, language]);
+  return <CodeBlockCopy code={code} language={language} highlightedHtml={html} />;
+}
+
+function renderBlock(
   node: TipTapNode,
   index: number,
   stepNumber: { current: number }
-): Promise<React.ReactNode> {
+): React.ReactNode {
   const key = `block-${index}`;
 
   switch (node.type) {
@@ -187,15 +208,7 @@ async function renderBlock(
     case "codeBlock": {
       const code = getText(node);
       const language = String(node.attrs?.language ?? "plaintext");
-      const highlightedHtml = await highlightCode(code, language);
-      return (
-        <CodeBlockCopy
-          key={key}
-          code={code}
-          language={language}
-          highlightedHtml={highlightedHtml}
-        />
-      );
+      return <HighlightedCode key={key} code={code} language={language} />;
     }
 
     case "stepHeading": {
@@ -248,13 +261,13 @@ async function renderBlock(
   }
 }
 
-export async function ArticleContent({ doc, className }: ArticleContentProps) {
+export function ArticleContent({ doc, className }: ArticleContentProps) {
   const blocks = doc.content ?? [];
   const stepNumber = { current: 0 };
   const rendered: React.ReactNode[] = [];
 
   for (let i = 0; i < blocks.length; i++) {
-    rendered.push(await renderBlock(blocks[i], i, stepNumber));
+    rendered.push(renderBlock(blocks[i], i, stepNumber));
   }
 
   return (

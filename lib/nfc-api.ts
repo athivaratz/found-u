@@ -1,14 +1,5 @@
-import { getSessionToken } from "@/lib/auth";
+import { apiFetch } from "@/lib/api-client";
 import type { ContactInfo, ItemCategory, NfcFoundReport, NfcTag, NfcTagStatus } from "@/lib/types";
-
-async function getAuthHeaders(): Promise<HeadersInit> {
-  const token = await getSessionToken();
-  if (!token) throw new Error("not_authenticated");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
 
 export async function registerNfcTagApi(input: {
   itemName: string;
@@ -18,17 +9,7 @@ export async function registerNfcTagApi(input: {
   tagUid?: string;
   readOnlyLocked: boolean;
 }): Promise<{ tagId: string; tagUrl: string }> {
-  const headers = await getAuthHeaders();
-  const res = await fetch("/api/nfc/register", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(input),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "register_failed");
-  }
-  return data;
+  return apiFetch("/api/nfc/register", { method: "POST", json: input });
 }
 
 export interface NfcResolveResult {
@@ -44,15 +25,7 @@ export interface NfcResolveResult {
 }
 
 export async function resolveNfcTagApi(tagId: string): Promise<NfcResolveResult> {
-  const headers = await getAuthHeaders().catch(() => ({}));
-  const res = await fetch(`/api/nfc/resolve?tag=${encodeURIComponent(tagId)}`, {
-    headers,
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "resolve_failed");
-  }
-  return data;
+  return apiFetch(`/api/nfc/resolve?tag=${encodeURIComponent(tagId)}`);
 }
 
 export async function submitNfcFoundReportApi(input: {
@@ -62,17 +35,7 @@ export async function submitNfcFoundReportApi(input: {
   locationCoords?: { lat: number; lng: number; accuracy?: number; source?: string };
   finderContacts?: ContactInfo[];
 }): Promise<{ reportId: string }> {
-  const headers = await getAuthHeaders();
-  const res = await fetch("/api/nfc/found", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(input),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "submit_failed");
-  }
-  return data;
+  return apiFetch("/api/nfc/found", { method: "POST", json: input });
 }
 
 export async function updateNfcTagApi(
@@ -87,16 +50,7 @@ export async function updateNfcTagApi(
     ndefWritten?: boolean;
   }
 ): Promise<void> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`/api/nfc/tags/${encodeURIComponent(tagId)}`, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify(patch),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "update_failed");
-  }
+  await apiFetch(`/api/nfc/tags/${encodeURIComponent(tagId)}`, { method: "PATCH", json: patch });
 }
 
 export async function updateNfcTagStatusApi(
@@ -129,12 +83,9 @@ export async function fetchMyNfcDashboardApi(): Promise<{
   tags: NfcTag[];
   reports: NfcFoundReport[];
 }> {
-  const headers = await getAuthHeaders();
-  const res = await fetch("/api/nfc/my-tags", { headers });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "fetch_failed");
-  }
+  const data = await apiFetch<{ tags?: Array<NfcTag & { registeredAt: string; updatedAt: string; ndefWrittenAt?: string | null }>; reports?: Array<NfcFoundReport & { createdAt: string }> }>(
+    "/api/nfc/my-tags"
+  );
   return {
     tags: (data.tags || []).map(parseNfcTag),
     reports: (data.reports || []).map(parseNfcFoundReport),
@@ -145,14 +96,8 @@ export async function updateNfcReportStatusApi(
   reportId: string,
   status: "viewed" | "resolved"
 ): Promise<void> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`/api/nfc/reports/${encodeURIComponent(reportId)}`, {
+  await apiFetch(`/api/nfc/reports/${encodeURIComponent(reportId)}`, {
     method: "PATCH",
-    headers,
-    body: JSON.stringify({ status }),
+    json: { status },
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "update_failed");
-  }
 }

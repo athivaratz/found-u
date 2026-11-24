@@ -11,6 +11,7 @@ import {
   Users,
   UserX,
   AlertTriangle,
+  Activity,
   Radio,
   MapPin,
   Newspaper,
@@ -69,6 +70,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     id: "system",
     label: "ระบบ",
     items: [
+      { href: "/admin/system", icon: Activity, label: "สถานะระบบ", description: "PHP ฐานข้อมูล cron" },
       { href: "/admin/logs", icon: FileText, label: "Logs", description: "ประวัติการใช้งาน" },
       { href: "/admin/error-logs", icon: AlertTriangle, label: "Error Logs", description: "Errors ในระบบ" },
       { href: "/admin/ai", icon: Bot, label: "AI", description: "ตั้งค่า AI และ API keys" },

@@ -1,50 +1,50 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ArticleContent } from "@/components/blog/article-content";
 import { getPublishedArticleBySlug } from "@/lib/blog/data";
+import type { Article } from "@/lib/blog/types";
+import { segmentAfter } from "@/lib/dynamic-segment";
 import { focusRing } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+export default function BlogArticlePage() {
+  const pathname = usePathname();
+  const slug = segmentAfter(pathname, "/blog");
+  const [article, setArticle] = useState<Article | null | undefined>(undefined);
 
-type PageProps = {
-  params: Promise<{ slug: string }>;
-};
+  useEffect(() => {
+    if (!slug) {
+      setArticle(null);
+      return;
+    }
+    let cancelled = false;
+    getPublishedArticleBySlug(slug, "blog")
+      .then((row) => {
+        if (!cancelled) setArticle(row);
+      })
+      .catch(() => {
+        if (!cancelled) setArticle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-  const article = await getPublishedArticleBySlug(slug, "blog");
-  if (!article) return { title: "ไม่พบบทความ" };
+  if (article === undefined) {
+    return <div className="h-64 animate-pulse rounded-2xl border border-border-light bg-bg-primary" />;
+  }
 
-  return {
-    title: article.title,
-    description: article.excerpt ?? undefined,
-    openGraph: {
-      title: article.title,
-      description: article.excerpt ?? undefined,
-      type: "article",
-      publishedTime: article.published_at ?? undefined,
-      authors: article.author_name ? [article.author_name] : undefined,
-      tags: article.tags,
-      images: article.cover_image_url
-        ? [{ url: article.cover_image_url }]
-        : undefined,
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: article.title,
-      description: article.excerpt ?? undefined,
-      images: article.cover_image_url ? [article.cover_image_url] : undefined,
-    },
-  };
-}
-
-export default async function BlogArticlePage({ params }: PageProps) {
-  const { slug } = await params;
-  const article = await getPublishedArticleBySlug(slug, "blog");
-  if (!article) notFound();
+  if (!article) {
+    return (
+      <div className="rounded-2xl border border-border-light bg-bg-primary p-6 text-text-secondary">
+        ไม่พบบทความ
+      </div>
+    );
+  }
 
   return (
     <article className="space-y-8">
@@ -100,7 +100,7 @@ export default async function BlogArticlePage({ params }: PageProps) {
             fill
             className="object-cover"
             priority
-            unoptimized={article.cover_image_url.startsWith("http")}
+            unoptimized
           />
         </div>
       ) : null}

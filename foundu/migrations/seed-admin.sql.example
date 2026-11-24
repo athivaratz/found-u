@@ -1,0 +1,43 @@
+-- Example only. Importing this file unchanged creates an admin that cannot log in.
+-- Do not commit a copy that has a real hash in it.
+--
+-- The host has no shell. On your own machine, with PHP 8.2.36 or newer:
+--
+--   FOUNDU_ADMIN_PASSWORD='choose-a-password' php -r 'echo password_hash(getenv("FOUNDU_ADMIN_PASSWORD"), defined("PASSWORD_ARGON2ID") ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT), PHP_EOL;'
+--
+-- Password: at least 8 characters, one letter, one digit.
+-- If that PHP was built without Argon2, the hash starts with $2y$ and bcrypt
+-- ignores anything past 72 bytes, so keep the password shorter than that.
+-- Replace PASTE_HASH_HERE below (both columns) with the one line it prints.
+-- foundu/bin/create-admin.php prints a finished version of this statement.
+
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET time_zone = '+00:00';
+SET @foundu_allow_privileged = 1;
+
+INSERT INTO accounts (
+  id, student_id, linked_uid, email, display_name, first_name, last_name, nickname,
+  role, current_password_hash, school_password_hash, is_student_verified, is_registered,
+  status, auth_methods, passkey_credentials
+)
+SELECT
+  '00000000-0000-4000-8000-000000000001',
+  '11111',
+  '00000000-0000-4000-8000-000000000001',
+  '11111@students.local',
+  'Admin',
+  'Admin',
+  'Found-U',
+  'Admin',
+  'admin',
+  'PASTE_HASH_HERE',
+  'PASTE_HASH_HERE',
+  1,
+  1,
+  'active',
+  JSON_ARRAY('password'),
+  JSON_ARRAY()
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE student_id = '11111');
+
+SET @foundu_allow_privileged = NULL;

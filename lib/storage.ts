@@ -1,4 +1,10 @@
 import imageCompression from 'browser-image-compression';
+import { ApiError, apiFetch, apiRequest } from '@/lib/api-client';
+import {
+  EDITOR_IMAGE_BYTES,
+  MAX_IMAGE_BYTES,
+  normalizeImageType,
+} from '@/lib/storage/upload-backend';
 
 // ========================================
 // Image Compression
@@ -48,26 +54,91 @@ export async function compressImage(
 // Upload Functions
 // ========================================
 
+type Presign = {
+  uploadUrl: string;
+  publicUrl: string;
+  path: string;
+  contentType: string;
+  contentLength: number;
+};
+
+type UploadPurpose = 'avatar' | 'found' | 'branding';
+
+function purposeForPath(path: string): UploadPurpose {
+  if (path.startsWith('avatars/')) return 'avatar';
+  if (path.startsWith('found-items/')) return 'found';
+  if (path.startsWith('settings/') || path.startsWith('branding/')) return 'branding';
+  throw new Error('unsupported upload path');
+}
+
+function imageTypeOf(file: File): string {
+  const type = normalizeImageType(file.type);
+  if (!type) {
+    throw new Error('รองรับเฉพาะไฟล์ jpeg, png, webp และ gif');
+  }
+  return type;
+}
+
+function assertSize(file: File, max: number, label: string): void {
+  if (file.size < 1 || file.size > max) {
+    throw new Error(label);
+  }
+}
+
+// The browser sets Content-Length itself. Setting it from script is ignored,
+// and the signature still requires the value we declared.
+async function putPresigned(data: Presign, file: File): Promise<string> {
+  if (file.size !== data.contentLength) {
+    throw new Error('Failed to upload image');
+  }
+  const put = await fetch(data.uploadUrl, {
+    method: 'PUT',
+    mode: 'cors',
+    credentials: 'omit',
+    headers: { 'Content-Type': data.contentType },
+    body: file,
+  });
+  if (!put.ok) {
+    throw new Error('Failed to upload image');
+  }
+  return data.publicUrl;
+}
+
+async function readPresign(path: string, json: unknown): Promise<Presign> {
+  try {
+    return await apiFetch<Presign>(path, { method: 'POST', json });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new Error(typeof error.payload.error === 'string' ? error.payload.error : error.code);
+    }
+    throw error;
+  }
+}
+
 /**
- * อัปโหลดรูป
+ * ขอ URL ที่เซ็นแล้ว แล้ว PUT ตรงไปที่ R2
+ * path ใช้แค่เลือกประเภท อัปโหลดจริงใช้คีย์ที่เซิร์ฟเวอร์สุ่ม
  */
 export async function uploadImage(file: File, path: string): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('path', path);
-
-  const response = await fetch('/api/storage/upload', {
-    method: 'POST',
-    body: formData,
+  const contentType = imageTypeOf(file);
+  assertSize(file, MAX_IMAGE_BYTES, 'ไฟล์ใหญ่เกิน 10MB');
+  const data = await readPresign('/api/storage/upload', {
+    purpose: purposeForPath(path),
+    contentType,
+    contentLength: file.size,
   });
+  return putPresigned(data, file);
+}
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Failed to upload image through server API');
-  }
-
-  const data = await response.json();
-  return data.publicUrl as string;
+/** รูปในตัวแก้ไขบล็อกหรือคู่มือ ไม่ส่งไฟล์ผ่าน PHP */
+export async function uploadEditorImage(file: File, kind: 'blog' | 'help'): Promise<string> {
+  const contentType = imageTypeOf(file);
+  assertSize(file, EDITOR_IMAGE_BYTES, 'ไฟล์ใหญ่เกิน 5MB');
+  const data = await readPresign(`/api/admin/${kind}/upload`, {
+    contentType,
+    contentLength: file.size,
+  });
+  return putPresigned(data, file);
 }
 
 /**
@@ -81,7 +152,8 @@ export async function uploadFoundItemImage(
 ): Promise<string> {
   const fileToUpload = compress ? await compressImage(file, compressionOptions) : file;
   
-  const extension = 'jpg'; // บังคับใช้ jpg หลังบีบอัด
+  // itemId is only a hint. PHP names the object under the signed-in account.
+  const extension = 'jpg';
   const path = `found-items/${itemId}/${Date.now()}.${extension}`;
   
   return uploadImage(fileToUpload, path);
@@ -110,29 +182,33 @@ export async function uploadAvatar(
 /**
  * ลบรูป
  */
-export async function deleteImage(url: string): Promise<void> {
+async function deleteObject(body: { url?: string; path?: string }): Promise<void> {
   try {
-    await fetch('/api/storage/delete', {
+    const response = await apiRequest('/api/storage/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      json: body,
     });
+    const data = (await response.json().catch(() => ({}))) as { deleteUrl?: string };
+    if (!response.ok || typeof data.deleteUrl !== 'string') {
+      console.error('Error deleting image:', response.status);
+      return;
+    }
+    const removed = await fetch(data.deleteUrl, { method: 'DELETE', mode: 'cors', credentials: 'omit' });
+    if (!removed.ok) {
+      console.error('Error deleting image:', removed.status);
+    }
   } catch (error) {
     console.error('Error deleting image:', error);
   }
+}
+
+export async function deleteImage(url: string): Promise<void> {
+  await deleteObject({ url });
 }
 
 /**
  * ลบรูปจาก path
  */
 export async function deleteImageByPath(path: string): Promise<void> {
-  try {
-    await fetch('/api/storage/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
-    });
-  } catch (error) {
-    console.error('Error deleting image:', error);
-  }
+  await deleteObject({ path });
 }

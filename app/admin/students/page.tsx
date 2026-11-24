@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api-client";
 import { useAuth } from "@/contexts/auth-context";
 import {
   Upload,
@@ -68,27 +69,17 @@ export default function AdminStudentsPage() {
   const [resetStudentId, setResetStudentId] = useState("");
   const [resetting, setResetting] = useState(false);
 
-  const getToken = useCallback(async () => {
-    if (!user) throw new Error("Not authenticated");
-    return user.getIdToken();
-  }, [user]);
-
   const loadStats = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const token = await getToken();
-      const res = await fetch("/api/admin/whitelist", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
-      setStats(await res.json());
+      setStats(await apiFetch("/api/admin/whitelist"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
       setLoading(false);
     }
-  }, [user, getToken]);
+  }, [user]);
 
   useEffect(() => {
     loadStats();
@@ -108,17 +99,13 @@ export default function AdminStudentsPage() {
     setImporting(true);
     setError(null);
     try {
-      const token = await getToken();
-      const res = await fetch("/api/admin/students/import", {
+      const data = await apiFetch<{
+        rows?: typeof preview;
+        parseErrors?: { line: number; message: string }[];
+      }>("/api/admin/students/import", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ csvContent: content, dryRun: true }),
+        json: { csvContent: content, dryRun: true },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Preview failed");
       setPreview(data.rows || []);
       setParseErrors(data.parseErrors || []);
     } catch (e) {
@@ -133,17 +120,10 @@ export default function AdminStudentsPage() {
     setImporting(true);
     setError(null);
     try {
-      const token = await getToken();
-      const res = await fetch("/api/admin/students/import", {
+      const data = await apiFetch<{ summary: StudentImportSummary }>("/api/admin/students/import", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ csvContent, dryRun: false }),
+        json: { csvContent, dryRun: false },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Import failed");
       setImportResult(data.summary);
       setParseErrors(data.summary?.errors || []);
       await loadStats();
@@ -172,14 +152,9 @@ export default function AdminStudentsPage() {
     setError(null);
     setCreateSuccess(null);
     try {
-      const token = await getToken();
-      const res = await fetch("/api/admin/students/create", {
+      const data = await apiFetch<{ studentId: string }>("/api/admin/students/create", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        json: {
           studentId: newStudentId,
           password: newPassword || undefined,
           firstName: newFirstName.trim(),
@@ -187,10 +162,8 @@ export default function AdminStudentsPage() {
           gradeLevel: newGradeLevel || undefined,
           roomNumber: newRoomNumber || undefined,
           role: newRole,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "สร้างผู้ใช้ไม่สำเร็จ");
       setCreateSuccess(
         `สร้างบัญชี ${data.studentId} สำเร็จ (${newRole === "admin" ? "Admin" : "User"})`
       );
@@ -214,19 +187,10 @@ export default function AdminStudentsPage() {
     setWhitelistLoading(true);
     setError(null);
     try {
-      const token = await getToken();
-      const res = await fetch("/api/admin/whitelist", {
+      await apiFetch("/api/admin/whitelist", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: newAdminEmail, note: newAdminNote }),
+        json: { email: newAdminEmail, note: newAdminNote },
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "เพิ่มไม่สำเร็จ");
-      }
       setNewAdminEmail("");
       setNewAdminNote("");
       await loadStats();
@@ -243,17 +207,10 @@ export default function AdminStudentsPage() {
     setResetting(true);
     setError(null);
     try {
-      const token = await getToken();
-      const res = await fetch("/api/admin/students/reset-account", {
+      await apiFetch("/api/admin/students/reset-account", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ studentId: resetStudentId }),
+        json: { studentId: resetStudentId },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "รีเซ็ตไม่สำเร็จ");
       setResetStudentId("");
       await loadStats();
     } catch (e) {
@@ -267,11 +224,7 @@ export default function AdminStudentsPage() {
     if (!user) return;
     setWhitelistLoading(true);
     try {
-      const token = await getToken();
-      await fetch(`/api/admin/whitelist?email=${encodeURIComponent(email)}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiFetch(`/api/admin/whitelist?email=${encodeURIComponent(email)}`, { method: "DELETE" });
       await loadStats();
     } finally {
       setWhitelistLoading(false);

@@ -1,0 +1,6 @@
+# Shared-host stand-in for the attack and load scripts.
+# One CPU and 1 GB, close to a small CloudLinux account.
+services:
+  web:
+    cpus: 1
+    mem_limit: 1g

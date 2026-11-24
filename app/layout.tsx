@@ -3,11 +3,9 @@ import { Kanit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { SetupAwareProviders } from "@/components/providers/setup-aware-providers";
+import { AppShell } from "@/components/providers/app-shell";
 import { AndroidViewportGuard } from "@/components/layout/android-viewport-guard";
-import { buildSiteMetadata } from "@/lib/seo-metadata";
 
-// โหลดฟอนต์ Kanit สำหรับภาษาไทย
 const kanit = Kanit({
   variable: "--font-kanit",
   subsets: ["thai", "latin"],
@@ -15,18 +13,23 @@ const kanit = Kanit({
   display: "swap",
 });
 
-// Load OG/SEO metadata from admin settings (cached; no cookies() in layout).
-export async function generateMetadata(): Promise<Metadata> {
-  return buildSiteMetadata();
-}
-
-export const revalidate = 60;
+// The title in this file is the shell. Blog and help pages get their own
+// tags from meta.php, which reads APP_URL at request time.
+export const metadata: Metadata = {
+  title: "foundu.forum",
+  description: "ระบบแจ้งของหาย-ของเจอ",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/logo.png",
+  },
+};
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Block shrink-to-fit zoom-out (Samsung/Android) without locking pinch-zoom
-  // via maximumScale — that combo previously caused desktop-width shrink.
   minimumScale: 1,
   viewportFit: "cover",
   themeColor: "#06C755",
@@ -39,12 +42,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" suppressHydrationWarning data-scroll-behavior="smooth">
-      <head>
-        {process.env.NEXT_PUBLIC_SUPABASE_URL ? (
-          <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
-        ) : null}
-        <link rel="dns-prefetch" href="https://api.supabase.com" />
-      </head>
       <body className={`${kanit.variable} antialiased font-sans`} suppressHydrationWarning>
         <ErrorBoundary>
           <ThemeProvider
@@ -53,10 +50,10 @@ export default function RootLayout({
             enableSystem
             storageKey="theme"
           >
-            <SetupAwareProviders>
+            <AppShell>
               <AndroidViewportGuard />
               {children}
-            </SetupAwareProviders>
+            </AppShell>
           </ThemeProvider>
         </ErrorBoundary>
       </body>

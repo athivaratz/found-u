@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api-client";
 import type { FoundItem, LostItem } from "@/lib/types";
 
 export type AdminMatchPair = {
@@ -25,31 +26,15 @@ export type MatchBatchResponse = {
   history: ConfirmedHistoryPair[];
 };
 
-async function authHeaders(getToken: () => Promise<string>): Promise<HeadersInit> {
-  const token = await getToken();
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-}
-
 export async function fetchMatchBatch(
   getToken: () => Promise<string>,
   options?: { useAI?: boolean }
 ): Promise<MatchBatchResponse> {
-  const res = await fetch("/api/match/batch", {
+  void getToken;
+  return apiFetch<MatchBatchResponse>("/api/match/batch", {
     method: "POST",
-    headers: await authHeaders(getToken),
-    body: JSON.stringify({
-      useAI: Boolean(options?.useAI),
-      includeHistory: true,
-    }),
+    json: { useAI: Boolean(options?.useAI), includeHistory: true },
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "โหลดคิวจับคู่ไม่สำเร็จ");
-  }
-  return res.json();
 }
 
 export async function fetchItemMatches(
@@ -58,16 +43,11 @@ export async function fetchItemMatches(
   itemId: string,
   useAI = false
 ): Promise<AdminMatchPair[]> {
-  const res = await fetch("/api/match", {
+  void getToken;
+  const data = await apiFetch<{ matches?: AdminMatchPair[] }>("/api/match", {
     method: "POST",
-    headers: await authHeaders(getToken),
-    body: JSON.stringify({ type, itemId, useAI }),
+    json: { type, itemId, useAI },
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "ค้นหาคู่ไม่สำเร็จ");
-  }
-  const data = await res.json();
   return data.matches || [];
 }
 
@@ -76,15 +56,8 @@ export async function confirmMatchApi(
   lostId: string,
   foundId: string
 ): Promise<void> {
-  const res = await fetch("/api/match/confirm", {
-    method: "POST",
-    headers: await authHeaders(getToken),
-    body: JSON.stringify({ lostId, foundId }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "ยืนยันจับคู่ไม่สำเร็จ");
-  }
+  void getToken;
+  await apiFetch("/api/match/confirm", { method: "POST", json: { lostId, foundId } });
 }
 
 export async function rejectMatchApi(
@@ -92,15 +65,8 @@ export async function rejectMatchApi(
   lostId: string,
   foundId: string
 ): Promise<void> {
-  const res = await fetch("/api/match/reject", {
-    method: "POST",
-    headers: await authHeaders(getToken),
-    body: JSON.stringify({ lostId, foundId }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "ปฏิเสธคู่ไม่สำเร็จ");
-  }
+  void getToken;
+  await apiFetch("/api/match/reject", { method: "POST", json: { lostId, foundId } });
 }
 
 export async function unmatchPairApi(
@@ -108,13 +74,6 @@ export async function unmatchPairApi(
   lostId: string,
   foundId: string
 ): Promise<void> {
-  const res = await fetch("/api/match/unmatch", {
-    method: "POST",
-    headers: await authHeaders(getToken),
-    body: JSON.stringify({ lostId, foundId }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "ถอนจับคู่ไม่สำเร็จ");
-  }
+  void getToken;
+  await apiFetch("/api/match/unmatch", { method: "POST", json: { lostId, foundId } });
 }

@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import LoginPrompt from "@/components/auth/login-prompt";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 import { StudentAppShell } from "@/components/layout/student-app-shell";
 import MapCanvasLazy from "@/components/ui/map-canvas-lazy";
 import { FormStepper, FormStepperActions } from "@/components/ui/form-stepper";
@@ -21,6 +22,7 @@ import { slideUp, scaleIn, staggerContainer, staggerItem, fade, motionSafe, dura
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { type ContactInfo, type ContactType, type ItemCategory, type LocationCoords } from "@/lib/types";
 import { cn, generateTrackingCode, isPointInPolygon, normalizeGeoPolygon } from "@/lib/utils";
+import { phpFetchHeaders } from "@/lib/api-client";
 import {
   addLostItem,
 } from "@/lib/database";
@@ -263,7 +265,8 @@ export default function ReportLostPage() {
       try {
         const matchResponse = await fetch("/api/match", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          headers: phpFetchHeaders("POST"),
           body: JSON.stringify({ type: "lost", itemId }),
         });
         const matchData = await matchResponse.json();
@@ -455,6 +458,7 @@ export default function ReportLostPage() {
         />
 
         <FormStepper steps={[...LOST_FORM_STEPS]} currentStep={formStep} className="mb-6" />
+        <TurnstileWidget className="mb-4" />
 
         <form
           onSubmit={(e) => {

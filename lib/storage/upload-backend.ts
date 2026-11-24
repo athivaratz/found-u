@@ -1,17 +1,13 @@
-export type UploadBackend = "r2" | "supabase";
+// The browser does not pick a storage backend. PHP signs an R2 URL and
+// the file goes straight there. There is no Supabase bucket fallback.
 
-const R2_ENV_VARS = [
-  "R2_ACCOUNT_ID",
-  "R2_ACCESS_KEY_ID",
-  "R2_SECRET_ACCESS_KEY",
-  "R2_BUCKET_NAME",
-  "R2_PUBLIC_BASE_URL",
-] as const;
+export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 
-export function isR2Configured(): boolean {
-  return R2_ENV_VARS.every((name) => Boolean(process.env[name]?.trim()));
-}
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const EDITOR_IMAGE_BYTES = 5 * 1024 * 1024;
 
-export function resolveUploadBackend(): UploadBackend {
-  return isR2Configured() ? "r2" : "supabase";
+export function normalizeImageType(type: string): string | null {
+  const value = type.trim().toLowerCase();
+  if (value === "image/jpg") return "image/jpeg";
+  return (IMAGE_TYPES as readonly string[]).includes(value) ? value : null;
 }

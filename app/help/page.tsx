@@ -1,19 +1,29 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, ChevronRight } from "lucide-react";
 import { listHelpPages } from "@/lib/help/data";
+import type { HelpPage } from "@/lib/help/types";
 import { focusRing } from "@/components/landing/landing-tokens";
 import { cn } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+export default function HelpIndexPage() {
+  const [pages, setPages] = useState<HelpPage[] | null>(null);
 
-export const metadata: Metadata = {
-  title: "ช่วยเหลือ — Found-U",
-  description: "คู่มือการใช้งานและขั้นตอนติดตั้ง Found-U สำหรับโรงเรียน",
-};
-
-export default async function HelpIndexPage() {
-  const pages = await listHelpPages();
+  useEffect(() => {
+    let cancelled = false;
+    listHelpPages()
+      .then((rows) => {
+        if (!cancelled) setPages(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setPages([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -26,7 +36,9 @@ export default async function HelpIndexPage() {
         </p>
       </div>
 
-      {pages.length === 0 ? (
+      {pages === null ? (
+        <div className="h-40 animate-pulse rounded-2xl border border-border-light bg-bg-primary" />
+      ) : pages.length === 0 ? (
         <div className="rounded-2xl border border-border-light bg-bg-primary p-6 text-text-secondary">
           ยังไม่มีหน้าคู่มือในฐานข้อมูล
         </div>

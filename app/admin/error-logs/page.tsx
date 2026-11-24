@@ -1,7 +1,6 @@
 "use client";
 
 // Force dynamic rendering for security
-export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react";
 import {
@@ -18,7 +17,8 @@ import {
   Database,
   HelpCircle,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api-client";
+import { subscribeChanges } from "@/lib/change-poller";
 import { resolveError } from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
 import type { ErrorSeverity, ErrorSource } from "@/lib/types";
@@ -76,7 +76,6 @@ const SOURCE_CONFIG: Record<ErrorSource, { label: string; icon: React.ReactNode 
 };
 
 export default function AdminErrorLogsPage() {
-  const supabase = createClient();
   const { appUser } = useAuth();
   const [errors, setErrors] = useState<ErrorLogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,38 +109,28 @@ export default function AdminErrorLogsPage() {
         }
       }
 
-      let queryBuilder = supabase
-        .from("error_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
-
-      if (startDate) {
-        queryBuilder = queryBuilder.gte("created_at", startDate.toISOString());
-      }
-
-      const { data, error } = await queryBuilder;
-      if (error) throw error;
-
-      const errorsData: ErrorLogItem[] = (data ?? []).map((row) => ({
-        id: String(row.id),
-        message: String(row.message ?? ""),
-        stack: typeof row.stack === "string" ? row.stack : undefined,
-        severity: (String(row.severity ?? "medium") as ErrorSeverity),
-        source: (String(row.source ?? "unknown") as ErrorSource),
-        url: typeof row.url === "string" ? row.url : undefined,
-        userId: typeof row.user_id === "string" ? row.user_id : undefined,
-        userEmail: typeof row.user_email === "string" ? row.user_email : undefined,
-        userAgent: typeof row.user_agent === "string" ? row.user_agent : undefined,
-        metadata:
-          row.metadata && typeof row.metadata === "object"
-            ? (row.metadata as Record<string, unknown>)
-            : undefined,
-        resolved: row.resolved === true,
-        resolvedAt: row.resolved_at ? new Date(String(row.resolved_at)) : undefined,
-        resolvedBy: typeof row.resolved_by === "string" ? row.resolved_by : undefined,
-        createdAt: row.created_at ? new Date(String(row.created_at)) : new Date(),
-      }));
+      const body = await apiFetch<{ logs: Array<Record<string, unknown>> }>("/api/admin/error-logs?limit=200");
+      const errorsData: ErrorLogItem[] = body.logs
+        .map((row) => ({
+          id: String(row.id),
+          message: String(row.message ?? ""),
+          stack: typeof row.stack === "string" ? row.stack : undefined,
+          severity: (String(row.severity ?? "medium") as ErrorSeverity),
+          source: (String(row.source ?? "unknown") as ErrorSource),
+          url: typeof row.url === "string" ? row.url : undefined,
+          userId: typeof row.userId === "string" ? row.userId : undefined,
+          userEmail: typeof row.userEmail === "string" ? row.userEmail : undefined,
+          userAgent: typeof row.userAgent === "string" ? row.userAgent : undefined,
+          metadata:
+            row.metadata && typeof row.metadata === "object"
+              ? (row.metadata as Record<string, unknown>)
+              : undefined,
+          resolved: row.resolved === true,
+          resolvedAt: row.resolvedAt ? new Date(String(row.resolvedAt)) : undefined,
+          resolvedBy: typeof row.resolvedBy === "string" ? row.resolvedBy : undefined,
+          createdAt: row.createdAt ? new Date(String(row.createdAt)) : new Date(),
+        }))
+        .filter((row) => !startDate || row.createdAt >= startDate);
 
       setErrors(errorsData);
       setLoading(false);
@@ -153,19 +142,10 @@ export default function AdminErrorLogsPage() {
       setLoading(false);
     });
 
-    const channel = supabase
-      .channel("admin-error-logs")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "error_logs" },
-        () => void loadErrors()
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [dateRange, supabase]);
+    return subscribeChanges(["error_logs"], () => {
+      void loadErrors();
+    }, 10_000);
+  }, [dateRange]);
 
   // Handle resolve
   const handleResolve = async (errorId: string) => {

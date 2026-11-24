@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -21,6 +19,7 @@ import BottomNav from "@/components/layout/bottom-nav";
 import AppShell from "@/components/layout/app-shell";
 import LoginPrompt from "@/components/auth/login-prompt";
 import TagQrPrint from "@/components/nfc/tag-qr-print";
+import { phpFetchHeaders } from "@/lib/api-client";
 import {
   NFC_TAG_STATUS_CONFIG,
   CATEGORIES,
@@ -197,7 +196,8 @@ export default function NfcMyTagsPage() {
         try {
           const matchResponse = await fetch("/api/match", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            headers: phpFetchHeaders("POST"),
             body: JSON.stringify({ type: "lost", itemId: lostItemId }),
           });
           if (matchResponse.ok) {

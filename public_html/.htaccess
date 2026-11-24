@@ -1,0 +1,146 @@
+# Origin lock and front controller. Cloudflare IP list lives between the
+# foundu-cloudflare-ips markers. bin/cron.php refreshes that block and
+# foundu/config/cloudflare-ips.php together. Do not add another Require ip
+# outside the markers, or the check will refuse the new list.
+# Local docker turns the lock off by creating .cf-allowlist-off
+# (FOUNDU_CF_ALLOWLIST=off). Do not upload that file.
+# Assumes REMOTE_ADDR is still the TCP peer. If the host restores the
+# visitor IP into REMOTE_ADDR, this Require ip block will reject everyone
+# and the check has to move into PHP.
+
+Options -Indexes -MultiViews
+
+# PHP still rejects a body over the per-route cap (256 KiB, 64 KiB on
+# most AI posts, 1.5 MiB on /api/vision and /api/agent/chat). This has
+# to be at least that largest cap or Apache answers 413 before PHP runs.
+LimitRequestBody 1572864
+
+<IfModule php_module>
+    php_flag session.upload_progress.enabled Off
+    php_flag session.upload_progress.cleanup Off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag session.upload_progress.enabled Off
+    php_flag session.upload_progress.cleanup Off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag session.upload_progress.enabled Off
+    php_flag session.upload_progress.cleanup Off
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(self)"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:"
+    Header always unset X-Powered-By
+    # Hashed Next files can sit at the edge for a year. HTML is short.
+    # Blog and help HTML is meta.php, which sets its own s-maxage.
+    Header always set Cache-Control "public, max-age=31536000, immutable" "expr=%{REQUEST_URI} =~ m#^/_next/static/#"
+    Header always set Cache-Control "private, max-age=0, must-revalidate" "expr=%{REQUEST_URI} =~ m#(/$|\.html$)# && %{REQUEST_URI} !~ m#^/_next/# && %{REQUEST_URI} !~ m#^/(blog|help)/.+# && %{REQUEST_URI} !~ m#^/(api|og)/#"
+</IfModule>
+
+<If "-f %{DOCUMENT_ROOT}.'/.cf-allowlist-off'">
+    Require all granted
+</If>
+<ElseIf "%{REQUEST_URI} =~ m#^/\.well-known/acme-challenge(/|$)#">
+    Require all granted
+</ElseIf>
+<Else>
+    # BEGIN foundu-cloudflare-ips
+    Require ip 173.245.48.0/20
+    Require ip 103.21.244.0/22
+    Require ip 103.22.200.0/22
+    Require ip 103.31.4.0/22
+    Require ip 141.101.64.0/18
+    Require ip 108.162.192.0/18
+    Require ip 190.93.240.0/20
+    Require ip 188.114.96.0/20
+    Require ip 197.234.240.0/22
+    Require ip 198.41.128.0/17
+    Require ip 162.158.0.0/15
+    Require ip 104.16.0.0/13
+    Require ip 104.24.0.0/14
+    Require ip 172.64.0.0/13
+    Require ip 131.0.72.0/22
+    Require ip 2400:cb00::/32
+    Require ip 2606:4700::/32
+    Require ip 2803:f800::/32
+    Require ip 2405:b500::/32
+    Require ip 2405:8100::/32
+    Require ip 2a06:98c0::/29
+    Require ip 2c0f:f248::/32
+    # END foundu-cloudflare-ips
+</Else>
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<FilesMatch "~$">
+    Require all denied
+</FilesMatch>
+
+DirectoryIndex index.html
+ErrorDocument 404 /404.html
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    RewriteRule ^list/?$ /home/ [R=301,L,QSA]
+    RewriteRule ^login/register/?$ /auth/register/ [R=301,L,QSA]
+    RewriteRule ^login/forgot-pin/?$ /auth/login/forgot-pin/ [R=301,L,QSA]
+    RewriteRule ^login/reset-password/?$ /auth/login/reset-password/ [R=301,L,QSA]
+    RewriteRule ^login/change-password/?$ /auth/change-password/ [R=301,L,QSA]
+    RewriteRule ^login/setup-pin/?$ /auth/setup-pin/ [R=301,L,QSA]
+    RewriteRule ^login/?$ /auth/login/ [R=301,L,QSA]
+    RewriteRule ^settings/security/?$ /settings/ [R=301,L,QSA]
+    RewriteRule ^admin/help/?$ /admin/blog/?section=help [R=302,L,QSA]
+    RewriteRule ^admin/ai/models/?$ /admin/ai/gemini/ [R=301,L,QSA]
+    RewriteRule ^admin/help/([^/]+)/?$ /admin/blog/legacy/$1/ [R=301,L,QSA]
+
+    RewriteRule ^\.well-known/ - [L]
+    RewriteRule (^|/)\. - [F,L]
+
+    # Installer lives at /install until it deletes itself. The public path
+    # does not end in .php, so a Cloudflare rule that blocks other PHP files
+    # still allows this one. A direct hit on install/index.php stays forbidden.
+    # Apache adds a slash to the real directory before this rule sees a POST,
+    # so the forms post to /install/ (the slashed path is rewritten here).
+    RewriteRule ^install/?$ install/index.php [END]
+
+    RewriteCond %{REQUEST_URI} \.(?:php|phtml|phar|phps)$ [NC]
+    RewriteCond %{REQUEST_URI} !^/api/index\.php$ [NC]
+    RewriteRule ^ - [F,L]
+
+    RewriteRule ^(?:uploads|files|storage)/ - [F,L]
+
+    RewriteRule ^api(?:/.*)?$ api/index.php [END,QSA]
+
+    # Open Graph, then the PNG, then the HTML shells. These stay above
+    # any rule that serves a static file. See docs/php-port/cms.md.
+    RewriteRule ^blog/([^/]+)/opengraph-image/?$ og.php?kind=blog&slug=$1 [END,QSA]
+    RewriteRule ^help/([^/]+)/opengraph-image/?$ og.php?kind=help&slug=$1 [END,QSA]
+    RewriteRule ^og/(blog|help)/([^/]+)\.png$ og.php?kind=$1&slug=$2 [END,QSA]
+    # index.html is the list page. A rewrite of that name sends DirectoryIndex
+    # into meta.php, and Options -Indexes then answers 403 for /blog/ and /help/.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^blog/([^/]+)/?$ meta.php?kind=blog&slug=$1 [END,QSA]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^help/([^/]+)/?$ meta.php?kind=help&slug=$1 [END,QSA]
+
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    RewriteRule ^admin/blog/([^/]+)/preview/?$ /admin/blog/_/preview/index.html [END]
+    RewriteRule ^admin/blog/legacy/([^/]+)/?$ /admin/blog/legacy/_/index.html [END]
+    RewriteRule ^admin/blog/([^/]+)/?$ /admin/blog/_/index.html [END]
+    RewriteRule ^admin/help/([^/]+)/?$ /admin/help/_/index.html [END]
+    RewriteRule ^nfc/t/([^/]+)/?$ /nfc/t/_/index.html [END]
+
+    RewriteRule ^ /404.html [L]
+</IfModule>

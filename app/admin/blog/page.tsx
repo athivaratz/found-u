@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -11,7 +11,7 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api-client";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { EMPTY_DOC, slugifyTitle, type ArticleSection } from "@/lib/blog/types";
 import { mapArticle } from "@/lib/blog/map";
@@ -30,7 +30,6 @@ function AdminBlogListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialSection = (searchParams.get("section") as SectionFilter) || "all";
-  const supabase = useMemo(() => createClient(), []);
   const { showAlert, dialog } = useAppDialog();
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -44,26 +43,12 @@ function AdminBlogListContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: articleRows, error: articleError }, { data: helpRows, error: helpError }] =
-        await Promise.all([
-          supabase.from("articles").select("*").order("updated_at", { ascending: false }),
-          supabase
-            .from("help_pages")
-            .select("slug, title, description")
-            .order("slug", { ascending: true }),
-        ]);
-      if (articleError) throw articleError;
-      if (helpError) throw helpError;
-      setArticles(
-        (articleRows ?? []).map((row) => mapArticle(row as Record<string, unknown>))
-      );
-      setLegacyHelp(
-        (helpRows ?? []).map((row) => ({
-          slug: String(row.slug),
-          title: String(row.title ?? ""),
-          description: row.description == null ? null : String(row.description),
-        }))
-      );
+      const [articleBody, helpBody] = await Promise.all([
+        apiFetch<{ articles: Record<string, unknown>[] }>("/api/admin/articles"),
+        apiFetch<{ pages: LegacyHelpPage[] }>("/api/admin/help-pages"),
+      ]);
+      setArticles(articleBody.articles.map((row) => mapArticle(row)));
+      setLegacyHelp(helpBody.pages);
     } catch (error) {
       console.error(error);
       await showAlert({
@@ -74,7 +59,7 @@ function AdminBlogListContent() {
     } finally {
       setLoading(false);
     }
-  }, [showAlert, supabase]);
+  }, [showAlert]);
 
   useEffect(() => {
     void load();
@@ -126,19 +111,12 @@ function AdminBlogListContent() {
       const title = section === "help" ? "คู่มือใหม่" : "บทความใหม่";
       const baseSlug = slugifyTitle(title);
       const slug = `${baseSlug}-${Date.now().toString(36)}`;
-      const { data, error } = await supabase
-        .from("articles")
-        .insert({
-          title,
-          slug,
-          section,
-          status: "draft",
-          content_json: EMPTY_DOC,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      router.push(`/admin/blog/${data.id}`);
+      const created = await apiFetch<{ article: { id: string } }>("/api/admin/articles", {
+        method: "POST",
+        json: { title, slug, section, status: "draft", content_json: EMPTY_DOC },
+      });
+      setCreating(false);
+      router.push(`/admin/blog/${created.article.id}`);
     } catch (error) {
       await showAlert({
         title: "สร้างไม่สำเร็จ",

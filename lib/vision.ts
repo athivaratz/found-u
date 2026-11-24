@@ -1,5 +1,5 @@
-import { DEFAULT_APP_SETTINGS, type ItemCategory } from "@/lib/types";
-import { resolveAiCredentials, getGeminiApiKey } from "@/lib/ai/credentials-resolver";
+import { apiFetch } from "@/lib/api-client";
+import type { ItemCategory } from "@/lib/types";
 
 export interface VisionExtractedData {
   itemName: string;
@@ -55,10 +55,6 @@ export const VISION_CATEGORY_LABELS: Record<ItemCategory, string> = {
   other: "อื่นๆ",
 };
 
-const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-
-const DEFAULT_VISION_MODEL = DEFAULT_APP_SETTINGS.aiVisionModel || "gemini-1.5-flash";
-
 const ALLOWED_CATEGORIES: ItemCategory[] = [
   "wallet",
   "phone",
@@ -70,42 +66,6 @@ const ALLOWED_CATEGORIES: ItemCategory[] = [
   "accessories",
   "other",
 ];
-
-function normalizeModelName(model: string): string {
-  return model.replace(/^models\//, "");
-}
-
-function buildGenerateContentUrl(model: string): string {
-  return `${GEMINI_API_BASE_URL}/${normalizeModelName(model)}:generateContent`;
-}
-
-function resolveVisionConfig(config?: AIVisionConfig) {
-  return {
-    model: config?.model || DEFAULT_VISION_MODEL,
-    temperature: config?.temperature ?? DEFAULT_APP_SETTINGS.aiVisionTemperature ?? 0.1,
-    topP: config?.topP ?? DEFAULT_APP_SETTINGS.aiVisionTopP ?? 0.8,
-    maxOutputTokens: config?.maxOutputTokens ?? DEFAULT_APP_SETTINGS.aiVisionMaxOutputTokens ?? 256,
-  };
-}
-
-const VISION_PROMPT = `คุณเป็น AI วิเคราะห์รูปสิ่งของ (Found Item Vision)
-
-ตอบเป็น JSON เท่านั้น ห้ามมีข้อความอื่น
-
---- Schema ---
-1. itemName (String): ชื่อสิ่งของสั้นๆ เช่น กระเป๋าสตางค์ โทรศัพท์ หูฟัง
-2. category (String): ต้องเป็นหนึ่งใน wallet, phone, keys, bag, electronics, documents, clothing, accessories, other
-3. color (String/null): สีหลักที่เห็น หรือ null
-4. brand (String/null): ยี่ห้อที่เห็น หรือ null
-5. details (String/null): รายละเอียดที่เห็น หรือ null
-6. confidence (String): "low" | "medium" | "high"
-
---- กฎ ---
-- ห้ามเดาสิ่งที่มองไม่เห็นในรูป
-- ถ้าไม่ชัด ใช้ null หรือ "other"
-
-ตัวอย่าง output:
-{"itemName":"หูฟัง","category":"electronics","color":"ดำ","brand":null,"details":"ไร้สาย","confidence":"high"}`;
 
 function normalizeVisionPayload(parsedData: Record<string, unknown>): VisionExtractedData {
   const rawCategory = String(parsedData.category || "");
@@ -139,103 +99,30 @@ export function mapVisionToFoundForm(data: VisionExtractedData) {
   };
 }
 
+// PHP owns the Gemini call. This only posts the picture.
 export async function extractVisionData(
   imageBase64: string,
   mimeType: string,
-  config?: AIVisionConfig,
+  _config?: AIVisionConfig,
   options?: { includeDebug?: boolean }
 ): Promise<VisionExtractedData | VisionExtractResult | null> {
-  const credentials = await resolveAiCredentials();
-  const geminiApiKey = getGeminiApiKey(credentials);
-  if (!geminiApiKey) {
-    console.error("Gemini API key not configured");
-    return null;
-  }
-
   try {
-    const resolvedConfig = resolveVisionConfig(config);
-    const generationConfig = {
-      temperature: resolvedConfig.temperature,
-      maxOutputTokens: resolvedConfig.maxOutputTokens,
-      topP: resolvedConfig.topP,
-      responseMimeType: "application/json",
-    };
-
-    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${geminiApiKey}`, {
+    const body = await apiFetch<{
+      data?: VisionExtractedData;
+      debug?: VisionExtractDebug;
+    }>("/api/vision", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: VISION_PROMPT },
-              {
-                inlineData: {
-                  mimeType,
-                  data: imageBase64,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", errorText);
-      return null;
-    }
-
-    const geminiResponse = await response.json();
-
-    if (
-      !geminiResponse.candidates ||
-      !geminiResponse.candidates[0] ||
-      !geminiResponse.candidates[0].content
-    ) {
-      console.error("Invalid response format from Gemini API");
-      return null;
-    }
-
-    const generatedText = geminiResponse.candidates[0].content.parts[0].text as string;
-    const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
-
-    let rawParsedJson: Record<string, unknown> | null = null;
-    let normalized: VisionExtractedData | null = null;
-
-    if (jsonMatch) {
-      try {
-        rawParsedJson = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-        normalized = normalizeVisionPayload(rawParsedJson);
-      } catch (parseError) {
-        console.error("Failed to parse vision JSON:", parseError);
-      }
-    } else {
-      console.error("No JSON found in response");
-    }
-
-    if (!normalized) {
-      return null;
-    }
-
-    if (!options?.includeDebug) {
-      return normalized;
-    }
-
-    return {
-      data: normalized,
-      debug: {
-        model: resolvedConfig.model,
-        generationConfig,
-        rawModelText: generatedText,
-        rawParsedJson,
-        geminiResponse,
+      json: {
+        imageDataUrl: `data:${mimeType};base64,${imageBase64}`,
+        testMode: Boolean(options?.includeDebug),
       },
-    };
+    });
+    const data = body.data ? normalizeVisionPayload(body.data as unknown as Record<string, unknown>) : null;
+    if (!data) return null;
+    if (!options?.includeDebug) return data;
+    return { data, debug: body.debug };
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
+    console.error("Vision request failed:", error);
     return null;
   }
 }

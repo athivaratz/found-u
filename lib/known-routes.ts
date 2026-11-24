@@ -9,8 +9,6 @@ const KNOWN_ROUTE_PREFIXES = [
   "/list",
   "/tracking",
   "/settings",
-  "/discord",
-  "/setup",
   "/banned",
   "/help",
   "/blog",

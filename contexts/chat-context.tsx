@@ -11,7 +11,8 @@ import {
   type ReactNode,
 } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import { type UIMessage } from "ai";
+import { PhpAgentChatTransport } from "@/lib/agent/php-chat-transport";
 import { useAuth } from "@/contexts/auth-context";
 import type { AgentFallbackPayload } from "@/lib/agent/fallback";
 import type { ChatSession, MemoryFact } from "@/lib/chat/types";
@@ -153,38 +154,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const { messages, sendMessage, setMessages, status, error } = useChat({
     id: activeSessionId ?? "pending",
-    transport: new DefaultChatTransport({
+    transport: new PhpAgentChatTransport({
       api: "/api/agent/chat",
-      prepareSendMessagesRequest: ({ messages: msgs, id }) => {
+      onFallback: (data) => setFallback(data),
+      prepareBody: (msgs, id) => {
         const ctx = buildAgentRequestContext(msgs, agentSettingsRef.current);
         setDroppedCount(ctx.droppedCount);
         return {
-          body: {
-            messages: msgs,
+          messages: msgs,
+          sessionId: id,
+          memoryFacts: memoryFactsRef.current,
+          clientLocation: clientLocationRef.current,
+          adminLocationBypass: adminLocationBypassRef.current,
+          contextMeta: {
             sessionId: id,
-            memoryFacts: memoryFactsRef.current,
-            clientLocation: clientLocationRef.current,
-            adminLocationBypass: adminLocationBypassRef.current,
-            contextMeta: {
-              sessionId: id,
-              totalMessages: msgs.length,
-              droppedCount: ctx.droppedCount,
-              estimatedTokens: ctx.estimatedTokens,
-            },
+            totalMessages: msgs.length,
+            droppedCount: ctx.droppedCount,
+            estimatedTokens: ctx.estimatedTokens,
           },
         };
-      },
-      fetch: async (input, init) => {
-        const res = await fetch(input, init);
-        if (!res.ok) {
-          try {
-            const data = (await res.clone().json()) as AgentFallbackPayload;
-            if (data.fallback) setFallback(data);
-          } catch {
-            // ignore
-          }
-        }
-        return res;
       },
     }),
     messages: [],

@@ -4,6 +4,7 @@ import { useRef, useEffect, KeyboardEvent } from "react";
 import { Send, Mic, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { thaiCopy } from "@/lib/copy/thai-student";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 
 type AgentComposerProps = {
   value: string;
@@ -42,6 +43,7 @@ export function AgentComposer({
 
   return (
     <div className={cn("px-4 pb-4 pt-2 max-lg:safe-bottom assistant-desktop:px-5 assistant-desktop:pb-5 w-full max-w-full min-w-0", className)}>
+      <TurnstileWidget className="mb-2" />
       <div
         className={cn(
           "flex items-end gap-2 p-2 rounded-2xl bg-bg-card min-w-0",

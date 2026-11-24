@@ -1,10 +1,8 @@
 // Enhanced Automatic matching algorithm for lost and found items
 // Uses hierarchical filtering strategy: Category → Location → Time → Item → Description
 
-import { DEFAULT_APP_SETTINGS } from './types';
 import type { LostItem, FoundItem, ItemCategory, MapZone } from './types';
 import { calculateSimilarity } from './ner';
-import { resolveAiCredentials, getGeminiApiKey } from '@/lib/ai/credentials-resolver';
 import { timestampToDate } from '@/lib/database';
 import {
   haversineKm,
@@ -504,221 +502,25 @@ export function getTopMatches(matches: MatchScore[], limit: number = 5): MatchSc
 }
 
 // ============ AI-BASED MATCHING ============
+// Pair comparison runs in PHP (/api/match with useAI). These wrappers keep
+// the old names and return the local score so nothing here calls Gemini.
 
-const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-
-interface AIGenerationConfig {
-  model?: string;
-  temperature?: number;
-  topP?: number;
-  maxOutputTokens?: number;
-}
-
-const DEFAULT_MATCH_MODEL = DEFAULT_APP_SETTINGS.aiMatchingModel || "gemini-1.5-flash";
-
-function normalizeModelName(model: string): string {
-  return model.replace(/^models\//, "");
-}
-
-function buildGenerateContentUrl(model: string): string {
-  return `${GEMINI_API_BASE_URL}/${normalizeModelName(model)}:generateContent`;
-}
-
-function resolveMatchConfig(config?: AIGenerationConfig) {
-  return {
-    model: config?.model || DEFAULT_MATCH_MODEL,
-    temperature: config?.temperature ?? DEFAULT_APP_SETTINGS.aiMatchingTemperature ?? 0.1,
-    topP: config?.topP ?? DEFAULT_APP_SETTINGS.aiMatchingTopP ?? 0.8,
-    maxOutputTokens: config?.maxOutputTokens ?? DEFAULT_APP_SETTINGS.aiMatchingMaxOutputTokens ?? 200,
-  };
-}
-
-const AI_MATCH_PROMPT = `คุณเป็น AI สำหรับจับคู่ของหายกับของที่เจอ
-
-เปรียบเทียบรายการ "ของหาย" กับ "ของเจอ" แล้วให้คะแนนความตรงกัน (0.0-1.0)
-- score >= 0.7 และ isMatch: true เมื่อมั่นใจว่าน่าจะเป็นคู่กัน
-- ห้ามเดาข้อมูลที่ไม่มีในรายการ
-
-ของหาย:
-- ชื่อ: {lostItem}
-- รายละเอียด: {lostDesc}
-- สถานที่หาย: {lostLocation}
-
-ของเจอ:
-- รายละเอียด: {foundDesc}
-- สถานที่เจอ: {foundLocation}
-
-ตอบเป็น JSON เท่านั้น:
-{
-  "score": 0.0-1.0,
-  "reasons": ["เหตุผล1", "เหตุผล2"],
-  "isMatch": true/false
-}
-
-ตัวอย่าง: หูฟังซัมซุงหายหน้าห้องสมุด vs เจอหูฟังสีดำหน้าห้องสมุด → score 0.85, isMatch: true`;
-
-interface AIMatchResult {
-  score: number;
-  reasons: string[];
-  isMatch: boolean;
-}
-
-/**
- * Use AI to compare a lost item with a found item
- */
-async function aiCompareItems(
-  lostItem: LostItem,
-  foundItem: FoundItem,
-  config?: AIGenerationConfig
-): Promise<AIMatchResult | null> {
-  const credentials = await resolveAiCredentials();
-  const geminiApiKey = getGeminiApiKey(credentials);
-  if (!geminiApiKey) {
-    console.error("Gemini API key not found for AI matching");
-    return null;
-  }
-
-  const prompt = AI_MATCH_PROMPT
-    .replace('{lostItem}', lostItem.itemName)
-    .replace('{lostDesc}', lostItem.description || 'ไม่มี')
-    .replace('{lostLocation}', lostItem.locationLost)
-    .replace('{foundDesc}', foundItem.description)
-    .replace('{foundLocation}', foundItem.locationFound);
-
-  try {
-    const resolvedConfig = resolveMatchConfig(config);
-    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${geminiApiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: resolvedConfig.temperature,
-          maxOutputTokens: resolvedConfig.maxOutputTokens,
-          topP: resolvedConfig.topP,
-          responseMimeType: "application/json",
-        },
-      }),
-    });
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    if (!data.candidates?.[0]?.content?.parts?.[0]?.text) return null;
-
-    const generatedText = data.candidates[0].content.parts[0].text;
-    const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      score: Math.min(1, Math.max(0, parsed.score || 0)),
-      reasons: parsed.reasons || [],
-      isMatch: parsed.isMatch === true,
-    };
-  } catch (error) {
-    console.error("Error in AI matching:", error);
-    return null;
-  }
-}
-
-/**
- * Run async work over items with a fixed concurrency limit.
- */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T) => Promise<R>
-): Promise<R[]> {
-  if (items.length === 0) return [];
-  const limit = Math.max(1, concurrency);
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const current = nextIndex++;
-      results[current] = await mapper(items[current]);
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
-  await Promise.all(workers);
-  return results;
-}
-
-/**
- * Find matches using AI for a lost item (limited to top candidates to save API calls)
- */
 export async function findMatchesForLostItemAI(
   lostItem: LostItem,
   foundItems: FoundItem[],
   maxCandidates: number = 5,
-  config?: AIGenerationConfig,
+  _config?: { model?: string },
   ctx?: MatchContext
 ): Promise<MatchScore[]> {
-  const traditionalMatches = findMatchesForLostItem(lostItem, foundItems, ctx);
-  const topCandidates = traditionalMatches.slice(0, maxCandidates);
-
-  const evaluated = await mapWithConcurrency(
-    topCandidates,
-    AI_MATCH_CONCURRENCY,
-    async (candidate) => {
-      const aiResult = await aiCompareItems(lostItem, candidate.foundItem, config);
-      if (!aiResult || !aiResult.isMatch) return null;
-      return {
-        lostItem,
-        foundItem: candidate.foundItem,
-        score: aiResult.score,
-        reasons: aiResult.reasons.length > 0 ? aiResult.reasons : candidate.reasons,
-        confidence: (aiResult.score >= 0.7
-          ? "high"
-          : aiResult.score >= 0.5
-            ? "medium"
-            : "low") as MatchScore["confidence"],
-      } satisfies MatchScore;
-    }
-  );
-
-  return evaluated
-    .filter((m): m is MatchScore => m !== null)
-    .sort((a, b) => b.score - a.score);
+  return findMatchesForLostItem(lostItem, foundItems, ctx).slice(0, maxCandidates);
 }
 
-/**
- * Find matches using AI for a found item (limited to top candidates to save API calls)
- */
 export async function findMatchesForFoundItemAI(
   foundItem: FoundItem,
   lostItems: LostItem[],
   maxCandidates: number = 5,
-  config?: AIGenerationConfig,
+  _config?: { model?: string },
   ctx?: MatchContext
 ): Promise<MatchScore[]> {
-  const traditionalMatches = findMatchesForFoundItem(foundItem, lostItems, ctx);
-  const topCandidates = traditionalMatches.slice(0, maxCandidates);
-
-  const evaluated = await mapWithConcurrency(
-    topCandidates,
-    AI_MATCH_CONCURRENCY,
-    async (candidate) => {
-      const aiResult = await aiCompareItems(candidate.lostItem, foundItem, config);
-      if (!aiResult || !aiResult.isMatch) return null;
-      return {
-        lostItem: candidate.lostItem,
-        foundItem,
-        score: aiResult.score,
-        reasons: aiResult.reasons.length > 0 ? aiResult.reasons : candidate.reasons,
-        confidence: (aiResult.score >= 0.7
-          ? "high"
-          : aiResult.score >= 0.5
-            ? "medium"
-            : "low") as MatchScore["confidence"],
-      } satisfies MatchScore;
-    }
-  );
-
-  return evaluated
-    .filter((m): m is MatchScore => m !== null)
-    .sort((a, b) => b.score - a.score);
+  return findMatchesForFoundItem(foundItem, lostItems, ctx).slice(0, maxCandidates);
 }

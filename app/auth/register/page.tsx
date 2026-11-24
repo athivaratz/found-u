@@ -37,6 +37,7 @@ import { StatusAlert } from "@/components/ui/status-alert";
 import { fieldErrorId, fieldId, recordToIssues } from "@/lib/feedback/types";
 import { cn } from "@/lib/utils";
 import { AuthLoadingScreen } from "@/components/auth/auth-loading-screen";
+import { TurnstileWidget } from "@/components/security/turnstile-widget";
 
 const STEPS = [
   { id: "student-id", label: AUTH_COPY.registerStepStudentId },
@@ -180,6 +181,7 @@ function RegisterPageContent() {
         />
 
         <FormStepper steps={[...STEPS]} currentStep={step} tone="quiet" className="mb-5" />
+        <TurnstileWidget className="mb-4" />
 
         <div className={authFormStackClass}>
           {step === 0 ? (

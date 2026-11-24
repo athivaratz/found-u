@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { segmentAfter } from "@/lib/dynamic-segment";
 import {
   ArrowLeft,
   ExternalLink,
@@ -12,7 +13,8 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { ApiError, apiFetch } from "@/lib/api-client";
+import { uploadEditorImage } from "@/lib/storage";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppDialog } from "@/hooks/use-app-dialog";
 import { ArticleEditor } from "@/components/blog/article-editor";
@@ -28,13 +30,11 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function AdminBlogEditorPage() {
-  const params = useParams();
-  const id = String(params.id ?? "");
+  const pathname = usePathname();
+  const id = segmentAfter(pathname, "/admin/blog");
   const router = useRouter();
   const { user } = useAuth();
   const { showAlert, showConfirm, dialog } = useAppDialog();
-  const supabase = useMemo(() => createClient(), []);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -54,17 +54,10 @@ export default function AdminBlogEditorPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("articles")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) {
-        setArticle(null);
-        return;
-      }
-      const mapped = mapArticle(data as Record<string, unknown>);
+      const body = await apiFetch<{ article: Record<string, unknown> }>(
+        `/api/admin/articles/${encodeURIComponent(id)}`
+      );
+      const mapped = mapArticle(body.article);
       setArticle(mapped);
       setTitle(mapped.title);
       setSlug(mapped.slug);
@@ -77,6 +70,10 @@ export default function AdminBlogEditorPage() {
       setContentJson(mapped.content_json);
       setEditorKey((k) => k + 1);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        setArticle(null);
+        return;
+      }
       console.error(error);
       await showAlert({
         title: "โหลดไม่สำเร็จ",
@@ -87,32 +84,17 @@ export default function AdminBlogEditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, showAlert, supabase]);
+  }, [id, showAlert]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const getToken = useCallback(async () => {
-    if (!user) throw new Error("Not authenticated");
-    return user.getIdToken();
-  }, [user]);
-
   const uploadImage = async (file: File): Promise<string | null> => {
+    if (!user) return null;
     setUploading(true);
     try {
-      const token = await getToken();
-      const formData = new FormData();
-      formData.set("file", file);
-      formData.set("folder", id || "general");
-      const res = await fetch("/api/admin/blog/upload", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "อัปโหลดไม่สำเร็จ");
-      return String(data.publicUrl);
+      return await uploadEditorImage(file, "blog");
     } catch (error) {
       await showAlert({
         title: "อัปโหลดไม่สำเร็จ",
@@ -152,11 +134,10 @@ export default function AdminBlogEditorPage() {
             : null,
         updated_at: new Date().toISOString(),
       };
-      const { error } = await supabase
-        .from("articles")
-        .update(payload)
-        .eq("id", id);
-      if (error) throw error;
+      await apiFetch(`/api/admin/articles/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        json: payload,
+      });
       setStatus(resolvedStatus);
       setSlug(payload.slug);
       await showAlert({
@@ -190,11 +171,12 @@ export default function AdminBlogEditorPage() {
       variant: "warning",
     });
     if (!ok) return;
-    const { error } = await supabase.from("articles").delete().eq("id", id);
-    if (error) {
+    try {
+      await apiFetch(`/api/admin/articles/${encodeURIComponent(id)}`, { method: "DELETE" });
+    } catch (error) {
       await showAlert({
         title: "ลบไม่สำเร็จ",
-        message: error.message,
+        message: error instanceof Error ? error.message : "เกิดข้อผิดพลาด",
         variant: "error",
       });
       return;

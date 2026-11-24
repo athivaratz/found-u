@@ -1,10 +1,7 @@
-import { DEFAULT_APP_SETTINGS } from "./types";
+import { apiFetch } from "@/lib/api-client";
 import { extractNERFallback } from "./ner-fallback";
-import { NER_NO_INVENT_RULE } from "@/lib/agent/ner-field-hints";
-import { resolveAiCredentials, getGeminiApiKey } from "@/lib/ai/credentials-resolver";
 
-// NER Service using Gemini models for extracting structured data from text
-// Optimized for speed: ~2-3 seconds response
+// NER goes through PHP. The rule-based fallback stays for a failed request.
 
 export interface NERExtractedData {
   item: string;
@@ -25,169 +22,18 @@ export interface AIGenerationConfig {
   maxOutputTokens?: number;
 }
 
-// Use Gemini models for faster response
-const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-
-const DEFAULT_NER_MODEL = DEFAULT_APP_SETTINGS.aiNerModel || "gemini-1.5-flash";
-
-function normalizeModelName(model: string): string {
-  return model.replace(/^models\//, "");
-}
-
-function buildGenerateContentUrl(model: string): string {
-  return `${GEMINI_API_BASE_URL}/${normalizeModelName(model)}:generateContent`;
-}
-
-function resolveNerConfig(config?: AIGenerationConfig) {
-  return {
-    model: config?.model || DEFAULT_NER_MODEL,
-    temperature: config?.temperature ?? DEFAULT_APP_SETTINGS.aiNerTemperature ?? 0.1,
-    topP: config?.topP ?? DEFAULT_APP_SETTINGS.aiNerTopP ?? 0.8,
-    maxOutputTokens: config?.maxOutputTokens ?? DEFAULT_APP_SETTINGS.aiNerMaxOutputTokens ?? 256,
-  };
-}
-
-// Detailed prompt for school/organization lost & found system
-const NER_PROMPT = `คุณคือ AI สำหรับระบบ Lost & Found หน้าที่คือสกัดข้อมูลเป็น JSON ตามกฎอย่างเคร่งครัด
-
---- Rules & Schema ---
-1. item (String): ชื่อสิ่งของ (กระชับ)
-2. description (String/null): รายละเอียด, สี, ยี่ห้อ, จุดเด่น (ถ้าไม่มีใส่ null)
-3. location (String/null): สถานที่ที่ "ทำหาย" หรือ "เจอล่าสุด" (จุดเกิดเหตุ)
-4. time (String/null): เวลาที่เกิดเหตุ
-5. contact (String/null): **เฉพาะช่องทางติดต่อสื่อสารส่วนบุคคลเท่านั้น** - ต้องเป็น: เบอร์โทร, Line ID, IG, Facebook, Email
-   - ห้ามใส่: สถานที่ (เช่น "ห้องปกครอง", "โต๊ะครู"), หรือคำลอยๆ (เช่น "ทักแชท") -> ให้ไปใส่ใน remark หรือ null
-6. contactType (String/null): ประเภทช่องทางติดต่อ - **ต้องเป็นค่าใดค่าหนึ่ง**: "phone", "line", "instagram", "facebook", "email"
-   - เบอร์โทร/ตัวเลข 10 หลัก = "phone"
-   - Line, ไลน์, @xxx = "line"
-   - IG, Instagram, Insta = "instagram"
-   - FB, Facebook, เฟสบุ๊ค = "facebook"
-   - email, อีเมล, @xxx.com = "email"
-   - ถ้าไม่ชัดเจนหรือไม่มี = null
-7. category (String/null): ประเภทของที่หาย - **ต้องเป็นค่าใดค่าหนึ่ง**: "wallet", "phone", "keys", "bag", "electronics", "documents", "clothing", "accessories", "other"
-   - กระเป๋าสตางค์, ตังค์, wallet = "wallet"
-   - โทรศัพท์, มือถือ, iPhone, Samsung, phone = "phone"
-   - กุญแจ, key, พวงกุญแจ = "keys"
-   - กระเป๋า, เป้, bag = "bag"
-   - iPad, แท็บเล็ต, laptop, นาฬิกาสมาร์ท, หูฟัง, AirPods = "electronics"
-   - บัตรนักเรียน, บัตรประชาชน, เอกสาร = "documents"
-   - เสื้อ, กางเกง, หมวก, ชุดพละ = "clothing"
-   - แหวน, สร้อย, ต่างหู, นาฬิกา(ธรรมดา) = "accessories"
-   - อื่นๆ ที่ไม่เข้าหมวดใด = "other"
-8. remark (String/null): ข้อมูลเพิ่มเติมอื่นๆ หรือ **"สถานที่นัดรับ/ฝากของ"**
-   - ตัวอย่าง: "เอามาฝากไว้ห้องปกครองรี1/11", "มีรางวัลให้คนเจอ", "ด่วนมาก"
-9. target (String): "lost" หรือ "found"
-
-${NER_NO_INVENT_RULE}
-
---- Examples ---
-Input: "ตามหาพวงกุญแจซันซู หายตอนวันสอบธรรมะ น่าจะแถวสนามกีฬากับสหกรณ์ ใครเจอเอามาฝากห้องปกครองรี1/11(3604)หน่อย"
-Output: {"item":"พวงกุญแจ","description":"ลายซันซู","location":"สนามกีฬากับสหกรณ์","time":"วันสอบธรรมะ","contact":null,"contactType":null,"category":"keys","remark":"ฝากไว้ที่ห้องปกครองรี1/11 (3604)","target":"lost"}
-
-Input: "เจอบัตรนักเรียนตกอยู่หน้าโรงอาหาร ติดต่อรับคืนที่ Line: somchai99 หรือโทร 081-234-5678"
-Output: {"item":"บัตรนักเรียน","description":null,"location":"หน้าโรงอาหาร","time":null,"contact":"somchai99, 081-234-5678","contactType":"line","category":"documents","remark":null,"target":"found"}
-
-Input: "ลืมกระเป๋าตังสีดำ มีเงิน 500 ใครเจอทักแชทมาหน่อย หรือเอาไปไว้ป้อมยามก็ได้"
-Output: {"item":"กระเป๋าสตางค์","description":"สีดำ, มีเงิน 500 บาท","location":null,"time":null,"contact":null,"contactType":null,"category":"wallet","remark":"ให้ทักแชท หรือนำไปฝากที่ป้อมยาม","target":"lost"}
-
-Input: "หูฟังสีดำ หายที่ใต้ตึก3 ติดต่อ IG: athivaratz, 0661234567 ฝากไว้ที่ห้องธุรการ"
-Output: {"item":"หูฟัง","description":"สีดำ","location":"ใต้ตึก3","time":null,"contact":"athivaratz, 0661234567","contactType":"instagram","category":"electronics","remark":"ฝากไว้ที่ห้องธุรการ","target":"lost"}
-
----
-Input Text: "{text}"
-JSON Output:`;
-
-function parseJsonFromModelText(raw: string): Record<string, unknown> | null {
-  const trimmed = raw.trim();
-  // Strip markdown code fences
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1].trim() : trimmed;
-
-  const jsonMatch = candidate.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return null;
-
-  try {
-    return JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeExtractedData(
-  parsedData: Record<string, unknown>,
-  type: "lost" | "found"
-): NERExtractedData {
-  return {
-    item: String(parsedData.item || ""),
-    description: (parsedData.description as string | null) ?? null,
-    location: (parsedData.location as string | null) ?? null,
-    time: (parsedData.time as string | null) ?? null,
-    contact: (parsedData.contact as string | null) ?? null,
-    contactType: (parsedData.contactType as NERExtractedData["contactType"]) ?? null,
-    category: (parsedData.category as NERExtractedData["category"]) ?? null,
-    remark: (parsedData.remark as string | null) ?? null,
-    target: (parsedData.target as "lost" | "found") || type,
-  };
-}
-
 export async function extractNERData(
   text: string,
   type: "lost" | "found",
-  config?: AIGenerationConfig
+  _config?: AIGenerationConfig
 ): Promise<NERExtractedData | null> {
-  const credentials = await resolveAiCredentials();
-  const geminiApiKey = getGeminiApiKey(credentials);
-  if (!geminiApiKey) {
-    console.error("Gemini API key not found — using rule-based NER fallback");
-    return extractNERFallback(text, type);
-  }
-
   try {
-    const resolvedConfig = resolveNerConfig(config);
-    const response = await fetch(`${buildGenerateContentUrl(resolvedConfig.model)}?key=${geminiApiKey}`, {
+    return await apiFetch<NERExtractedData>("/api/ner", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: NER_PROMPT.replace("{text}", text) }] }],
-        generationConfig: {
-          temperature: resolvedConfig.temperature,
-          maxOutputTokens: resolvedConfig.maxOutputTokens,
-          topP: resolvedConfig.topP,
-          responseMimeType: "application/json",
-        },
-      }),
+      json: { text, type },
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", errorText);
-      return extractNERFallback(text, type);
-    }
-
-    const data = await response.json();
-
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      console.error("Invalid response format from Gemini API");
-      return extractNERFallback(text, type);
-    }
-
-    const generatedText = data.candidates[0].content.parts[0].text;
-
-    const parsedData = parseJsonFromModelText(generatedText);
-    if (!parsedData) {
-      console.error("No JSON found in response, using rule-based fallback");
-      return extractNERFallback(text, type);
-    }
-
-    const result = normalizeExtractedData(parsedData, type);
-    if (!result.item) {
-      const fallback = extractNERFallback(text, type);
-      return { ...fallback, ...result, item: fallback.item };
-    }
-
-    return result;
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
+    console.error("NER request failed:", error);
     return extractNERFallback(text, type);
   }
 }
